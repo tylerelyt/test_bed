@@ -1,150 +1,80 @@
-# 知识图谱功能使用指南
+# 🕸️ Guide: Knowledge Graph (KG) System
 
-## 概述
+## 1. Overview
 
-知识图谱功能基于LLM的NER技术，从文档中提取实体和关系，构建知识图谱，并提供基于图谱的智能检索。
+The Knowledge Graph (KG) system uses a Large Language Model (LLM) to perform Named Entity Recognition (NER) on your documents. It extracts entities (like people, places, and concepts) and the relationships between them, building a graph-based index of your content. This allows you to explore the connections within your document set.
 
-## 功能特点
+## 2. Core Features
 
-### 🧠 基于LLM的NER
-- 使用Ollama本地大语言模型进行命名实体识别
-- 支持多种实体类型：人物、地点、组织、概念、技术、产品、事件
-- 支持多种关系类型：属于、位于、开发、使用、相关、影响
+### 🧠 LLM-Based Named Entity Recognition (NER)
+- **Engine**: Uses an Ollama-hosted LLM (or a compatible OpenAI API) to identify entities and relationships. The default model is configurable in `src/search_engine/config.py`.
+- **Entity Types**: Can identify types such as Person, Location, Organization, Concept, Technology, Product, and Event.
+- **Relation Types**: Can identify relationships like `belongs_to`, `located_in`, `develops`, `uses`, `related_to`, and `influences`.
 
-### 🕸️ 知识图谱构建
-- 使用NetworkX构建有向多重图
-- 支持实体和关系的存储、查询和可视化
-- 自动去重和合并相似实体
+### 🕸️ Graph Construction
+- **Backend**: Uses the `networkx` library to build a directed multi-graph, allowing multiple distinct relationships between the same two entities.
+- **Functionality**: The system stores entities and their relationships, automatically deduplicates them, and links them back to the source documents.
 
-### 🔍 智能检索
-- **纯图谱检索**: 基于实体匹配和图距离的检索
-- **混合检索**: 结合传统TF-IDF和知识图谱的检索
-- **实体扩展**: 通过相关实体扩展检索结果
+### 🔍 Entity Exploration
+- **Entity Search**: Find specific entities within the graph by name.
+- **Relation Viewing**: Once an entity is found, you can view all its incoming and outgoing relationships, showing how it connects to other entities.
+- **Source Document Linking**: See which documents an entity was extracted from.
 
-## 使用流程
+## 3. How to Use
 
-### 1. 构建知识图谱
+The entire workflow is managed from the **"Index & KG"** tab.
 
-1. 进入 **"🏗️ 第一部分：离线索引构建"** 标签页
-2. 选择 **"🕸️ 知识图谱"** 子标签页
-3. 选择NER模型（推荐llama3.1:8b）
-4. 点击 **"🔨 构建知识图谱"** 按钮
-5. 等待构建完成（需要一定时间）
+### Step 1: Build the Knowledge Graph
+1.  Navigate to the **"Index & KG"** tab in the main UI.
+2.  Go to the **"🕸️ Knowledge Graph Management"** sub-tab.
+3.  **Select a Model**: Choose an appropriate NER model from the dropdown. Larger models are more accurate but slower.
+4.  **Build Graph**: Click the **"🔨 Build Knowledge Graph"** button. This process can be time-consuming, as it involves sending document content to the LLM for analysis. Monitor the progress in the console.
+5.  **Confirmation**: A status message will appear when the build is complete.
 
-### 2. 查看图谱统计
-- 点击 **"📊 刷新统计"** 查看：
-  - 实体数量
-  - 关系数量
-  - 实体类型分布
-  - 关系类型分布
+### Step 2: View Graph Statistics
+- After building, click the **"📊 Refresh Stats"** button to see:
+    - Total number of entities and relations.
+    - A breakdown of entities and relations by type.
 
-### 3. 实体搜索
-- 在实体搜索框中输入关键词
-- 查看匹配的实体列表
-- 包含实体名称、类型、描述、文档数量等信息
+### Step 3: Search for Entities
+1.  Enter a keyword in the **"Search for an entity..."** text box.
+2.  Click **"🔍 Search Entities"**.
+3.  A table will appear showing matching entities, their type, description, and how many documents they appear in.
 
-### 4. 图谱检索测试
-- 输入查询语句
-- 选择检索模式：
-  - **knowledge_graph**: 纯知识图谱检索
-  - **hybrid**: 混合检索（推荐）
-- 查看检索结果和检索原因
+### Step 4: Explore Entity Details
+1.  After searching, enter the exact name of an entity from the search results into the **"Enter exact entity name to see details..."** text box.
+2.  Click **"📄 Get Entity Details"**.
+3.  The UI will display detailed information about that entity, including:
+    - **Outgoing Relations**: What this entity *does to* other entities.
+    - **Incoming Relations**: What other entities *do to* this one.
+    - **Related Documents**: A list of document IDs where this entity was found.
 
-### 5. 使用RAG系统
-- 进入 **"🤖 第三部分：RAG问答系统"** 标签页
-- 构建知识图谱后，RAG系统会自动使用图谱信息
-- 提供更准确的问答结果
+## 4. Technical Implementation
 
-## 技术实现
+### NER Process
+1.  **Chunking**: Long documents are automatically split into smaller chunks to fit the LLM's context window.
+2.  **LLM Extraction**: A detailed prompt instructs the LLM to identify entities and relations and return them in a structured JSON format.
+3.  **JSON Parsing**: The system parses the LLM's JSON output.
+4.  **Deduplication**: Results from all chunks are aggregated, and duplicate entities and relations are merged.
 
-### NER流程
-1. **文档分段**: 长文档自动分段处理
-2. **LLM提取**: 使用Ollama进行实体关系提取
-3. **JSON解析**: 解析LLM返回的结构化数据
-4. **去重合并**: 自动去重和合并相似实体
+### Graph Storage
+- The graph is built as a `networkx.MultiDiGraph` object.
+- **Nodes**: Represent entities, with attributes like `entity_type` and `description`.
+- **Edges**: Represent relationships, with attributes like `predicate`.
+- The entire graph object is serialized and saved to `models/knowledge_graph.pkl` using Python's `pickle` module.
 
-### 图谱构建
-```python
-# 实体存储
-graph.add_node(entity_name, 
-              entity_type=type,
-              description=desc,
-              doc_count=count)
+## 5. Important Notes & Troubleshooting
 
-# 关系存储
-graph.add_edge(subject, object,
-              predicate=relation_type,
-              description=desc)
-```
+### Model Selection
+- **`llama3.1:8b`**: A good balance of performance and accuracy.
+- **`qwen2.5:7b`**: Optimized for Chinese language tasks.
+- Smaller models will be faster but may produce less accurate or less structured NER results.
 
-### 检索算法
-1. **实体匹配**: 查找查询中的相关实体
-2. **图遍历**: 基于图距离查找相关实体
-3. **文档聚合**: 收集相关实体的文档
-4. **分数计算**: 基于实体匹配度和图距离计算分数
+### Performance
+- Building the KG is a CPU and/or GPU-intensive task that can take a long time, depending on the number of documents and the LLM's speed.
+- It is recommended to run this on a powerful machine and to test with a small subset of documents first.
 
-## 高级功能
-
-### 混合检索
-- 结合传统TF-IDF和知识图谱检索
-- 可调整权重平衡两种检索方式
-- 提供更全面的检索结果
-
-### 实体关系分析
-- 查看实体的出入关系
-- 分析实体间的连接路径
-- 支持多跳关系查询
-
-### 图谱导出
-- 支持JSON格式导出
-- 包含完整的实体和关系信息
-- 便于数据分析和可视化
-
-## 使用建议
-
-### 模型选择
-- **llama3.1:8b**: 平衡性能和效果，推荐使用
-- **qwen2.5:7b**: 中文优化，适合中文文档
-- **llama3.2:1b**: 速度快，适合快速测试
-
-### 性能优化
-- 图谱构建是CPU密集型任务，建议在性能较好的机器上运行
-- 大量文档建议分批处理
-- 定期保存图谱避免重复构建
-
-### 质量提升
-- 确保文档质量，避免过多噪声
-- 定期检查和清理图谱
-- 根据需要调整NER提示词
-
-## 故障排除
-
-### 常见问题
-1. **构建失败**: 检查Ollama服务状态
-2. **实体提取不准确**: 尝试更换模型或调整提示词
-3. **检索结果为空**: 确认图谱已构建且包含相关实体
-
-### 性能问题
-- 构建时间过长：使用更小的模型或减少文档数量
-- 检索响应慢：优化图谱结构或增加缓存
-
-## 扩展功能
-
-### 自定义实体类型
-- 可以修改NER提示词支持特定领域的实体类型
-- 支持自定义关系类型
-
-### 图谱可视化
-- 提供可视化数据接口
-- 支持第三方图谱可视化工具
-
-### 实时更新
-- 支持增量更新图谱
-- 新增文档自动提取实体关系
-
-## 注意事项
-
-1. 知识图谱构建需要较长时间，请耐心等待
-2. 图谱质量依赖于文档质量和NER模型性能
-3. 建议先在小规模数据上测试，确认效果后再大规模使用
-4. 定期备份图谱数据，避免意外丢失 
+### Common Issues
+1.  **Build Fails**: Check that the Ollama service is running and the selected model is available. Look for detailed error messages in the console.
+2.  **Inaccurate Extraction**: The quality of the KG depends heavily on the LLM's ability to follow instructions and perform NER. If results are poor, try a different, more powerful model.
+3.  **No Search Results**: Ensure the graph has been successfully built and contains the entities you are searching for. 

@@ -1,176 +1,148 @@
-# 🖼️ 图片检索系统使用指南
+# 🖼️ Guide: Image Search System
 
-## 概述
+## 1. Overview
 
-本系统基于OpenAI的CLIP模型实现了强大的图片检索功能，支持：
-- 📤 **图片上传和索引**：将图片存储到系统中并生成语义嵌入
-- 🔍 **图搜图**：使用图片查找相似图片
-- 💬 **文搜图**：使用文本描述搜索匹配的图片
-- 📋 **图片管理**：查看、删除和管理图片库
+This system provides powerful image retrieval capabilities based on OpenAI's CLIP model, supporting:
+- 📤 **Image Upload & Indexing**: Store images in the system and generate semantic embeddings.
+- 🔍 **Image-to-Image Search**: Find visually similar images using a query image.
+- 💬 **Text-to-Image Search**: Search for matching images using a natural language description.
+- 📋 **Image Management**: View, delete, and manage the image library.
 
-## 技术架构
+## 2. Technical Architecture
 
-### 核心组件
-- **ImageService**: 图片索引和检索服务
-- **CLIP模型**: 使用Hugging Face的`openai/clip-vit-base-patch32`模型
-- **向量存储**: 使用NumPy数组存储图片和文本的高维嵌入向量
-- **相似度计算**: 基于余弦相似度进行图片匹配
+### Core Components
+- **`ImageService`**: The backend service for image indexing and retrieval.
+- **CLIP Model**: Uses `openai/clip-vit-base-patch32` from Hugging Face.
+- **Vector Storage**: Employs NumPy arrays to store high-dimensional embedding vectors for images.
+- **Similarity Metric**: Uses Cosine Similarity for image matching.
 
-### 数据流程
-1. **图片上传** → **CLIP编码** → **向量存储** → **索引保存**
-2. **查询输入** → **CLIP编码** → **相似度计算** → **结果排序** → **返回匹配项**
+### Data Flow
+1.  **Upload**: Image Upload → CLIP Encoding → Vector Storage → Index Saved
+2.  **Search**: Query (Image/Text) → CLIP Encoding → Similarity Calculation → Results Ranking → Matched Items Returned
 
-## 功能详解
+## 3. Feature Details
 
-### 1. 图片上传 📤
+### 1. 📤 Image Upload
 
-**位置**: 第四部分：图片检索系统 → 图片上传标签页
+**Location**: `🖼️ Image Search System` → `📤 Image Upload` Tab
 
-**功能**:
-- 支持常见图片格式（JPG, PNG, GIF, BMP等）
-- 自动生成图片唯一ID（基于MD5哈希）
-- 可添加图片描述和标签
-- 实时预览上传的图片
+**Functionality**:
+- Supports common image formats (JPG, PNG, GIF, BMP, etc.).
+- Automatically generates a unique ID for each image based on its MD5 hash.
+- Allows adding a description and comma-separated tags.
+- Provides a real-time preview of the uploaded image.
 
-**操作步骤**:
-1. 点击"选择图片文件"上传图片
-2. 在"图片描述"框中输入描述信息（可选）
-3. 在"图片标签"框中输入标签，用逗号分隔（可选）
-4. 点击"📤 上传图片"完成上传
+**How to Use**:
+1.  Click **"Select Image File"** to upload an image.
+2.  Enter a description in the **"Image Description"** box (optional).
+3.  Enter tags, separated by commas, in the **"Image Tags"** box (optional).
+4.  Click **"📤 Upload Image"** to complete the process.
 
-### 2. 图搜图 🔍
+### 2. 🔍 Image-to-Image Search
 
-**位置**: 第四部分：图片检索系统 → 图搜图标签页
+**Location**: `🖼️ Image Search System` → `🔍 Image-to-Image` Tab
 
-**功能**:
-- 上传查询图片，找到视觉上相似的图片
-- 可调节返回结果数量（1-20张）
-- 显示相似度分数和图片信息
-- 提供图片画廊视图
+**Functionality**:
+- Upload a query image to find visually similar ones.
+- Adjust the number of results to return (1-20).
+- Displays similarity scores and image metadata.
+- Provides a gallery view for quick visual inspection.
 
-**操作步骤**:
-1. 点击"选择查询图片"上传要搜索的图片
-2. 设置"返回结果数量"滑块
-3. 点击"🔍 图搜图"开始搜索
-4. 查看搜索结果表格和图片画廊
+**How to Use**:
+1.  Click **"Select Query Image"** to upload the image you want to search with.
+2.  Adjust the **"Number of results"** slider.
+3.  Click **"🔍 Search by Image"**.
+4.  View the results in the table and the image gallery below.
 
-### 3. 文搜图 💬
+### 3. 💬 Text-to-Image Search
 
-**位置**: 第四部分：图片检索系统 → 文搜图标签页
+**Location**: `🖼️ Image Search System` → `💬 Text-to-Image` Tab
 
-**功能**:
-- 输入文本描述，找到语义匹配的图片
-- 支持中英文搜索
-- 基于CLIP的跨模态理解能力
-- 显示匹配度分数
+**Functionality**:
+- Enter a text description to find semantically matching images.
+- Supports both English and Chinese queries.
+- Leverages CLIP's cross-modal understanding.
+- Displays a relevance score for each result.
 
-**操作步骤**:
-1. 在"搜索文本"框中输入描述性文本
-2. 设置"返回结果数量"滑块
-3. 点击"💬 文搜图"开始搜索
-4. 查看搜索结果表格和图片画廊
+**How to Use**:
+1.  Enter a descriptive query in the **"Search Text"** box.
+2.  Adjust the **"Number of results"** slider.
+3.  Click **"💬 Search by Text"**.
+4.  View the results in the table and image gallery.
 
-**搜索示例**:
-- `一只橙色的猫在睡觉`
-- `red car in the street`
+**Example Queries**:
+- `An orange cat sleeping on a bed`
+- `a red car in the street`
 - `beautiful sunset landscape`
-- `人在跑步`
+- `a person running` (Chinese `人在跑步` also works)
 
-### 4. 图片管理 📋
+### 4. 📋 Image Management
 
-**位置**: 第四部分：图片检索系统 → 图片管理标签页
+**Location**: `🖼️ Image Search System` → `📋 Image Management` Tab
 
-**功能**:
-- 查看图片库统计信息
-- 浏览所有图片列表
-- 删除单张图片
-- 清空整个图片库
+**Functionality**:
+- View statistics for the entire image library.
+- Browse a list of all indexed images.
+- Delete individual images.
+- Clear the entire image library.
 
-**操作功能**:
-- **📊 刷新统计**: 查看图片总数、存储大小、格式分布等
-- **🔄 刷新列表**: 更新图片列表显示
-- **🗑️ 删除选中图片**: 删除在列表中选中的图片
-- **🗑️ 清空所有图片**: 删除整个图片库（慎用）
+**Operations**:
+- **📊 Refresh Stats**: View total image count, storage size, format distribution, etc.
+- **🔄 Refresh List**: Update the list of all images.
+- **🗑️ Delete Selected Image**: Deletes the image currently selected in the list.
+- **🗑️ Clear All Images**: Permanently deletes the entire image library (use with caution).
 
-## 性能特性
+## 4. Performance & Technical Specs
 
-### 模型规格
-- **模型**: OpenAI CLIP ViT-B/32
-- **嵌入维度**: 512维向量
-- **支持设备**: CPU/GPU自动检测
-- **图片分辨率**: 自动缩放到224x224
+### Model Specifications
+- **Model**: OpenAI CLIP ViT-B/32
+- **Embedding Dimension**: 512-dimensional vectors
+- **Device Support**: Auto-detects and uses GPU if available, otherwise CPU.
+- **Image Resolution**: Automatically resized to 224x224 for processing.
 
-### 存储结构
+### Storage Structure
 ```
 models/images/
-├── image_index.json      # 图片元数据索引
-├── image_embeddings.npy  # 图片嵌入向量矩阵
-└── [image_id].[ext]      # 存储的图片文件
+├── image_index.json      # Metadata index for images
+├── image_embeddings.npy  # Matrix of image embedding vectors
+└── [image_id].[ext]      # Stored image file
 ```
 
-### 性能指标
-- **编码速度**: 约1-3秒/图片（CPU）
-- **搜索速度**: 毫秒级响应
-- **存储效率**: 每张图片约2KB嵌入数据
-- **相似度精度**: 基于余弦相似度，范围0-1
+### Performance Metrics
+- **Encoding Speed**: Approx. 1-3 seconds per image (on CPU).
+- **Search Speed**: Millisecond-level response time.
+- **Storage Efficiency**: Approx. 2 KB per image for the embedding data.
+- **Similarity Precision**: Based on Cosine Similarity, score ranges from 0 to 1.
 
-## 使用建议
+## 5. Best Practices & Tips
 
-### 最佳实践
-1. **图片质量**: 使用清晰、高质量的图片获得更好的检索效果
-2. **描述准确**: 添加准确的描述和标签有助于后续管理
-3. **分类标签**: 使用一致的标签体系便于分类管理
-4. **定期备份**: 定期备份`models/images/`目录
+### Best Practices
+1.  **Image Quality**: Use clear, high-quality images for better search results.
+2.  **Accurate Descriptions**: Add precise descriptions and tags to improve management and future searchability.
+3.  **Consistent Tags**: Use a consistent tagging system for better organization.
+4.  **Regular Backups**: Periodically back up the `models/images/` directory.
 
-### 搜索技巧
-1. **文搜图**:
-   - 使用具体、描述性的词汇
-   - 包含颜色、形状、动作等视觉特征
-   - 中英文均可，英文效果可能更好
+### Search Tips
+1.  **Text-to-Image**:
+    - Use specific, descriptive words.
+    - Include visual characteristics like colors, shapes, and actions.
+    - Both English and Chinese are supported, though English may yield better results with the base CLIP model.
+2.  **Image-to-Image**:
+    - The query image should clearly feature the main visual elements you are looking for.
+    - The composition and angle of the query image can influence results.
 
-2. **图搜图**:
-   - 查询图片应该包含你要查找的主要视觉元素
-   - 图片构图和角度会影响搜索结果
-   - 可以尝试不同的查询图片获得更好结果
+### Important Notes
+- The first time the system starts, it will download the CLIP model (approx. 1 GB).
+- Performance is significantly better in a GPU environment.
+- Uploaded images are copied to the system's storage directory, so be mindful of disk space.
+- Deletion operations are irreversible.
 
-### 注意事项
-- 首次启动需要下载CLIP模型（约1GB）
-- GPU环境下性能更佳
-- 图片文件会复制到系统目录，注意存储空间
-- 删除操作不可恢复，请谨慎操作
+## 6. Troubleshooting
 
-## 技术细节
+### Common Issues
+1.  **Model Fails to Load**: Check your internet connection. The model needs to be downloaded on first use.
+2.  **Image Upload Fails**: Verify the image format and file size.
+3.  **No Search Results**: Ensure images have been indexed in the library. Try different queries.
+4.  **Slow Performance**: Consider using a GPU or reducing the number of results to return.
 
-### CLIP模型原理
-CLIP（Contrastive Language-Image Pre-training）是一个多模态模型，能够：
-- 将图片和文本映射到同一语义空间
-- 理解图片内容与文本描述的对应关系
-- 支持零样本图片分类和检索
-
-### 相似度计算
-```python
-# 余弦相似度计算
-similarity = np.dot(query_embedding, image_embedding) / (
-    np.linalg.norm(query_embedding) * np.linalg.norm(image_embedding)
-)
-```
-
-### 扩展性
-- 支持大规模图片库（理论上无限制）
-- 可集成更强大的CLIP模型变体
-- 支持自定义相似度阈值和过滤条件
-
-## 故障排除
-
-### 常见问题
-1. **模型加载失败**: 检查网络连接，首次使用需要下载模型
-2. **图片上传失败**: 检查图片格式和文件大小
-3. **搜索无结果**: 确保图片库中有图片，尝试不同的查询方式
-4. **性能较慢**: 考虑使用GPU或减少返回结果数量
-
-### 错误处理
-系统包含完善的错误处理机制，错误信息会显示在相应的状态框中。遇到问题时，请检查控制台输出的详细错误信息。
-
-## 总结
-
-图片检索系统为搜索引擎测试床增加了强大的多模态搜索能力，结合了最先进的AI技术和友好的用户界面。无论是研究用途还是实际应用，都能提供高效、准确的图片检索服务。
+The system includes error handling, and any issues will be reported in the corresponding status boxes. Check the console output for more detailed error messages.

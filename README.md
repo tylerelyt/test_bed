@@ -48,6 +48,11 @@ An advanced AI-powered search platform featuring three core capabilities: **Sear
 - Storage: At least 1GB available space
 - GPU (optional): For better CLIP model performance
 
+### Optional Dependencies
+
+- Ollama (for RAG/KG): local LLM inference service, default at `http://localhost:11434`
+- datasets (for data tools): `pip install datasets`, used by `tools/wikipedia_downloader.py`
+
 ### Installation
 
 ```bash
@@ -66,10 +71,9 @@ pip install -r requirements.txt
 ### Preloaded Dataset (Read-Only)
 
 The system comes with 100 preloaded Chinese Wikipedia documents as core dataset:
-
-- **Immutable**: Preloaded documents are system core and cannot be deleted or modified by users
-- **Auto-loading**: Automatically loaded at system startup
-- **User Documents**: Users can add their own documents which can be modified and deleted normally
+- **Immutable**: Preloaded documents are core; deleting or editing them via the UI is not supported in this version
+- **Auto-loading**: Automatically loads `data/preloaded_documents.json` at startup
+- **User Documents**: Importing new documents via the UI is not supported in this version (offline builds are possible via `offline_index` or the tooling)
 - **Data Source**: From Hugging Face `fjcanyue/wikipedia-zh-cn` dataset
 
 The preloaded documents provide rich foundational data covering mathematics, philosophy, literature, history, computer science, and other domains.
@@ -86,6 +90,24 @@ python start_system.py
 
 After the system starts, visit http://localhost:7861 to use the interface.
 
+### Configuration
+
+You can override default settings via environment variables (see `src/search_engine/config.py` for defaults):
+
+```bash
+# Web UI port (default 7861)
+export UI_PORT=7861
+
+# Ollama configuration (used by RAG & KG)
+export OLLAMA_URL=http://localhost:11434
+
+# Default RAG model
+export LLM_MODEL="llama3.1:8b"
+
+# Default KG/NER model
+export KG_LLM_MODEL="qwen2.5:7b"
+```
+
 ### System Architecture Overview
 
 The platform is organized into **three main functional areas** with shared infrastructure:
@@ -99,6 +121,8 @@ The platform is organized into **three main functional areas** with shared infra
 - **RAG Q&A Tab**: Retrieval-Augmented Generation system with Ollama integration
 - **Knowledge Graph Integration**: Semantic search with LLM-based entity recognition
 - **Multi-source Retrieval**: Documents, graphs, and structured data integration
+
+> Note: RAG/KG rely on a locally running Ollama service and available models. If Ollama is not running or the model hasn't been pulled, the page will show a connection error, but other parts of the system remain available.
 
 #### 🖼️ Image Search Module
 - **Image Search Tab**: CLIP-based image retrieval supporting image-to-image and text-to-image search
@@ -138,7 +162,7 @@ The image search system leverages OpenAI's CLIP model to provide intelligent ima
 "a red car on the street"
 "cat sleeping on a bed"
 "beautiful sunset landscape"
-"人在跑步"  # Chinese is also supported
+"person running"  # Non-English queries are also supported
 ```
 
 #### Upload and Index Images

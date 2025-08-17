@@ -1,0 +1,17 @@
+# Replace placeholders with actual GitHub users/teams (e.g., @your-org/maintainers or @username)
+
+# Default owner for everything
+*       @your-org/maintainers
+
+# Search & RAG modules
+src/search_engine/rag_tab/        @your-org/rag
+src/search_engine/search_tab/     @your-org/search
+src/search_engine/index_tab/      @your-org/index
+src/search_engine/training_tab/   @your-org/ml
+
+# Tools
+tools/                            @your-org/ops
+
+# Tests
+tests/                            @your-org/qa
+

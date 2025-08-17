@@ -1,113 +1,78 @@
-# RAG问答系统使用指南
+# Guide: Retrieval-Augmented Generation (RAG) System
 
-## 概述
+## 1. Overview
 
-RAG（Retrieval-Augmented Generation）问答系统基于现有的倒排索引和TF-IDF算法，结合Ollama大语言模型，实现检索增强生成功能。
+The Retrieval-Augmented Generation (RAG) system combines the strengths of a traditional TF-IDF based search engine with the generative power of Large Language Models (LLMs) via Ollama. It enhances user queries by first retrieving relevant documents and then feeding that context to an LLM to generate a comprehensive, context-aware answer.
 
-## 功能特点
+## 2. Core Features & Modes
 
-### 🔍 检索功能
-- 基于现有的倒排索引进行快速文档检索
-- 使用TF-IDF算法计算文档相关度分数
-- 支持调整检索文档数量（1-10个）
+The system operates in three distinct modes, controlled via checkboxes in the UI.
 
-### 🤖 生成功能
-- 集成Ollama本地大语言模型
-- 支持多种模型选择（llama3.1:8b、qwen2.5:7b等）
-- 基于检索到的上下文生成准确回答
+### Mode 1: Direct LLM Chat (Retrieval Disabled)
+- **How it works**: When the "Enable Retrieval (RAG)" checkbox is unchecked, the system sends the user's question directly to the LLM without any context.
+- **Use Case**: Useful for general knowledge questions or creative tasks where the answer does not depend on the documents in the local index.
 
-### 📊 透明度
-- 显示检索到的文档详情
-- 展示完整的上下文信息
-- **显示发送给LLM的完整提示词**
+### Mode 2: Standard RAG (Retrieval Enabled)
+- **How it works**: The system first retrieves the top-K most relevant documents from the index using TF-IDF. These documents are compiled into a context, which is prepended to the user's query in a prompt. The LLM then generates an answer based on this context.
+- **Use Case**: This is the primary mode for answering questions based specifically on the content of the indexed documents.
 
-## 使用方法
+### Mode 3: Multi-Step Reasoning (ReAct Style)
+- **How it works**: When the "Enable Multi-step Reasoning" checkbox is checked, the system employs a ReAct (Reason + Act) style agent. The LLM thinks step-by-step, deciding whether to perform a `SEARCH` action to query the index or a `FINISH` action to provide the final answer.
+- **Transparency**: In this mode, the "Prompt/Trace" output box displays the entire thought process of the agent, including its actions and the observations from the search tool.
+- **Use Case**: Ideal for complex questions that may require synthesizing information from multiple documents or breaking down a problem into smaller parts.
 
-### 1. 系统要求
-- 确保Ollama服务正在运行（默认端口：11434）
-- 已安装所需模型（如llama3.1:8b）
+## 3. How to Use
 
-### 2. 连接检查
-点击"🔍 检查Ollama连接"按钮，确认：
-- Ollama服务可访问
-- 模型列表正常加载
+### Prerequisites
+1.  **Ollama Service**: Ensure your local Ollama instance is running. The default URL is `http://localhost:11434`, which can be configured in `src/search_engine/config.py`.
+2.  **LLM Models**: Make sure you have pulled the necessary models (e.g., `ollama pull llama3.1`). The default model is configured in `config.py`.
 
-### 3. 执行查询
-1. 在"输入您的问题"文本框中输入问题
-2. 调整检索文档数量（可选）
-3. 选择要使用的模型（可选）
-4. 点击"🚀 RAG查询"执行
+### Step-by-Step Guide
+1.  **Navigate**: Go to the "🤖 RAG / Context Engineering" tab in the UI.
+2.  **Check Connection**: Click the **"Check Ollama Connection"** button to verify that the system can communicate with Ollama and to see a list of available models. This will also refresh the model dropdown.
+3.  **Enter Query**: Type your question into the "Enter your question" text box.
+4.  **Select Mode**:
+    - For **Standard RAG**, keep `Enable Retrieval (RAG)` checked.
+    - For **Direct Chat**, uncheck `Enable Retrieval (RAG)`.
+    - For **Multi-step Reasoning**, check both `Enable Retrieval (RAG)` and `Enable Multi-step Reasoning`.
+5.  **Adjust Parameters (Optional)**:
+    - **Retrieve Top-K**: Use the slider to control how many documents are retrieved for context.
+    - **Select Model**: Choose a specific LLM from the dropdown list.
+6.  **Execute**: Click the **"🚀 Execute Query"** button.
 
-### 4. 结果解读
+## 4. Understanding the Output
 
-#### 生成回答
-- 主要的回答内容
-- 处理时间和使用的模型信息
+- **Generated Answer**: The final answer from the LLM.
+- **Processing Info**: Shows the time taken, the model used, and the number of retrieved documents.
+- **Prompt / Reasoning Trace**:
+    - In **Direct Chat** or **Standard RAG** mode, this box shows the exact prompt sent to the LLM.
+    - In **Multi-Step Reasoning** mode, this box displays the full chain-of-thought trace of the agent.
+- **Retrieved Documents**: A table listing the documents retrieved from the index, along with their TF-IDF relevance scores.
 
-#### 完整提示词
-- **显示发送给LLM的完整提示词**
-- 包含上下文信息和用户问题
-- 便于调试和理解生成过程
+## 5. Technical Implementation
 
-#### 检索结果详情
-- 相关文档列表（ID、相关度分数、内容摘要）
-- 完整的上下文信息
+### Standard RAG Flow
+1.  The user's query is sent to `IndexService` to retrieve relevant documents.
+2.  The content of these documents is concatenated to form a single `context` string.
+3.  A prompt is constructed using a template that includes the `context` and the original `query`.
+4.  This prompt is sent to the Ollama API endpoint for generation.
 
-## 技术实现
-
-### 检索流程
-1. 使用倒排索引快速匹配相关文档
-2. 计算TF-IDF相关度分数
-3. 按分数排序返回Top-K文档
-
-### 生成流程
-1. 将检索到的文档内容拼接为上下文
-2. 构建包含上下文和用户问题的提示词
-3. 调用Ollama API生成回答
-4. **返回生成的回答和使用的提示词**
-
-### 提示词模板
+### Prompt Template (Standard RAG)
 ```
-基于以下上下文信息，回答用户的问题。如果上下文中没有相关信息，请说明无法根据提供的信息回答。
+Based on the following context, please answer the user's question. If the context does not contain the relevant information, state that you cannot answer based on the provided information.
 
-上下文信息：
+Context:
 {context}
 
-用户问题：{query}
+User Question: {query}
 
-请用中文回答：
+Please answer in English:
 ```
 
-## 故障排除
+### ReAct Reasoning Flow
+1.  The agent is given an initial prompt that includes the user's query and a description of the available tools (`SEARCH` and `FINISH`).
+2.  The LLM generates a `Thought` and an `Action`.
+3.  If the action is `SEARCH("some query")`, the system calls the `IndexService` and returns the results as an `Observation`.
+4.  The `Thought`, `Action`, and `Observation` are appended to a scratchpad, and the loop continues until the LLM generates a `FINISH("final answer")` action.
 
-### 常见问题
-1. **连接失败**：检查Ollama服务是否运行
-2. **模型不可用**：确认模型已正确安装
-3. **检索无结果**：检查索引是否正确构建
-4. **生成超时**：增加模型响应时间限制
-
-### 性能优化
-- 调整检索文档数量以平衡质量和速度
-- 选择合适的模型以平衡准确性和响应时间
-- 使用提示词透明度功能优化prompt设计
-
-## 扩展功能
-
-### 自定义提示词
-系统显示完整的提示词，便于：
-- 理解生成过程
-- 调试回答质量
-- 优化提示词设计
-
-### 多轮对话
-当前版本支持单轮问答，未来可扩展：
-- 对话历史记录
-- 上下文延续
-- 多轮推理
-
-## 注意事项
-
-1. 确保Ollama服务在localhost:11434运行
-2. 模型下载可能需要较长时间
-3. 生成质量依赖于检索到的文档质量
-4. 提示词设计影响生成效果 
+This iterative process allows the model to reason and gather information dynamically before formulating a final answer. 
