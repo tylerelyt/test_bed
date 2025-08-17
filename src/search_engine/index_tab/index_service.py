@@ -66,22 +66,71 @@ class InvertedIndexService(IndexServiceInterface):
         """
         self.index = InvertedIndex()
         self.index_file = index_file
+        # 预置文档ID集合（只读）
+
         self._load_or_create_index()
     
+    def _load_preloaded_documents(self) -> Dict[str, str]:
+        """加载预置文档（如果存在）
+        
+        Returns:
+            Dict[str, str]: 预置文档字典 {doc_id: content}
+        """
+        try:
+            import json
+            import os
+            preloaded_path = os.path.join("data", "preloaded_documents.json")
+            if os.path.exists(preloaded_path):
+                with open(preloaded_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # 支持两种格式：直接 {doc_id: content} 或 {"documents": {...}}
+                if isinstance(data, dict) and 'documents' in data and isinstance(data['documents'], dict):
+                    return data['documents']
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            print(f"加载预置文档失败: {e}")
+        return {}
+
     def _load_or_create_index(self):
         """加载或创建索引"""
         try:
-            if os.path.exists(self.index_file):
-                self.load_index(self.index_file)
-                print(f"从文件加载索引成功: {self.index_file}")
+            # 优先加载预置文档
+            preloaded_docs = self._load_preloaded_documents()
+            if preloaded_docs:
+                print(f"文档加载成功，共{len(preloaded_docs)}个文档")
+                
+                # 如果索引文件存在，先加载现有索引
+                if os.path.exists(self.index_file):
+                    self.load_index(self.index_file)
+                    print(f"从文件加载索引成功: {self.index_file}")
+                    
+                    # 确保预置文档在索引中存在
+                    missing_core_docs = []
+                    for doc_id in preloaded_docs.keys():
+                        if not self.index.get_document(doc_id):
+                            missing_core_docs.append(doc_id)
+                    
+                    # 添加缺失的预置文档
+                    for doc_id in missing_core_docs:
+                        if doc_id in preloaded_docs:
+                            self.index.add_document(doc_id, preloaded_docs[doc_id])
+                            print(f"添加缺失的预置文档: {doc_id}")
+                else:
+                    print(f"索引文件不存在，将创建新索引: {self.index_file}")
+                    # 创建新索引，只包含预置文档
+                    for doc_id, content in preloaded_docs.items():
+                        self.index.add_document(doc_id, content)
+                    print(f"创建文档索引成功，共{len(preloaded_docs)}个文档")
             else:
-                print(f"索引文件不存在，将创建新索引: {self.index_file}")
-                # 创建示例文档
-                from .offline_index import create_sample_documents
-                documents = create_sample_documents()
-                for doc_id, content in documents.items():
-                    self.add_document(doc_id, content)
-                print("创建示例索引成功")
+                # 没有预置文档，使用现有索引或创建示例索引
+                if os.path.exists(self.index_file):
+                    self.load_index(self.index_file)
+                    print(f"从文件加载索引成功: {self.index_file}")
+            
+                else:
+                    print(f"索引文件不存在，将创建新索引: {self.index_file}")
+                    print("未找到预置文档，索引将为空")
         except Exception as e:
             print(f"加载索引失败: {e}")
     
@@ -96,12 +145,8 @@ class InvertedIndexService(IndexServiceInterface):
         Returns:
             bool: 是否添加成功
         """
-        try:
-            self.index.add_document(doc_id, content)
-            return True
-        except Exception as e:
-            print(f"添加文档失败: {e}")
-            return False
+        print("⚠️ 文档添加功能已禁用")
+        return False
     
     def delete_document(self, doc_id: str) -> bool:
         """
@@ -113,16 +158,8 @@ class InvertedIndexService(IndexServiceInterface):
         Returns:
             bool: 是否删除成功
         """
-        try:
-            success = self.index.delete_document(doc_id)
-            if success:
-                print(f"文档 '{doc_id}' 删除成功")
-            else:
-                print(f"文档 '{doc_id}' 不存在")
-            return success
-        except Exception as e:
-            print(f"删除文档失败: {e}")
-            return False
+        print("⚠️ 文档删除功能已禁用")
+        return False
     
     def search(self, query: str, top_k: int = 20) -> List[Tuple[str, float, str]]:
         """
@@ -220,12 +257,8 @@ class InvertedIndexService(IndexServiceInterface):
         Returns:
             bool: 是否清空成功
         """
-        try:
-            self.index = InvertedIndex()
-            return True
-        except Exception as e:
-            print(f"清空索引失败: {e}")
-            return False
+        print("⚠️ 索引清空功能已禁用")
+        return False
     
     def batch_add_documents(self, documents: Dict[str, str]) -> int:
         """
@@ -237,11 +270,8 @@ class InvertedIndexService(IndexServiceInterface):
         Returns:
             int: 成功添加的文档数量
         """
-        success_count = 0
-        for doc_id, content in documents.items():
-            if self.add_document(doc_id, content):
-                success_count += 1
-        return success_count
+        print("⚠️ 批量添加文档功能已禁用")
+        return 0
     
     def search_doc_ids(self, query: str, top_k: int = 20) -> List[str]:
         """

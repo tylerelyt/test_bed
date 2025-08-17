@@ -20,6 +20,11 @@ class IndexService:
             default_model="qwen2.5-coder:latest"
         )
         self._ensure_index_exists()
+        # 记录预置文档集合，便于导入/清理时保护
+        try:
+            self.core_doc_ids = getattr(self.index_service, 'core_doc_ids', set())
+        except Exception:
+            self.core_doc_ids = set()
         
     def set_ner_api_config(self, 
                           api_type: str = "ollama",
@@ -120,8 +125,8 @@ class IndexService:
         if not doc_ids:
             return []
         
-        # 获取所有文档的搜索结果
-        all_results = self.search(query, top_k=len(doc_ids))
+        # 直接使用底层索引服务搜索，避免重复调用
+        all_results = self.index_service.search(query, top_k=max(len(doc_ids), 50))
         
         # 过滤出指定doc_ids的结果
         filtered_results = []
@@ -399,27 +404,5 @@ class IndexService:
         return self.kg_retrieval_service.analyze_query_entities(query, model)
     
     def import_documents(self, file_path: str) -> str:
-        """导入文档"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                import_data = json.load(f)
-            
-            if not isinstance(import_data, dict):
-                return "❌ 文件格式错误"
-            
-            documents = import_data.get("documents", {})
-            if not isinstance(documents, dict):
-                return "❌ 文档数据格式错误"
-            
-            if not documents:
-                return "❌ 没有文档数据"
-            
-            # 清空现有索引并导入新文档
-            self.clear_index()
-            success_count = self.batch_add_documents(documents)
-            self.save_index()
-            
-            return f"✅ 文档导入成功！\n导入文档数: {success_count}\n总文档数: {len(documents)}"
-            
-        except Exception as e:
-            return f"❌ 导入文档失败: {str(e)}" 
+        """导入文档 - 已禁用"""
+        return "⚠️ 文档导入功能已禁用" 
