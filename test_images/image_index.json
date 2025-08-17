@@ -1,0 +1,54 @@
+{
+  "images": {
+    "9cf4b84966c2020b8a1c1332586c8155": {
+      "id": "9cf4b84966c2020b8a1c1332586c8155",
+      "original_name": "red.jpg",
+      "stored_path": "test_images/9cf4b84966c2020b8a1c1332586c8155.jpg",
+      "description": "红色的图片",
+      "tags": [
+        "red",
+        "color"
+      ],
+      "width": 224,
+      "height": 224,
+      "file_size": 1917,
+      "format": "JPEG",
+      "created_at": "2025-08-21T00:28:59.638798",
+      "embedding_index": 0
+    },
+    "f53650e00fb12cf38c5d013e30d50e95": {
+      "id": "f53650e00fb12cf38c5d013e30d50e95",
+      "original_name": "blue.jpg",
+      "stored_path": "test_images/f53650e00fb12cf38c5d013e30d50e95.jpg",
+      "description": "蓝色的图片",
+      "tags": [
+        "blue",
+        "color"
+      ],
+      "width": 224,
+      "height": 224,
+      "file_size": 1961,
+      "format": "JPEG",
+      "created_at": "2025-08-21T00:28:59.685759",
+      "embedding_index": 1
+    },
+    "1f62d6c2d13c834b943afd7ffefd0130": {
+      "id": "1f62d6c2d13c834b943afd7ffefd0130",
+      "original_name": "green.jpg",
+      "stored_path": "test_images/1f62d6c2d13c834b943afd7ffefd0130.jpg",
+      "description": "绿色的图片",
+      "tags": [
+        "green",
+        "color"
+      ],
+      "width": 224,
+      "height": 224,
+      "file_size": 1941,
+      "format": "JPEG",
+      "created_at": "2025-08-21T00:28:59.734336",
+      "embedding_index": 2
+    }
+  },
+  "last_updated": "2025-08-21T00:28:59.734363",
+  "total_images": 3
+}

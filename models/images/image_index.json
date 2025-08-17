@@ -1,0 +1,58 @@
+{
+  "images": {
+    "894892f5758df042084f818092cdad58": {
+      "id": "894892f5758df042084f818092cdad58",
+      "original_name": "f454b273-bdd2-4f9b-9d96-19efaab6ee84.png",
+      "stored_path": "models/images/894892f5758df042084f818092cdad58.png",
+      "description": "",
+      "tags": [],
+      "width": 1536,
+      "height": 1024,
+      "file_size": 750581,
+      "format": "PNG",
+      "created_at": "2025-08-21T00:28:29.390483",
+      "embedding_index": 0
+    },
+    "ddeae4ea7b0b9ac42cd70f3e9915f4cc": {
+      "id": "ddeae4ea7b0b9ac42cd70f3e9915f4cc",
+      "original_name": "avatar_scholar_128.png",
+      "stored_path": "models/images/ddeae4ea7b0b9ac42cd70f3e9915f4cc.png",
+      "description": "",
+      "tags": [],
+      "width": 128,
+      "height": 128,
+      "file_size": 2797,
+      "format": "PNG",
+      "created_at": "2025-08-21T00:29:45.198769",
+      "embedding_index": 1
+    },
+    "7455d85a2a97df695a67091744fc634c": {
+      "id": "7455d85a2a97df695a67091744fc634c",
+      "original_name": "images.jpeg",
+      "stored_path": "models/images/7455d85a2a97df695a67091744fc634c.jpeg",
+      "description": "",
+      "tags": [],
+      "width": 288,
+      "height": 175,
+      "file_size": 6850,
+      "format": "JPEG",
+      "created_at": "2025-08-21T00:38:44.419778",
+      "embedding_index": 2
+    },
+    "a2f41c331fa277f6c65ba5eadd4c0134": {
+      "id": "a2f41c331fa277f6c65ba5eadd4c0134",
+      "original_name": "images 1.jpeg",
+      "stored_path": "models/images/a2f41c331fa277f6c65ba5eadd4c0134.jpeg",
+      "description": "",
+      "tags": [],
+      "width": 275,
+      "height": 183,
+      "file_size": 8563,
+      "format": "JPEG",
+      "created_at": "2025-08-21T00:38:57.552054",
+      "embedding_index": 3
+    }
+  },
+  "last_updated": "2025-08-21T00:38:57.552093",
+  "total_images": 4
+}

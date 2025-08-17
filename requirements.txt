@@ -1,0 +1,47 @@
+# Core dependencies
+gradio>=4.0.0
+pandas>=1.5.0
+numpy>=1.21.0
+scikit-learn>=1.2.0
+jieba>=0.42.1
+requests>=2.28.0
+networkx>=3.0.0
+openai>=1.0.0
+
+# Data processing
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Development tools
+pytest>=7.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=0.991
+
+# Optional dependencies for extended features
+streamlit>=1.25.0  # Alternative UI framework
+plotly>=5.0.0      # Interactive plots
+fastapi>=0.95.0    # API server
+uvicorn>=0.18.0    # ASGI server
+
+# System dependencies
+psutil>=5.9.0      # System monitoring
+requests>=2.28.0   # HTTP requests
+click>=8.0.0       # CLI tools
+
+# ML/AI extensions
+transformers>=4.20.0  # For advanced NLP
+torch>=1.12.0         # Deep learning (optional)
+sentence-transformers>=2.2.0  # Sentence embeddings (optional)
+
+# Deep Learning for CTR models
+tensorflow>=2.13.0    # TensorFlow for Wide & Deep models
+keras>=2.13.0         # Keras for neural networks
+
+# Image processing and CLIP for image search
+Pillow>=9.0.0         # Image processing
+transformers>=4.20.0  # Hugging Face transformers for CLIP model
+ftfy>=6.1.1           # Text normalization for CLIP
+regex>=2022.1.18      # Pattern matching
+torchvision>=0.13.0   # Vision transformations
+opencv-python>=4.5.0  # Computer vision library 

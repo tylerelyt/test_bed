@@ -1,0 +1,76 @@
+{
+  "overall_quality_score": 92.5,
+  "component_scores": {
+    "document_quality": 100.0,
+    "index_quality": 90.0,
+    "ctr_quality": 80.0,
+    "search_quality": 100.0
+  },
+  "detailed_reports": {
+    "document_quality": {
+      "stats": {
+        "total_documents": 10,
+        "empty_documents": 0,
+        "short_documents": 0,
+        "long_documents": 0,
+        "duplicate_documents": 0,
+        "documents_with_special_chars": 10,
+        "average_length": 98.6,
+        "length_distribution": {
+          "min": 80,
+          "max": 120,
+          "std": 13.580868897091968
+        }
+      },
+      "issues": [],
+      "quality_score": 100.0
+    },
+    "index_quality": {
+      "stats": {
+        "total_documents": 10,
+        "total_terms": 135,
+        "average_doc_length": 23.3,
+        "term_frequency_distribution": {},
+        "document_frequency_distribution": {}
+      },
+      "issues": [],
+      "quality_score": 90.0
+    },
+    "ctr_quality": {
+      "stats": {
+        "total_records": 13,
+        "positive_samples": 2,
+        "negative_samples": 11,
+        "missing_features": 0,
+        "invalid_scores": 0,
+        "average_ctr": 0.15384615384615385,
+        "ctr_distribution": {
+          "min": 0,
+          "max": 1,
+          "std": 0.36080121229410994
+        }
+      },
+      "issues": [
+        "平均特征数量过少: 1.00"
+      ],
+      "quality_score": 80.0
+    },
+    "search_quality": {
+      "stats": {
+        "total_queries": 5,
+        "successful_queries": 5,
+        "failed_queries": 0,
+        "empty_results": 0,
+        "average_results_per_query": 3.8,
+        "response_times": []
+      },
+      "issues": [],
+      "quality_score": 100.0
+    }
+  },
+  "all_issues": [
+    "平均特征数量过少: 1.00"
+  ],
+  "issue_count": 1,
+  "recommendations": []
+}
