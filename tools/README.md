@@ -381,3 +381,58 @@ behavior_data = generator.generate_user_behavior(20)
 - **质量保证**: 保证数据质量和算法效果
 - **性能优化**: 持续优化系统性能
 - **快速验证**: 支持快速验证和调试 
+
+# 工具目录
+
+本目录包含系统开发和运维相关的工具脚本。
+
+## 数据集工具
+
+### DuReader数据集下载工具
+
+`dureader_downloader.py` - 从Hugging Face下载DuReader中文阅读理解数据集
+
+**功能特性：**
+- 支持多种DuReader数据集变体（robust、yesno、retrieval）
+- 自动转换为系统预置文档格式
+- 支持示例数据快速测试
+- 可配置下载样本数量和数据集分割
+
+**使用方法：**
+```bash
+# 使用示例数据（推荐）
+python tools/dureader_downloader.py --use-sample
+
+# 下载真实数据
+python tools/dureader_downloader.py --dataset dureader_robust --max-samples 100
+
+# 指定输出文件
+python tools/dureader_downloader.py --use-sample --output data/my_documents.json
+```
+
+**支持的数据集：**
+- `dureader_robust` - 阅读理解数据集
+- `dureader_yesno` - 是/否问答数据集
+- `dureader_retrieval` - 检索数据集
+
+## 系统工具
+
+### 数据质量检查器
+
+`data_quality_checker.py` - 检查系统数据质量
+
+### 演示数据生成器
+
+`demo_data_generator.py` - 生成演示数据
+
+### 性能监控器
+
+`performance_monitor.py` - 监控系统性能
+
+### SRE监控器
+
+`sre_monitor.py` - SRE运维监控
+
+### 系统重置工具
+
+`reset_system.py` - 重置系统状态 
