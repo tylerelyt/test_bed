@@ -17,9 +17,9 @@ def build_rag_tab(index_service):
     
     with gr.Column():
         gr.Markdown("""
-        # 🤖 RAG问答系统 (检索增强生成)
+        # 🤖 上下文工程
         
-        基于现有倒排索引和TF-IDF的检索增强生成系统，使用Ollama进行文本生成。
+        支持三种模式：直连LLM / 检索增强（RAG）/ 多步推理（ReAct）。
         """)
         
         # 1. 连接状态检查
@@ -54,12 +54,22 @@ def build_rag_tab(index_service):
                         value="llama3.1:8b",
                         label="选择模型"
                     )
+
+                with gr.Row():
+                    retrieval_enabled = gr.Checkbox(
+                        label="开启检索增强 (RAG)",
+                        value=True
+                    )
+                    multi_step_enabled = gr.Checkbox(
+                        label="开启多步推理",
+                        value=False
+                    )
                 
-                rag_query_btn = gr.Button("🚀 RAG查询", variant="primary")
+                rag_query_btn = gr.Button("🚀 执行查询", variant="primary")
                 
             with gr.Column(scale=1):
                 gr.Markdown("### 📊 系统状态")
-                stats_display = gr.JSON(label="RAG服务状态")
+                stats_display = gr.JSON(label="上下文工程服务状态")
         
         # 3. 结果展示
         with gr.Row():
@@ -82,13 +92,13 @@ def build_rag_tab(index_service):
         # 4. 提示词展示
         with gr.Row():
             with gr.Column():
-                gr.Markdown("### 📝 发送给LLM的提示词")
+                gr.Markdown("### 📝 提示词/推理轨迹")
                 prompt_display = gr.Textbox(
-                    label="完整提示词",
+                    label="完整提示词或推理轨迹",
                     lines=20,
                     max_lines=30,
                     interactive=False,
-                    placeholder="执行RAG查询后，这里将显示发送给LLM的完整提示词",
+                    placeholder="执行查询后，这里显示发送给LLM的提示词或ReAct推理轨迹",
                     show_copy_button=True,
                     autoscroll=False
                 )
@@ -126,7 +136,7 @@ def build_rag_tab(index_service):
         """获取RAG服务统计信息"""
         return rag_service.get_stats()
     
-    def process_rag_query(query: str, top_k: int, model: str):
+    def process_rag_query(query: str, top_k: int, model: str, retrieval_enabled_flag: bool, multi_step_flag: bool):
         """处理RAG查询"""
         if not query.strip():
             return (
@@ -137,8 +147,14 @@ def build_rag_tab(index_service):
                 ""
             )
         
-        # 执行RAG查询
-        result = rag_service.rag_query(query, top_k, model)
+        # 执行RAG查询（带开关）
+        result = rag_service.rag_query(
+            query=query,
+            top_k=top_k,
+            model=model,
+            retrieval_enabled=retrieval_enabled_flag,
+            multi_step=multi_step_flag
+        )
         
         # 构建检索结果表格
         retrieved_table = []
@@ -168,7 +184,7 @@ def build_rag_tab(index_service):
     
     rag_query_btn.click(
         fn=process_rag_query,
-        inputs=[query_input, top_k_slider, model_dropdown],
+        inputs=[query_input, top_k_slider, model_dropdown, retrieval_enabled, multi_step_enabled],
         outputs=[answer_output, processing_info, retrieved_docs, context_output, prompt_display]
     )
     

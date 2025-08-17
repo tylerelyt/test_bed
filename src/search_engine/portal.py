@@ -34,14 +34,14 @@ class SearchUI:
             - **数据服务 (DataService)**: CTR事件收集、样本状态管理
             - **索引服务 (IndexService)**: 索引构建、文档管理、检索功能
             - **模型服务 (ModelService)**: 模型训练、配置管理、模型文件
-            - **RAG服务 (RAGService)**: 检索增强生成，基于倒排索引和Ollama
+            - **上下文工程服务 (RAGService)**: 直连LLM / 检索增强 / 多步推理 (Ollama)
             - **图片服务 (ImageService)**: 基于CLIP的图片检索，支持图搜图和文搜图
             
             ## 📊 服务状态
             - 数据服务: ✅ 运行中
             - 索引服务: ✅ 运行中
             - 模型服务: ✅ 运行中
-            - RAG服务: ✅ 运行中 (需要Ollama支持)
+            - 上下文工程服务: ✅ 运行中 (需要Ollama支持)
             - 图片服务: ✅ 运行中 (基于CLIP模型)
             """)
             
@@ -50,7 +50,7 @@ class SearchUI:
                     build_index_tab(self.index_service)
                 with gr.Tab("🔍 第二部分：在线召回排序"):
                     build_search_tab(self.index_service, self.data_service)
-                with gr.Tab("🤖 第三部分：RAG问答系统"):
+                with gr.Tab("🤖 第三部分：上下文工程"):
                     build_rag_tab(self.index_service)
                 with gr.Tab("🖼️ 第四部分：图片检索系统"):
                     build_image_tab(self.image_service)
