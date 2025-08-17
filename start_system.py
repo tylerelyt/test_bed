@@ -158,21 +158,27 @@ def build_index_if_needed(current_dir, env):
     print("\n📦 步骤4: 检查索引文件")
     print("-" * 30)
     
+    # 若存在预置文档文件，则优先使用服务层自动加载，无需强制离线构建
+    preloaded_path = os.path.join('data', 'preloaded_documents.json')
     if not os.path.exists('models/index_data.json'):
-        print("📄 索引文件不存在，开始构建...")
-        print("⏳ 这可能需要几分钟时间，请耐心等待...")
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "search_engine.index_tab.offline_index"], 
-                check=True, 
-                cwd=current_dir,
-                env=env
-            )
-            print("✅ 离线索引构建完成")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ 离线索引构建失败: {e}")
-            print("💡 建议: 检查数据文件是否存在，或运行 python -m search_engine.index_tab.offline_index")
-            return False
+        if os.path.exists(preloaded_path):
+            print("📄 检测到预置文档文件，将由服务层在首次初始化时自动加载: data/preloaded_documents.json")
+            print("✅ 跳过离线构建，等待服务层创建索引")
+        else:
+            print("📄 索引文件不存在，开始构建...")
+            print("⏳ 这可能需要几分钟时间，请耐心等待...")
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "search_engine.index_tab.offline_index"], 
+                    check=True, 
+                    cwd=current_dir,
+                    env=env
+                )
+                print("✅ 离线索引构建完成")
+            except subprocess.CalledProcessError as e:
+                print(f"❌ 离线索引构建失败: {e}")
+                print("💡 建议: 检查数据文件是否存在，或运行 python -m search_engine.index_tab.offline_index")
+                return False
     else:
         print("✅ 索引文件已存在，跳过构建")
     
