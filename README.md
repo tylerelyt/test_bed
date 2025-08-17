@@ -63,6 +63,17 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Preloaded Dataset (Read-Only)
+
+The system comes with 100 preloaded Chinese Wikipedia documents as core dataset:
+
+- **Immutable**: Preloaded documents are system core and cannot be deleted or modified by users
+- **Auto-loading**: Automatically loaded at system startup
+- **User Documents**: Users can add their own documents which can be modified and deleted normally
+- **Data Source**: From Hugging Face `fjcanyue/wikipedia-zh-cn` dataset
+
+The preloaded documents provide rich foundational data covering mathematics, philosophy, literature, history, computer science, and other domains.
+
 ### Start the System
 
 ```bash
@@ -319,6 +330,7 @@ Testbed/
 │       ├── image_index.json
 │       └── image_embeddings.npy
 ├── data/                         # Training and experiment data
+│   └── preloaded_documents.json     # Preloaded Chinese Wikipedia documents
 ├── docs/                         # Comprehensive documentation
 │   ├── IMAGE_SEARCH_GUIDE.md         # Image search usage guide
 │   ├── KNOWLEDGE_GRAPH_GUIDE.md      # Knowledge graph guide
