@@ -114,66 +114,7 @@ def get_all_documents(search_engine):
     except Exception as e:
         return [["错误", str(e)]]
 
-def export_documents(search_engine):
-    """导出所有文档到JSON文件"""
-    try:
-        documents = search_engine.get_all_documents()
-        if not documents:
-            return None, "❌ 没有文档可导出"
-        
-        # 生成导出文件名
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        export_filename = f"documents_export_{timestamp}.json"
-        
-        # 导出文档数据
-        export_data = {
-            "export_time": datetime.now().isoformat(),
-            "total_documents": len(documents),
-            "documents": documents
-        }
-        
-        # 写入临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w", encoding="utf-8") as tmp:
-            json.dump(export_data, tmp, ensure_ascii=False, indent=2)
-            tmp_path = tmp.name
-        
-        return tmp_path, f"✅ 文档导出成功！\n文档数量: {len(documents)}\n点击上方下载按钮获取文件"
-    except Exception as e:
-        return None, f"❌ 导出文档失败: {str(e)}"
-
-def import_documents_from_file(search_engine, file):
-    """从文件导入文档并更新索引"""
-    try:
-        if file is None:
-            return "❌ 请选择要导入的文件"
-        
-        # 读取文件内容
-        with open(file.name, 'r', encoding='utf-8') as f:
-            import_data = json.load(f)
-        
-        # 验证文件格式
-        if "documents" not in import_data:
-            return "❌ 文件格式错误：缺少 'documents' 字段"
-        
-        documents = import_data["documents"]
-        if not isinstance(documents, dict):
-            return "❌ 文件格式错误：'documents' 应该是字典格式"
-        
-        if not documents:
-            return "❌ 文件中没有文档数据"
-        
-        # 清空现有索引
-        search_engine.clear_index()
-        
-        # 批量添加新文档
-        success_count = search_engine.batch_add_documents(documents)
-        
-        # 保存更新后的索引
-        search_engine.save_index()
-        
-        return f"✅ 文档导入成功！\n导入文档数: {success_count}\n总文档数: {len(documents)}\n\n💡 提示：现在可以在「🕸️ 知识图谱」标签页中构建知识图谱！"
-    except Exception as e:
-        return f"❌ 导入文档失败: {str(e)}"
+# 文档导入导出功能已禁用
 
 def build_index_tab(search_engine):
     with gr.Blocks() as index_tab:
@@ -195,37 +136,34 @@ def build_index_tab(search_engine):
                     with gr.Column(scale=3):
                         gr.HTML("<p>索引构建详细信息...</p>")
             
-            # 文档管理标签页
-            with gr.Tab("📄 文档管理"):
+            # 文档信息标签页
+            with gr.Tab("📚 文档信息"):
                 with gr.Row():
-                    with gr.Column(scale=1):
+                    with gr.Column(scale=2):
                         gr.Markdown("### 📋 文档列表")
-                        refresh_docs_btn = gr.Button("🔄 刷新文档列表", variant="primary")
+                        gr.HTML("<p style='color: #28a745;'>系统包含50条中文维基百科文档，仅供只读使用。</p>")
+                        refresh_docs_btn = gr.Button("🔄 查看文档", variant="primary")
                         docs_list = gr.Dataframe(
                             headers=["文档ID", "内容预览"], 
-                            label="所有文档", 
+                            label="文档（只读）", 
                             interactive=False,
                             wrap=True
                         )
                     
                     with gr.Column(scale=1):
-                        gr.Markdown("### 📤 导出文档")
-                        gr.HTML("<p style='color: #6c757d;'>导出所有文档到JSON文件，包含文档ID和内容</p>")
-                        export_docs_btn = gr.Button("📤 导出所有文档", variant="primary")
-                        export_download = gr.File(label="下载文档文件", interactive=False)
-                        export_result = gr.Textbox(label="导出结果", interactive=False)
-                
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("### 📥 导入文档")
-                        gr.HTML("<p style='color: #6c757d;'>上传JSON文件导入文档，将替换现有索引</p>")
-                        import_file = gr.File(
-                            label="选择文档文件", 
-                            file_types=[".json"],
-                            file_count="single"
-                        )
-                        import_docs_btn = gr.Button("📥 导入文档并更新索引", variant="primary")
-                        import_result = gr.Textbox(label="导入结果", interactive=False)
+                        gr.Markdown("### 📊 文档信息")
+                        gr.HTML("""
+                        <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <h4>📚 文档信息</h4>
+                            <ul>
+                                <li><strong>数量:</strong> 50条中文维基百科文档</li>
+                                <li><strong>来源:</strong> Hugging Face fjcanyue/wikipedia-zh-cn 数据集</li>
+                                <li><strong>状态:</strong> 只读</li>
+                                <li><strong>功能:</strong> 支持搜索、RAG问答、知识图谱构建</li>
+                            </ul>
+                        </div>
+                        """)
+
             
             # 知识图谱标签页
             with gr.Tab("🕸️ 知识图谱"):
@@ -236,7 +174,7 @@ def build_index_tab(search_engine):
                 <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin-bottom: 20px;">
                     <h4 style="margin-top: 0; color: #155724;">💡 使用指南</h4>
                     <ol style="margin-bottom: 0;">
-                        <li><strong>第一步</strong>：在"📄 文档管理"标签页中导入文档</li>
+                        <li><strong>第一步</strong>：系统已自动加载文档</li>
                         <li><strong>第二步</strong>：返回此页面，点击"🔨 构建知识图谱"开始构建</li>
                         <li><strong>第三步</strong>：等待NER处理完成（约2-5分钟），系统会自动保存图谱</li>
                         <li><strong>第四步</strong>：使用"🔍 实体搜索"找到感兴趣的实体</li>
@@ -365,16 +303,7 @@ def build_index_tab(search_engine):
             outputs=docs_list
         )
         
-        export_docs_btn.click(
-            fn=lambda: export_documents(search_engine),
-            outputs=[export_download, export_result]
-        )
-        
-        import_docs_btn.click(
-            fn=lambda file: import_documents_from_file(search_engine, file),
-            inputs=import_file,
-            outputs=import_result
-        )
+        # 文档操作功能已禁用
         
         # 知识图谱相关事件
         # 知识图谱构建函数（硬编码模型选择）
