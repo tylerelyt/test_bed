@@ -100,18 +100,27 @@ class InvertedIndex:
         return True
     
     def search(self, query: str, top_k: int = 5) -> List[Tuple[str, float, str]]:
-        """搜索文档"""
+        """搜索文档 - 优化版本使用真正的倒排索引"""
         # 预处理查询
         query_words = self.preprocess_text(query)
         
         if not query_words:
             return []
         
-        # 计算TF-IDF分数
+        # 使用倒排索引快速找到候选文档
+        candidate_docs = set()
+        for word in query_words:
+            if word in self.index:
+                candidate_docs.update(self.index[word])
+        
+        if not candidate_docs:
+            return []
+        
+        # 只对候选文档计算TF-IDF分数
         scores = {}
         total_docs = len(self.documents)
         
-        for doc_id in self.documents:
+        for doc_id in candidate_docs:
             score = 0
             for word in query_words:
                 if word in self.index and doc_id in self.index[word]:
@@ -137,33 +146,30 @@ class InvertedIndex:
         return results
     
     def generate_summary(self, doc_id: str, query_words: List[str], max_length: int = 200) -> str:
-        """生成文档摘要"""
+        """生成文档摘要 - 优化版本"""
         content = self.documents[doc_id]
         
-        # 找到包含最多查询词的文本窗口
-        best_window = ""
-        best_score = 0
+        # 快速生成摘要：找到第一个查询词的位置，然后截取周围文本
+        if not query_words:
+            return content[:max_length] + "..." if len(content) > max_length else content
         
-        # 简单的滑动窗口方法
-        words = content.split()
-        for i in range(len(words)):
-            for j in range(i + 1, min(i + 50, len(words) + 1)):  # 最多50个词
-                window = " ".join(words[i:j])
-                window_words = self.preprocess_text(window)
-                
-                # 计算窗口包含的查询词数量
-                score = sum(1 for word in query_words if word in window_words)
-                
-                if score > best_score and len(window) <= max_length:
-                    best_score = score
-                    best_window = window
+        # 在原文中找到第一个查询词的位置
+        best_pos = 0
+        for word in query_words:
+            pos = content.lower().find(word.lower())
+            if pos != -1:
+                best_pos = max(0, pos - max_length // 3)  # 从查询词前1/3位置开始
+                break
         
-        if not best_window:
-            # 如果没有找到好的窗口，使用文档开头
-            best_window = content[:max_length]
+        # 截取摘要
+        summary = content[best_pos:best_pos + max_length]
+        if best_pos > 0:
+            summary = "..." + summary
+        if len(content) > best_pos + max_length:
+            summary = summary + "..."
         
         # 高亮查询词
-        highlighted_summary = self.highlight_keywords(best_window, query_words)
+        highlighted_summary = self.highlight_keywords(summary, query_words)
         
         return highlighted_summary
     
@@ -346,12 +352,30 @@ def build_index_from_documents(documents: Dict[str, str], save_path: str = ""):
     return index
 
 def main():
-    """主函数 - 构建示例索引"""
+    """主函数 - 构建索引"""
     print("🏗️  离线索引构建模块")
     print("=" * 50)
     
-    # 创建示例文档
-    documents = create_sample_documents()
+    # 优先使用预置文档
+    import os
+    import json
+    
+    preloaded_path = os.path.join("data", "preloaded_documents.json")
+    if os.path.exists(preloaded_path):
+        print("📄 使用预置文档构建索引")
+        with open(preloaded_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # 支持两种格式
+        if isinstance(data, dict) and 'documents' in data:
+            documents = data['documents']
+        else:
+            documents = data
+        print(f"✅ 加载预置文档成功，共{len(documents)}个文档")
+    else:
+        print("⚠️ 未找到预置文档，使用示例文档")
+        # 回退到示例文档
+        documents = create_sample_documents()
+        print(f"✅ 创建示例文档成功，共{len(documents)}个文档")
     
     # 构建索引
     index = build_index_from_documents(documents, 'models/index_data.json')
