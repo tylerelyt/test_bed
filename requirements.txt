@@ -7,6 +7,7 @@ jieba>=0.42.1
 requests>=2.28.0
 networkx>=3.0.0
 openai>=1.0.0
+gensim>=4.3.0
 
 # Data processing
 matplotlib>=3.5.0
