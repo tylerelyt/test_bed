@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/tylerelyt/test_bed)
 
-An advanced AI-powered search platform featuring three core capabilities: **Search & Recommendation**, **Retrieval-Augmented Generation (RAG)**, and **Image Search**. Built with modern MLOps practices for production-ready deployment.
+An advanced AI-powered search platform featuring three core capabilities: **Search & Recommendation**, **Context Engineering**, and **Image Search**. Built with modern MLOps practices for production-ready deployment.
 
 ## 🌟 Features
 
@@ -17,12 +17,12 @@ An advanced AI-powered search platform featuring three core capabilities: **Sear
 - **Knowledge Graph**: LLM-based NER technology for enhanced semantic search
 - **A/B Testing**: Experiment management for ranking algorithm comparison
 
-#### 2. 🤖 Retrieval-Augmented Generation (RAG)
+#### 2. 🤖 Context Engineering
 - **Hybrid Retrieval**: Combines inverted index and knowledge graph for comprehensive information retrieval
 - **LLM Integration**: Seamless integration with Ollama for local LLM inference
 - **Prompt Engineering**: Optimized prompt templates with full transparency
 - **Context Management**: Intelligent context selection and ranking for accurate responses
-- **Multi-source RAG**: Retrieval from documents, knowledge graphs, and structured data
+- **Multi-source Context**: Retrieval from documents, knowledge graphs, and structured data
 
 #### 3. 🖼️ Image Search System
 - **CLIP-powered**: OpenAI CLIP model via Hugging Face Transformers
@@ -39,6 +39,12 @@ An advanced AI-powered search platform featuring three core capabilities: **Sear
 - **Web Interface**: Modern Gradio-based UI with responsive design
 - **Production Ready**: Comprehensive error handling, logging, and scalability features
 
+## 📚 Documentation
+
+- Search & Recommendation: [docs/SEARCH_GUIDE.md](docs/SEARCH_GUIDE.md)
+- Context Engineering: [docs/CONTEXT_ENGINEERING_GUIDE.md](docs/CONTEXT_ENGINEERING_GUIDE.md)
+- Image Search: [docs/IMAGE_SEARCH_GUIDE.md](docs/IMAGE_SEARCH_GUIDE.md)
+
 ## 🚀 Quick Start
 
 ### Requirements
@@ -50,7 +56,7 @@ An advanced AI-powered search platform featuring three core capabilities: **Sear
 
 ### Optional Dependencies
 
-- Ollama (for RAG/KG): local LLM inference service, default at `http://localhost:11434`
+- Ollama (for Context Engineering/KG): local LLM inference service, default at `http://localhost:11434`
 - datasets (for data tools): `pip install datasets`, used by `tools/wikipedia_downloader.py`
 
 ### Installation
@@ -70,13 +76,13 @@ pip install -r requirements.txt
 
 ### Preloaded Dataset (Read-Only)
 
-The system comes with 100 preloaded Chinese Wikipedia documents as core dataset:
-- **Immutable**: Preloaded documents are core; deleting or editing them via the UI is not supported in this version
-- **Auto-loading**: Automatically loads `data/preloaded_documents.json` at startup
-- **User Documents**: Importing new documents via the UI is not supported in this version (offline builds are possible via `offline_index` or the tooling)
-- **Data Source**: From Hugging Face `fjcanyue/wikipedia-zh-cn` dataset
+If `data/preloaded_documents.json` exists, the system loads these Chinese Wikipedia documents as a read-only core dataset:
+- **Immutable**: Preloaded documents are read-only in the UI
+- **Auto-loading**: Automatically loads `data/preloaded_documents.json` at startup (if present)
+- **User Documents**: Importing/editing via the UI is not supported in this version
+- **Data Source**: Typically generated from Hugging Face `fjcanyue/wikipedia-zh-cn` via tooling
 
-The preloaded documents provide rich foundational data covering mathematics, philosophy, literature, history, computer science, and other domains.
+Note: If no preloaded file is present, the system will still start but the text index may be empty until data is provided offline.
 
 ### Start the System
 
@@ -92,21 +98,7 @@ After the system starts, visit http://localhost:7861 to use the interface.
 
 ### Configuration
 
-You can override default settings via environment variables (see `src/search_engine/config.py` for defaults):
-
-```bash
-# Web UI port (default 7861)
-export UI_PORT=7861
-
-# Ollama configuration (used by RAG & KG)
-export OLLAMA_URL=http://localhost:11434
-
-# Default RAG model
-export LLM_MODEL="llama3.1:8b"
-
-# Default KG/NER model
-export KG_LLM_MODEL="qwen2.5:7b"
-```
+Basic configuration is done in code. Optional environment variables include LLM provider credentials used by NER/RAG (see comments in `src/search_engine/index_tab/ner_service.py`).
 
 ### System Architecture Overview
 
@@ -117,12 +109,12 @@ The platform is organized into **three main functional areas** with shared infra
 - **Search Tab**: Online retrieval and ranking with CTR-based optimization  
 - **Training Tab**: CTR data collection and Wide & Deep model training
 
-#### 🤖 RAG Module
-- **RAG Q&A Tab**: Retrieval-Augmented Generation system with Ollama integration
+#### 🤖 Context Engineering Module
+- **Context Q&A Tab**: Context‑augmented answering with Ollama integration
 - **Knowledge Graph Integration**: Semantic search with LLM-based entity recognition
 - **Multi-source Retrieval**: Documents, graphs, and structured data integration
 
-> Note: RAG/KG rely on a locally running Ollama service and available models. If Ollama is not running or the model hasn't been pulled, the page will show a connection error, but other parts of the system remain available.
+> Note: Context Engineering / KG rely on a locally running Ollama service and available models. If Ollama is not running or the model hasn't been pulled, the page will show a connection error, but other parts of the system remain available.
 
 #### 🖼️ Image Search Module
 - **Image Search Tab**: CLIP-based image retrieval supporting image-to-image and text-to-image search
@@ -176,13 +168,16 @@ The image search system leverages OpenAI's CLIP model to provide intelligent ima
 3. Adjust the number of results (1-20)
 4. View results in table and gallery format
 
-For detailed usage instructions, see [Image Search Guide](docs/IMAGE_SEARCH_GUIDE.md).
+For detailed usage instructions, see:
+- [Search Guide](docs/SEARCH_GUIDE.md)
+- [Context Engineering Guide](docs/CONTEXT_ENGINEERING_GUIDE.md)
+- [Image Search Guide](docs/IMAGE_SEARCH_GUIDE.md)
 
 ## 📖 User Guide
 
 ### Basic Usage
 
-1. **Index Building**: The system automatically builds indexes on startup, with manual document addition support
+1. **Index Building**: The system automatically loads preloaded documents (if present) and builds the index on startup; manual document addition via UI is not supported
 2. **Search Testing**: Enter queries in the search box to retrieve relevant documents
 3. **Click Feedback**: Clicking search results records user behavior for model training
 4. **Model Training**: After collecting sufficient data, train CTR prediction models
@@ -220,7 +215,7 @@ graph TB
     
     subgraph "📱 Application Layer"
         SearchMod["🔍 Search & Recommendation<br/>• Index Building<br/>• Text Search<br/>• CTR Training"]
-        RAGMod["🤖 RAG Module<br/>• RAG Q&A<br/>• Knowledge Graph<br/>• Multi-source Retrieval"]
+        RAGMod["🤖 Context Engineering<br/>• Context Q&A<br/>• Knowledge Graph<br/>• Multi-source Retrieval"]
         ImageMod["🖼️ Image Search<br/>• Image Upload<br/>• Image-to-Image<br/>• Text-to-Image"]
     end
     
@@ -277,7 +272,7 @@ graph LR
         A9 --> A4
     end
     
-    subgraph "🤖 RAG Flow"
+    subgraph "🤖 Context Engineering Flow"
         B1[User Question] --> B2[Document Retrieval]
         B2 --> B3[Knowledge Graph Query]
         B3 --> B4[Context Assembly]
@@ -295,19 +290,9 @@ graph LR
     end
 ```
 
-## 📊 Performance Metrics
+## 📊 Notes
 
-### Text Search Performance
-- **Search Latency**: < 100ms (10K documents)
-- **Concurrent Users**: 100+ concurrent users
-- **Memory Usage**: < 500MB (basic configuration)
-- **Storage Efficiency**: Compression ratio > 70%
-
-### Image Search Performance
-- **CLIP Encoding**: 1-3 seconds per image (CPU)
-- **Search Response**: Sub-second similarity calculation
-- **Embedding Storage**: ~2KB per image
-- **Supported Scale**: Unlimited image library size
+This project is a testbed for learning and experimentation. Any performance numbers depend on environment, data size, and configuration and are not guaranteed.
 
 ## 🛠️ Development Guide
 
@@ -355,11 +340,10 @@ Testbed/
 │       └── image_embeddings.npy
 ├── data/                         # Training and experiment data
 │   └── preloaded_documents.json     # Preloaded Chinese Wikipedia documents
-├── docs/                         # Comprehensive documentation
-│   ├── IMAGE_SEARCH_GUIDE.md         # Image search usage guide
-│   ├── KNOWLEDGE_GRAPH_GUIDE.md      # Knowledge graph guide
-│   ├── RAG_GUIDE.md                  # RAG system guide
-│   └── WIDE_DEEP_CTR_GUIDE.md        # CTR model guide
+├── docs/                         # Documentation (simplified)
+│   ├── SEARCH_GUIDE.md              # Search & Recommendation guide
+│   ├── CONTEXT_ENGINEERING_GUIDE.md # Context Engineering guide
+│   └── IMAGE_SEARCH_GUIDE.md        # Image search guide
 ├── examples/                     # Example scripts
 ├── tools/                        # Utility and monitoring tools
 ├── test/ & tests/                # Test suites
@@ -391,17 +375,8 @@ Testbed/
 ## 🧪 Testing
 
 ```bash
-# Run unit tests
-python -m pytest test/
-
-# Run integration tests
-python test/test_integration.py
-
-# Performance testing
-python test/test_performance.py
-
-# Test image search functionality
-python -c "from src.search_engine.image_service import ImageService; print('Image service test passed')"
+# Run unit tests (if present)
+python -m pytest tests/
 ```
 
 ## 📈 Monitoring
