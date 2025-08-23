@@ -41,8 +41,27 @@ class KGRetrievalService:
             default_model=default_model
         )
         self.knowledge_graph = KnowledgeGraph(graph_file)
+        # 强制只使用预置知识图谱：忽略磁盘上的pickle，清空后尝试加载预置文件
+        self.knowledge_graph.clear_graph()
+        loaded = False
+        # 1) 优先尝试 OpenKG 三元组数据
+        openkg_path = os.path.join("data", "openkg_triples.tsv")
+        if os.path.exists(openkg_path):
+            loaded = self.knowledge_graph.load_from_openkg_triples(openkg_path, max_triples=3000)
+            if loaded:
+                print(f"✅ 已加载OpenKG三元组: {openkg_path}")
+        # 2) 回退到项目内置 JSON 预置图谱
+        if not loaded:
+            preloaded_kg_path = os.path.join("data", "preloaded_knowledge_graph.json")
+            if os.path.exists(preloaded_kg_path):
+                loaded = self.knowledge_graph.load_from_json_file(preloaded_kg_path)
+                if loaded:
+                    print(f"✅ 已加载预置知识图谱: {preloaded_kg_path}")
+        if not loaded:
+            print("⚠️ 未找到可用的预置知识图谱文件，图谱为空")
         self.graph_file = graph_file
-        self.is_graph_built = self._check_graph_exists()
+        # 仅根据预置文件加载结果设置状态
+        self.is_graph_built = bool(loaded)
     
     def _check_graph_exists(self) -> bool:
         """检查知识图谱是否存在"""
@@ -51,65 +70,13 @@ class KGRetrievalService:
     
     def build_knowledge_graph(self, documents: Dict[str, str], 
                             model: Optional[str] = None) -> Dict[str, Any]:
-        """
-        构建知识图谱
-        
-        Args:
-            documents: 文档字典 {doc_id: content}
-            model: 使用的LLM模型
-            
-        Returns:
-            Dict: 构建结果
-        """
-        start_time = datetime.now()
-        
-        print(f"开始构建知识图谱，共 {len(documents)} 个文档")
-        
-        # 1. 批量NER提取
-        print("步骤1: 批量NER提取...")
-        ner_results = self.ner_service.batch_extract_from_documents(documents, model)
-        
-        # 2. 构建知识图谱
-        print("步骤2: 构建知识图谱...")
-        self.knowledge_graph.build_from_ner_results(ner_results)
-        
-        # 3. 保存图谱
-        print("步骤3: 保存知识图谱...")
-        self.knowledge_graph.save_graph()
-        
-        # 4. 更新状态
-        self.is_graph_built = True
-        
-        build_time = (datetime.now() - start_time).total_seconds()
-        
-        stats = self.knowledge_graph.get_stats()
-        
-        return {
-            "success": True,
-            "build_time": build_time,
-            "processed_documents": len(documents),
-            "stats": stats,
-            "message": f"知识图谱构建完成！共构建 {stats['entity_count']} 个实体，{stats['relation_count']} 条关系"
-        }
+        """当前版本暂不支持在线自建图谱，请使用预置知识图谱"""
+        return {"error": "KG building is disabled in this version. A preloaded KG is used if available."}
     
     def rebuild_knowledge_graph(self, documents: Dict[str, str], 
                                model: Optional[str] = None) -> Dict[str, Any]:
-        """
-        重新构建知识图谱
-        
-        Args:
-            documents: 文档字典 {doc_id: content}
-            model: 使用的LLM模型
-            
-        Returns:
-            Dict: 构建结果
-        """
-        # 清空现有图谱
-        self.knowledge_graph.clear_graph()
-        self.is_graph_built = False
-        
-        # 重新构建
-        return self.build_knowledge_graph(documents, model)
+        """当前版本暂不提供重建操作"""
+        return {"error": "Rebuild is disabled. Use the preloaded KG or clear and reload the file."}
     
     def query_entity_relations(self, entity_name: str) -> Dict[str, Any]:
         """
@@ -228,18 +195,7 @@ class KGRetrievalService:
         Returns:
             str: 状态消息
         """
-        self.knowledge_graph.clear_graph()
-        self.is_graph_built = False
-        
-        # 删除图谱文件
-        if os.path.exists(self.graph_file):
-            try:
-                os.remove(self.graph_file)
-                return "知识图谱已清空，文件已删除"
-            except Exception as e:
-                return f"知识图谱已清空，但删除文件失败: {str(e)}"
-        
-        return "知识图谱已清空"
+        return "Operation disabled: dynamic modifications are not allowed. Preloaded KG is read-only."
     
     def get_graph_visualization_data(self) -> Dict[str, Any]:
         """

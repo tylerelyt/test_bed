@@ -362,6 +362,103 @@ class KnowledgeGraph:
         except Exception as e:
             print(f"保存知识图谱失败: {e}")
     
+    def load_from_json_file(self, filepath: str) -> bool:
+        """
+        从JSON文件加载预置知识图谱
+        支持两种结构：
+        1) 导出格式：{"entities": [...], "relations": [...]}（与export_graph_data一致）
+        2) 简化三元组列表：{"triples": [{"subject":..., "predicate":..., "object":...}, ...]}
+        """
+        try:
+            if not os.path.exists(filepath):
+                print(f"预置图谱文件不存在: {filepath}")
+                return False
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            # 清空现有图
+            self.clear_graph()
+            # 情况1：包含entities/relations
+            if isinstance(data, dict) and 'entities' in data and 'relations' in data:
+                for ent in data.get('entities', []):
+                    self.add_entity(
+                        entity_name=ent.get('name', ''),
+                        entity_type=ent.get('type', '未分类'),
+                        description=ent.get('description', ''),
+                        doc_id=None
+                    )
+                    # 文档映射（如果提供）
+                    for did in ent.get('documents', []):
+                        self.entity_docs[ent.get('name', '')].add(did)
+                        self.doc_entities[did].add(ent.get('name', ''))
+                for rel in data.get('relations', []):
+                    self.add_relation(
+                        subject=rel.get('subject', ''),
+                        predicate=rel.get('predicate', ''),
+                        object_entity=rel.get('object', ''),
+                        description=rel.get('description', ''),
+                        doc_id=rel.get('doc_id', None)
+                    )
+            # 情况2：triples 列表
+            elif isinstance(data, dict) and 'triples' in data:
+                for t in data.get('triples', []):
+                    s = (t.get('subject') or '').strip()
+                    p = (t.get('predicate') or '').strip()
+                    o = (t.get('object') or '').strip()
+                    if s:
+                        self.add_entity(s, '未分类')
+                    if o:
+                        self.add_entity(o, '未分类')
+                    if s and p and o:
+                        self.add_relation(s, p, o)
+            else:
+                print("不支持的预置图谱JSON结构")
+                return False
+            print(f"✅ 预置知识图谱加载完成：{self.graph.number_of_nodes()} 个实体，{self.graph.number_of_edges()} 条关系")
+            return True
+        except Exception as e:
+            print(f"加载预置知识图谱失败: {e}")
+            return False
+
+
+    def load_from_openkg_triples(self, filepath: str, max_triples: int = 5000) -> bool:
+        """
+        从 OpenKG 三元组文件加载（TSV 格式：subject \t predicate \t object）
+        仅加载前 max_triples 条，避免内存占用过大
+        """
+        try:
+            if not os.path.exists(filepath):
+                print(f"预置OpenKG三元组文件不存在: {filepath}")
+                return False
+            # 清空现有图
+            self.clear_graph()
+            loaded = 0
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if max_triples and loaded >= max_triples:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    parts = line.split('\t')
+                    if len(parts) < 3:
+                        continue
+                    subject = parts[0].strip()
+                    predicate = parts[1].strip()
+                    obj = parts[2].strip()
+                    if subject and predicate and obj:
+                        # 简单的类型标注为"未分类"
+                        if not self.graph.has_node(subject):
+                            self.add_entity(subject, '未分类')
+                        if not self.graph.has_node(obj):
+                            self.add_entity(obj, '未分类')
+                        self.add_relation(subject, predicate, obj)
+                        loaded += 1
+            print(f"✅ 预置OpenKG图谱加载完成：{self.graph.number_of_nodes()} 个实体，{self.graph.number_of_edges()} 条关系（载入三元组 {loaded} 条）")
+            return loaded > 0
+        except Exception as e:
+            print(f"加载OpenKG三元组失败: {e}")
+            return False
+    
     def load_graph(self, filepath: Optional[str] = None):
         """
         加载知识图谱

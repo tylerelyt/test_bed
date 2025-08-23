@@ -84,6 +84,17 @@ If `data/preloaded_documents.json` exists, the system loads these Chinese Wikipe
 
 Note: If no preloaded file is present, the system will still start but the text index may be empty until data is provided offline.
 
+### Preloaded Knowledge Graph (Read-Only)
+
+The system automatically loads a preloaded Chinese knowledge graph if available:
+- **Primary Source**: `data/openkg_triples.tsv` - Real OpenKG concept hierarchy data (290 entities, 254 relations)
+- **Fallback**: `data/preloaded_knowledge_graph.json` - Alternative format if TSV not available
+- **Auto-generation**: Run `python tools/openkg_generator.py` to download fresh OpenKG sample data
+- **Format**: TSV format with concept-category relationships (e.g., "移动应用 属于 软件")
+- **Data Source**: OpenKG OpenConcepts project from GitHub
+
+The knowledge graph powers entity recognition and context engineering features.
+
 ### Start the System
 
 ```bash
