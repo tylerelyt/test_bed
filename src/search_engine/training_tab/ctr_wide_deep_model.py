@@ -382,6 +382,11 @@ class WideAndDeepCTRModel:
                 'position_group': max(3, np.max(features['position_group']) + 1)  # 确保至少3个分组
             }
             
+            # 获取配置参数
+            from .ctr_config import CTRModelConfig
+            config = CTRModelConfig.get_model_config('wide_and_deep')
+            params = config.get('params', {})
+            
             # 构建模型
             wide_dim = features['wide'].shape[1]
             deep_dim = features['deep'].shape[1]
@@ -410,12 +415,22 @@ class WideAndDeepCTRModel:
             # 训练模型
             history = self.model.fit(
                 X_train, y_train,
-                epochs=20,
-                batch_size=32,
+                epochs=params.get('epochs', 30),
+                batch_size=params.get('batch_size', 64),
                 validation_data=(X_test, y_test),
                 verbose=0,
                 callbacks=[
-                    keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)
+                    keras.callbacks.EarlyStopping(
+                        patience=params.get('early_stopping_patience', 8), 
+                        restore_best_weights=True,
+                        monitor='val_loss'
+                    ),
+                    keras.callbacks.ReduceLROnPlateau(
+                        factor=0.5,
+                        patience=5,
+                        min_lr=1e-6,
+                        monitor='val_loss'
+                    )
                 ]
             )
             

@@ -156,16 +156,20 @@ class CTRModelConfig:
             'class': 'WideAndDeepCTRModel',
             'module': '.ctr_wide_deep_model',
             'params': {
-                'epochs': 20,
-                'batch_size': 32,
+                'epochs': 30,
+                'batch_size': 64,
                 'learning_rate': 0.001,
-                'dropout_rate': 0.2
+                'dropout_rate': 0.3,
+                'wide_layers': [128, 64],
+                'deep_layers': [256, 128, 64, 32],
+                'embedding_dim': 16,
+                'early_stopping_patience': 8
             }
         }
     }
     
     # 默认模型
-    DEFAULT_MODEL = 'logistic_regression'
+    DEFAULT_MODEL = 'wide_and_deep'
     
     @classmethod
     def get_supported_models(cls) -> Dict[str, Dict[str, Any]]:

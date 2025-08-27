@@ -302,7 +302,7 @@ def build_training_tab(model_service, data_service):
                         
                         model_dropdown = gr.Dropdown(
                             choices=[(label, key) for label, key in zip(model_labels, model_keys)],
-                            value="logistic_regression",
+                            value="wide_and_deep",
                             label="选择CTR模型",
                             info="选择要训练的CTR模型类型"
                         )
