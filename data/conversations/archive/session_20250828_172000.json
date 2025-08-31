@@ -1,0 +1,55 @@
+{
+  "session_id": "20250828_172000",
+  "archived_at": "2025-08-28T17:20:00.552055",
+  "total_turns": 3,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-08-28T17:19:16.394960",
+      "user": {
+        "intent": "你好",
+        "timestamp": "2025-08-28T17:19:16.394962"
+      },
+      "assistant": {
+        "response": "你好！我是MCP对话历史测试助手。",
+        "full_response_length": 17,
+        "timestamp": "2025-08-28T17:19:16.394963"
+      },
+      "metadata": {
+        "test": true
+      }
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-08-28T17:19:16.395069",
+      "user": {
+        "intent": "什么是MCP？",
+        "timestamp": "2025-08-28T17:19:16.395070"
+      },
+      "assistant": {
+        "response": "MCP是Model Context Protocol，用于标准化LLM与外部资源的交互。",
+        "full_response_length": 44,
+        "timestamp": "2025-08-28T17:19:16.395071"
+      },
+      "metadata": {
+        "test": true
+      }
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-08-28T17:19:16.395156",
+      "user": {
+        "intent": "对话历史如何存储？",
+        "timestamp": "2025-08-28T17:19:16.395157"
+      },
+      "assistant": {
+        "response": "对话历史作为MCP Resource存储在文件中，支持读取和订阅。",
+        "full_response_length": 33,
+        "timestamp": "2025-08-28T17:19:16.395158"
+      },
+      "metadata": {
+        "test": true
+      }
+    }
+  ]
+}

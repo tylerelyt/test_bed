@@ -45,3 +45,9 @@ pytest>=7.0.0
 black>=22.0.0
 flake8>=5.0.0
 mypy>=0.991 
+
+# -------------------------
+# MCP (Optional Server)
+# -------------------------
+# To expose project capabilities via Model Context Protocol (FastMCP)
+fastmcp>=2.0.0

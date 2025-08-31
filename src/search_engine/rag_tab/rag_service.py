@@ -7,9 +7,28 @@ RAG服务模块
 
 import json
 import re
+import os
 import requests
 from typing import List, Dict, Tuple, Optional, Any
 from datetime import datetime
+
+# ==================== LLM 调用 ====================
+def call_llm(messages, model="qwen-max"):
+    """调用 LLM"""
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.3
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"LLM调用失败: {str(e)}"
 
 class RAGService:
     """RAG服务：基于倒排索引的检索增强生成"""
@@ -20,14 +39,14 @@ class RAGService:
         
         Args:
             index_service: 索引服务实例
-            ollama_url: Ollama服务URL
+            ollama_url: Ollama服务URL (保留兼容性)
         """
         self.index_service = index_service
         self.ollama_url = ollama_url
-        self.default_model = "llama3.1:8b"
+        self.default_model = "qwen-max"  # 改为DashScope模型
         
     def check_ollama_connection(self) -> Tuple[bool, str]:
-        """检查Ollama连接状态"""
+        """检查Ollama连接状态 (保留兼容性)"""
         try:
             response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
             if response.status_code == 200:
@@ -41,15 +60,8 @@ class RAGService:
     
     def get_available_models(self) -> List[str]:
         """获取可用的模型列表"""
-        try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
-            if response.status_code == 200:
-                models = response.json().get("models", [])
-                return [model["name"] for model in models]
-            else:
-                return [self.default_model]
-        except:
-            return [self.default_model]
+        # 返回DashScope可用模型
+        return ["qwen-max", "qwen-plus", "qwen-turbo", "qwen2.5-72b-instruct"]
     
     def retrieve_documents(self, query: str, top_k: int = 5) -> List[Tuple[str, float, str]]:
         """
@@ -73,7 +85,7 @@ class RAGService:
     
     def generate_answer(self, query: str, context: str, model: Optional[str] = None) -> str:
         """
-        使用Ollama生成回答
+        使用DashScope生成回答
         
         Args:
             query: 用户查询
@@ -87,35 +99,22 @@ class RAGService:
             model = self.default_model
             
         # 构建提示词
-        prompt = f"""基于以下上下文信息，回答用户的问题。如果上下文中没有相关信息，请说明无法根据提供的信息回答。
-
-上下文信息：
+        system_prompt = """你是一个专业的AI助手，请基于提供的上下文信息回答用户问题。如果上下文中没有相关信息，请说明无法根据提供的信息回答。请用中文回答。"""
+        
+        user_prompt = f"""上下文信息：
 {context}
 
-用户问题：{query}
-
-请用中文回答："""
+用户问题：{query}"""
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
         
         try:
-            # 调用Ollama API
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("response", "生成回答失败")
-            else:
-                return f"❌ 生成回答失败，状态码: {response.status_code}"
-                
-        except requests.exceptions.RequestException as e:
-            return f"❌ 调用Ollama失败: {str(e)}"
+            return call_llm(messages, model)
+        except Exception as e:
+            return f"❌ 调用LLM失败: {str(e)}"
     
     def generate_answer_with_prompt(self, prompt: str, model: Optional[str] = None) -> str:
         """
@@ -132,25 +131,12 @@ class RAGService:
             model = self.default_model
             
         try:
-            # 调用Ollama API
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("response", "生成回答失败")
-            else:
-                return f"❌ 生成回答失败，状态码: {response.status_code}"
-                
-        except requests.exceptions.RequestException as e:
-            return f"❌ 调用Ollama失败: {str(e)}"
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
+            return call_llm(messages, model)
+        except Exception as e:
+            return f"❌ 调用LLM失败: {str(e)}"
     
     def _react_reasoning(self, query: str, model: Optional[str], retrieval_enabled: bool, top_k: int = 5, max_steps: int = 5) -> Tuple[str, str]:
         """

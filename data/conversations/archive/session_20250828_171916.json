@@ -1,0 +1,55 @@
+{
+  "session_id": "20250828_171916",
+  "archived_at": "2025-08-28T17:19:16.394451",
+  "total_turns": 3,
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-08-28T15:59:43.235400",
+      "user": {
+        "intent": "你好",
+        "timestamp": "2025-08-28T15:59:43.235410"
+      },
+      "assistant": {
+        "response": "你好！有什么可以帮助您的吗？",
+        "full_response_length": 14,
+        "timestamp": "2025-08-28T15:59:43.235412"
+      },
+      "metadata": {
+        "test_round": 1
+      }
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-08-28T15:59:43.235556",
+      "user": {
+        "intent": "什么是MCP？",
+        "timestamp": "2025-08-28T15:59:43.235558"
+      },
+      "assistant": {
+        "response": "MCP是Model Context Protocol的缩写，是一个用于LLM上下文管理的协议...",
+        "full_response_length": 49,
+        "timestamp": "2025-08-28T15:59:43.235559"
+      },
+      "metadata": {
+        "test_round": 2
+      }
+    },
+    {
+      "turn": 3,
+      "timestamp": "2025-08-28T15:59:43.235651",
+      "user": {
+        "intent": "谢谢",
+        "timestamp": "2025-08-28T15:59:43.235652"
+      },
+      "assistant": {
+        "response": "不客气！如果还有其他问题随时问我。",
+        "full_response_length": 17,
+        "timestamp": "2025-08-28T15:59:43.235653"
+      },
+      "metadata": {
+        "test_round": 3
+      }
+    }
+  ]
+}

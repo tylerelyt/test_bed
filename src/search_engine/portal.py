@@ -7,6 +7,7 @@ from .search_tab import build_search_tab
 from .training_tab import build_training_tab
 from .monitoring_tab import build_monitoring_tab
 from .rag_tab import build_rag_tab
+from .mcp_tab import build_mcp_tab
 from .image_tab.image_tab import build_image_tab
 from .service_manager import service_manager
 
@@ -34,14 +35,16 @@ class SearchUI:
             - **数据服务 (DataService)**: CTR事件收集、样本状态管理
             - **索引服务 (IndexService)**: 索引构建、文档管理、检索功能
             - **模型服务 (ModelService)**: 模型训练、配置管理、模型文件
-            - **上下文工程服务 (RAGService)**: 直连LLM / 检索增强 / 多步推理 (Ollama)
+            - **RAG服务 (RAGService)**: 直连LLM / 检索增强 / 多步推理 (Ollama)
+            - **上下文工程服务 (MCPService)**: 符号主义专家系统 + 连接主义LLM消费 (v2.0)
             - **图片服务 (ImageService)**: 基于CLIP的图片检索，支持图搜图和文搜图
             
             ## 📊 服务状态
             - 数据服务: ✅ 运行中
             - 索引服务: ✅ 运行中
             - 模型服务: ✅ 运行中
-            - 上下文工程服务: ✅ 运行中 (需要Ollama支持)
+            - RAG服务: ✅ 运行中 (需要Ollama支持)
+            - 上下文工程服务: ✅ 运行中 (v2.0完整架构)
             - 图片服务: ✅ 运行中 (基于CLIP模型)
             """)
             
@@ -50,13 +53,15 @@ class SearchUI:
                     build_index_tab(self.index_service)
                 with gr.Tab("🔍 第二部分：在线召回排序"):
                     build_search_tab(self.index_service, self.data_service)
-                with gr.Tab("🤖 第三部分：上下文工程"):
+                with gr.Tab("🤖 第三部分：RAG检索增强"):
                     build_rag_tab(self.index_service)
-                with gr.Tab("🖼️ 第四部分：图片检索系统"):
+                with gr.Tab("🧠 第四部分：上下文工程"):
+                    build_mcp_tab()
+                with gr.Tab("🖼️ 第五部分：图片检索系统"):
                     build_image_tab(self.image_service)
-                with gr.Tab("📊 第五部分：数据回收训练"):
+                with gr.Tab("📊 第六部分：数据回收训练"):
                     build_training_tab(self.model_service, self.data_service)
-                with gr.Tab("🛡️ 系统监控"):
+                with gr.Tab("🛡️ 第七部分：系统监控"):
                     build_monitoring_tab(self.data_service, self.index_service, self.model_service)
 
     def run(self):
