@@ -6,6 +6,9 @@ from datetime import datetime
 import pandas as pd
 from .training_tab.ctr_model import CTRModel
 from .training_tab.ctr_config import CTRSampleConfig, CTRModelConfig
+from flask import Flask, request, jsonify
+import threading
+import time
 
 
 class ModelService:
@@ -19,6 +22,10 @@ class ModelService:
         self.current_model_type = "logistic_regression"
         self.model_instances = {}  # 存储不同类型的模型实例
         self._load_model()
+        
+        # Flask API 服务相关
+        self.flask_app = None
+        self.api_running = False
     
     def _load_model(self):
         """加载模型"""
@@ -457,4 +464,138 @@ class ModelService:
             
         except Exception as e:
             print(f"❌ 获取特征重要性失败: {e}")
-            return {} 
+            return {}
+    
+    def start_api_server(self, host="0.0.0.0", port=8501, debug=False):
+        """启动Flask API服务器（独立进程模式）"""
+        try:
+            if self.api_running:
+                print("⚠️ API服务器已在运行")
+                return True
+            
+            self.flask_app = Flask(__name__)
+            self._setup_api_routes()
+            
+            self.api_running = True
+            print(f"🚀 Model Serving API启动在 {host}:{port}")
+            print("📋 可用接口:")
+            print("   - 健康检查: http://localhost:8501/health")
+            print("   - 模型列表: http://localhost:8501/v1/models")
+            print("   - 预测接口: http://localhost:8501/v1/models/<model_name>:predict")
+            print("   - 批量预测: http://localhost:8501/v1/models/<model_name>/batch_predict")
+            print("=" * 50)
+            
+            # 直接运行Flask服务器（独立进程模式）
+            self.flask_app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=False)
+            
+        except Exception as e:
+            print(f"❌ 启动API服务器失败: {e}")
+            return False
+    
+    def stop_api_server(self):
+        """停止Flask API服务器"""
+        self.api_running = False
+        print("🛑 API服务器已停止")
+    
+    def _setup_api_routes(self):
+        """设置API路由"""
+        
+        @self.flask_app.route('/health', methods=['GET'])
+        def health():
+            """健康检查"""
+            return jsonify({
+                "status": "healthy",
+                "model_type": self.current_model_type,
+                "model_trained": self.ctr_model.is_trained
+            })
+        
+        @self.flask_app.route('/v1/models', methods=['GET'])
+        def list_models():
+            """列出所有模型"""
+            models = []
+            for model_type in ['logistic_regression', 'wide_and_deep']:
+                try:
+                    model_instance = self.get_model_instance(model_type)
+                    models.append({
+                        "name": model_type,
+                        "status": "loaded" if model_instance.is_trained else "unloaded",
+                        "type": "pickle" if model_type == 'logistic_regression' else "tensorflow"
+                    })
+                except:
+                    models.append({
+                        "name": model_type,
+                        "status": "error",
+                        "type": "pickle" if model_type == 'logistic_regression' else "tensorflow"
+                    })
+            
+            return jsonify({"model": models})
+        
+        @self.flask_app.route('/v1/models/<model_name>', methods=['GET'])
+        def get_model_info(model_name):
+            """获取特定模型信息"""
+            try:
+                model_instance = self.get_model_instance(model_name)
+                return jsonify({
+                    "model": {
+                        "name": model_name,
+                        "status": "loaded" if model_instance.is_trained else "unloaded",
+                        "type": "pickle" if model_name == 'logistic_regression' else "tensorflow"
+                    }
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 404
+        
+        @self.flask_app.route('/v1/models/<model_name>:predict', methods=['POST'])
+        def predict(model_name):
+            """模型预测"""
+            try:
+                data = request.get_json()
+                if not data:
+                    return jsonify({"error": "No JSON data provided"}), 400
+                
+                # 提取输入数据
+                inputs = data.get('inputs', {})
+                if not inputs:
+                    return jsonify({"error": "No inputs provided"}), 400
+                
+                # 执行预测
+                ctr_score = self.predict_ctr(inputs, model_name)
+                
+                return jsonify({
+                    "outputs": {"ctr_score": ctr_score}
+                })
+                
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 404
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+        
+        @self.flask_app.route('/v1/models/<model_name>/batch_predict', methods=['POST'])
+        def batch_predict(model_name):
+            """批量预测"""
+            try:
+                data = request.get_json()
+                if not data:
+                    return jsonify({"error": "No JSON data provided"}), 400
+                
+                # 提取输入数据
+                inputs_list = data.get('inputs', [])
+                if not inputs_list:
+                    return jsonify({"error": "No inputs provided"}), 400
+                
+                # 执行批量预测
+                results = []
+                for inputs in inputs_list:
+                    ctr_score = self.predict_ctr(inputs, model_name)
+                    results.append({"ctr_score": ctr_score})
+                
+                return jsonify({
+                    "outputs": results
+                })
+                
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+    
+    def is_api_running(self):
+        """检查API服务器是否运行"""
+        return self.api_running 

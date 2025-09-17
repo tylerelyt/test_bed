@@ -39,6 +39,7 @@ def print_banner():
     print("🔧 包含: MCP服务器、数据服务、索引服务、模型服务、UI界面")
     print("🌐 访问: http://localhost:7861 (主系统)")
     print("🔗 MCP: http://localhost:3001/mcp (统一服务器)")
+    print("🤖 模型服务: http://localhost:8501 (Model Serving API)")
     print("🛑 停止: 按 Ctrl+C 或关闭终端")
     print("=" * 60)
 
@@ -283,9 +284,63 @@ def start_mcp_server():
             print("错误输出: <无法解码>")
     return None
 
+def check_and_start_model_service():
+    """检查并启动模型服务（独立进程）"""
+    print("\n🔍 步骤7: 检查模型服务")
+    print("-" * 30)
+    
+    # 检查模型服务是否已运行
+    model_service_url = "http://localhost:8501/health"
+    try:
+        req = request.Request(model_service_url, method="GET")
+        with request.urlopen(req, timeout=2) as resp:
+            if 200 <= resp.status < 300:
+                print("✅ 检测到已运行的模型服务，直接复用: http://localhost:8501")
+                return True
+    except Exception:
+        pass
+    
+    # 模型服务未运行，启动独立进程
+    print("🚀 启动模型服务独立进程...")
+    try:
+        # 启动模型服务独立进程
+        model_service_script = os.path.join(os.path.dirname(__file__), 'start_model_serving.py')
+        
+        # 使用subprocess启动独立进程
+        process = subprocess.Popen(
+            [sys.executable, model_service_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=os.path.dirname(__file__)
+        )
+        
+        # 等待服务启动
+        print("⏳ 等待模型服务启动...")
+        time.sleep(3)
+        
+        # 检查服务是否成功启动
+        try:
+            req = request.Request(model_service_url, method="GET")
+            with request.urlopen(req, timeout=5) as resp:
+                if 200 <= resp.status < 300:
+                    print("✅ 模型服务独立进程启动成功: http://localhost:8501")
+                    print("📋 可用接口:")
+                    print("   - 健康检查: http://localhost:8501/health")
+                    print("   - 模型列表: http://localhost:8501/v1/models")
+                    print("   - 预测接口: http://localhost:8501/v1/models/<model_name>:predict")
+                    print("   - 批量预测: http://localhost:8501/v1/models/<model_name>/batch_predict")
+                    return True
+        except Exception as e:
+            print(f"❌ 模型服务启动后健康检查失败: {e}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 启动模型服务独立进程失败: {e}")
+        return False
+
 def start_system(current_dir, env):
     """启动系统"""
-    print("\n🚀 步骤6: 启动MLOps系统")
+    print("\n🚀 步骤8: 启动MLOps系统")
     print("-" * 30)
     print("🔄 正在启动以下服务:")
     print("   📊 数据服务 (DataOps)")
@@ -371,7 +426,11 @@ def main():
             print("❌ 统一MCP服务器启动失败，无法继续启动主系统。")
             return 1
         
-        # 7. 启动系统
+        # 7. 检查并启动模型服务
+        if not check_and_start_model_service():
+            print("⚠️ 模型服务启动失败，但系统将继续运行")
+        
+        # 8. 启动系统
         start_system(current_dir, env)
         
         return 0
