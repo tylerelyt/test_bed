@@ -88,6 +88,7 @@ def check_api_keys():
     
     # 检查DashScope API密钥
     dashscope_key = os.getenv("DASHSCOPE_API_KEY")
+    dashscope_url = os.getenv("DASHSCOPE_API_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     if dashscope_key:
         print(f"✅ API密钥已加载: {dashscope_key[:10]}...")
         
@@ -96,7 +97,7 @@ def check_api_keys():
             from openai import OpenAI
             client = OpenAI(
                 api_key=dashscope_key,
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                base_url=dashscope_url,
             )
             
             # 简单测试调用
