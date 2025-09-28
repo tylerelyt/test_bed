@@ -328,7 +328,7 @@ def check_and_start_model_service():
                     print("📋 可用接口:")
                     print("   - 健康检查: http://localhost:8501/health")
                     print("   - 模型列表: http://localhost:8501/v1/models")
-                    print("   - 预测接口: http://localhost:8501/v1/models/<model_name>:predict")
+                    print("   - 预测接口: http://localhost:8501/v1/models/<model_name>/predict")
                     print("   - 批量预测: http://localhost:8501/v1/models/<model_name>/batch_predict")
                     return True
         except Exception as e:

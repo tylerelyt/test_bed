@@ -481,7 +481,7 @@ class ModelService:
             print("📋 可用接口:")
             print("   - 健康检查: http://localhost:8501/health")
             print("   - 模型列表: http://localhost:8501/v1/models")
-            print("   - 预测接口: http://localhost:8501/v1/models/<model_name>:predict")
+            print("   - 预测接口: http://localhost:8501/v1/models/<model_name>/predict")
             print("   - 批量预测: http://localhost:8501/v1/models/<model_name>/batch_predict")
             print("=" * 50)
             
@@ -545,7 +545,7 @@ class ModelService:
             except Exception as e:
                 return jsonify({"error": str(e)}), 404
         
-        @self.flask_app.route('/v1/models/<model_name>:predict', methods=['POST'])
+        @self.flask_app.route('/v1/models/<model_name>/predict', methods=['POST'])
         def predict(model_name):
             """模型预测"""
             try:
