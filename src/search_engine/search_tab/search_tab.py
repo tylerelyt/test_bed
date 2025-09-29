@@ -289,17 +289,28 @@ def build_search_tab(index_service, data_service):
             row = df.iloc[idx]
             doc_id = row["文档ID"]
             html, samples = on_document_click(index_service, data_service, doc_id, request_id)
-            return html, samples, gr.update(visible=True), gr.update(visible=False)
+            return (
+                html,
+                samples,
+                gr.update(visible=True),
+                gr.update(visible=False)
+            )
         results_df.select(
             fn=on_row_select,
             inputs=[results_df, request_id_state],
             outputs=[doc_content, sample_output, back_btn, results_df]
         )
-        def on_back_click():
+        def on_back_click(request_id):
             # 恢复主检索结果区，隐藏返回按钮
-            return gr.update(visible=False), gr.update(visible=True)
+            return (
+                gr.update(visible=False),
+                gr.update(visible=True),
+                "<p>点击下方'查看全文'按钮查看文档内容...</p>",
+                get_ctr_dataframe(request_id) if request_id else pd.DataFrame()
+            )
         back_btn.click(
             fn=on_back_click,
-            outputs=[back_btn, results_df]
+            inputs=[request_id_state],
+            outputs=[back_btn, results_df, doc_content, sample_output]
         )
     return search_tab 
