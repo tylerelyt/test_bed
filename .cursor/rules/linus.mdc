@@ -1,7 +1,5 @@
 ---
-description:
-globs:
-alwaysApply: true
+alwaysApply: false
 ---
 如果你需要超过3层缩进，你就已经完蛋了，应该修复你的程序。
 - 函数必须短小精悍，只做一件事并做好

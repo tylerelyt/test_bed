@@ -52,63 +52,194 @@ graph TB
 
 ### 2.3 逻辑分区动态展开流程
 
-**上下文工程的核心**：通过MCP协议实现逻辑分区的动态展开
+**上下文工程的核心**：先获取所有Prompt模板，LLM智能选择，然后替换模板中的占位符
+
+**标准流程**（可扩展）：
+1. **拉取全部Prompt模板** → `list_prompts()`
+2. **LLM智能选择模板** → 根据用户意图+模板列表，LLM选择最合适的
+3. **获取模板内容** → `get_prompt(template)` 返回包含占位符的模板
+   - **固定分区**：人设、Few-shot示例直接在模板中定义
+   - **占位符**：`${local:xxx}`, `${mcp:resource:xxx}`, `${mcp:tool:xxx}`
+4. **占位符替换** → CE Server识别并替换占位符：
+   - **本地占位符** `${local:xxx}`：
+     - `${local:current_time}` → CE Server生成当前时间
+     - `${local:user_intent}` → 用户输入
+     - `${local:model_name}` → 模型名称
+   - **Resource占位符** `${mcp:resource:xxx}`：
+     - `${mcp:resource:conversation://current/history}` → 通过`get_resource()`获取对话历史
+   - **Tool占位符** `${mcp:tool:xxx}`：
+     - `${mcp:tool:dynamic_tool_selection}` → 特殊宏，调用`list_tools()`获取所有工具 + LLM智能选择相关工具
+     - `${mcp:tool:具体工具名}` → 直接获取该工具的定义，无需LLM选择
+   - **注：这些只是常见占位符，可以自定义任意占位符并实现对应的解析逻辑**
+5. **完成替换** → 生成完整的上下文
+6. **LLM推理** → 发送替换后的完整上下文给LLM获取TAO结果
+7. **更新历史** → 将TAO记录更新到`MCP Resources`
+8. **循环直到结束** → 重复2-7直到满足结束条件
+
+**🔧 可扩展性说明**：
+- 上述流程是**标准范式**，不是固定要求
+- 占位符格式统一为 `${prefix:key}`，简洁优雅（类似bash变量）
+- 可以自定义任意占位符（如 `${local:code_context}`, `${mcp:resource:system://status}`）
+- CE Server只需在PlaceholderResolver中添加对应的解析逻辑即可
+- 模板保持声明式，易读易维护
 
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant UI as 智能体界面
-    participant MCP as MCP专家系统
-    participant Prompts as Prompts服务
-    participant Tools as Tools服务
-    participant Resources as Resources服务
+    participant CE as 上下文工程服务器
+    participant Prompts as MCP Prompts
+    participant Tools as MCP Tools
+    participant Resources as MCP Resources
     participant LLM as LLM推理引擎
     
-    User->>UI: 输入用户意图
-    UI->>MCP: 阶段1: 模板选择
+    User->>CE: 输入用户意图
     
-    Note over MCP: 逻辑分区1: 人设分区
-    MCP->>Prompts: 获取可用模板列表
-    Prompts-->>MCP: 返回模板元数据
-    MCP->>LLM: 智能选择最合适模板
-    LLM-->>MCP: 返回选择结果
+    Note over CE,Prompts: 阶段1: 模板选择
+    CE->>Prompts: list_prompts() 获取所有模板
+    Prompts-->>CE: 返回模板列表和描述
+    CE->>LLM: 发送用户意图+模板列表
+    LLM-->>CE: 智能选择最合适的模板
     
-    Note over MCP: 逻辑分区2: 历史分区
-    MCP->>Resources: 获取对话历史
-    Resources-->>MCP: 返回历史数据
+    Note over CE,Resources: 阶段2: 占位符替换
     
-    Note over MCP: 逻辑分区3: 工具分区
-    MCP->>Tools: 获取可用工具列表
-    Tools-->>MCP: 返回工具契约
+    CE->>Prompts: get_prompt(selected_template)
+    Prompts-->>CE: 返回包含占位符的模板
+    Note over CE: 模板包含：<br/>- 固定分区（人设、Few-shot示例）<br/>- 占位符（${local:xxx}, ${mcp:xxx}）
     
-    Note over MCP: 逻辑分区4: 任务分区
-    MCP->>MCP: 装配完整上下文
-    MCP-->>UI: 上下文装配完成
+    rect rgb(200, 220, 240)
+        Note over CE: 识别本地占位符 ${local:xxx}
+        CE->>CE: ${local:current_time} → 生成当前时间
+        CE->>CE: ${local:user_intent} → 用户输入
+        CE->>CE: ${local:model_name} → 模型名称
+    end
     
-    UI->>MCP: 阶段3: LLM推理
-    MCP->>LLM: 发送装配后的上下文
-    LLM-->>MCP: 返回TAO格式推理结果
+    rect rgb(220, 240, 200)
+        Note over CE,Resources: 识别Resource占位符 ${mcp:resource:xxx}
+        CE->>Resources: get_resource("conversation://current/history")
+        Resources-->>CE: 返回对话历史数据
+        CE->>CE: 替换 ${mcp:resource:conversation://current/history}
+    end
     
-    UI->>MCP: 阶段4: 上下文更新
-    MCP->>MCP: 解析TAO输出
-    MCP->>Resources: 更新对话历史
-    Resources-->>MCP: 更新确认
+    rect rgb(240, 220, 200)
+        Note over CE,Tools: 识别Tool占位符 ${mcp:tool:xxx}
+        alt ${mcp:tool:dynamic_tool_selection}
+            CE->>Tools: list_tools() 获取所有工具列表
+            Tools-->>CE: 返回工具定义和schema
+            CE->>LLM: 发送用户意图+工具列表
+            LLM-->>CE: 智能选择相关工具
+            CE->>CE: 替换为选中的工具列表
+        else ${mcp:tool:具体工具名}
+            CE->>Tools: 直接获取该工具定义
+            Tools-->>CE: 返回工具schema
+            CE->>CE: 替换为该工具定义
+        end
+    end
     
-    MCP-->>UI: 上下文更新完成
-    UI-->>User: 返回最终结果
+    CE->>CE: 完成所有占位符替换
+    Note over CE: 生成完整上下文
+    
+    Note over CE,LLM: 阶段3: LLM推理
+    CE->>LLM: 发送替换后的完整上下文
+    LLM-->>CE: 返回TAO格式推理结果<br/>{reasoning, action, observation}
+    
+    Note over CE,Resources: 阶段4: 上下文更新
+    CE->>CE: 解析TAO输出
+    CE->>Resources: add_conversation_turn(TAO记录)
+    Resources-->>CE: 更新历史确认
+    
+    alt 未达到结束条件
+        CE->>CE: 进入下一轮循环
+        Note over CE: 重复阶段2-4，直到满足结束条件
+    else 达到结束条件
+        CE->>User: 返回最终结果
+    end
 ```
+
+**📝 流程说明**：
+- 上图展示的是**占位符替换的标准流程**
+- 占位符格式：`${prefix:key}`（类似bash变量，简洁优雅）
+- 三种占位符类型：
+  - `${local:xxx}` - CE Server本地生成
+  - `${mcp:resource:xxx}` - 调用MCP Resource获取
+  - `${mcp:tool:xxx}` - 调用MCP Tools获取
+- 可扩展：自定义新占位符只需在PlaceholderResolver中添加解析逻辑
+- 这是一个**开放可扩展的架构**，不局限于图中所示的分区
 
 ### 2.4 MCP架构组件
 
-- **MCP客户端管理器**：`MCPClientManager` - 管理MCP服务器连接和调用
+- **上下文工程服务器**：`ContextEngineeringPipeline` - 负责编排上下文，执行四阶段循环
+- **MCP客户端管理器**：`MCPClientManager` - 管理与MCP服务器的连接和调用
 - **动态MCP服务器**：`DynamicMCPServer` - 提供标准化的prompts、tools、resources
-- **智能体演示界面**：`smart_agent_demo.py` - 实现四阶段循环的用户界面
+- **智能体演示界面**：`smart_agent_demo.py` - 用户交互界面
 
 ## 3. 逻辑分区动态展开机制
 
 ### 3.1 逻辑分区设计原理
 
 **上下文工程的核心思想**：将复杂的上下文分解为独立的逻辑分区，每个分区通过MCP协议动态获取和装配。
+
+**🔧 设计特点**：
+- **标准范式，非固定要求**：图示的五个分区是常见模式
+  - **人设分区**：定义AI角色和能力边界
+  - **Few-shot示例分区**：控制模型执行范式（ReAct、Self-Ask等）
+    - 定义如何组织输出、何时调用工具、如何流转状态
+    - **定义结束条件格式**：让模型知道何时任务完成并结束循环
+  - **历史分区**：提供对话连续性
+  - **工具分区**：提供外部能力
+  - **任务分区**：明确当前目标
+- **完全可扩展**：可以定义任意的`section_*`参数作为新的逻辑分区
+- **职责分离**：
+  - MCP Server的Prompt模板定义需要哪些逻辑分区（`section_*`参数）
+  - CE Server实现每个分区的展开逻辑（如何生成分区内容）
+  - 两者通过MCP协议标准化交互
+- **热插拔**：新增分区无需修改框架，只需：
+  1. 在Prompt模板中声明新的`section_*`参数
+  2. 在CE Server中实现对应的生成方法
+
+**扩展示例**：
+```python
+# 示例1：在MCP Server中定义新的代码审查模板
+@self.mcp.prompt("advanced_code_review")
+def advanced_code_review_prompt(
+    section_persona: str = "",           # 标准分区
+    section_code_context: str = "",      # 新增：代码上下文分区
+    section_review_rules: str = "",      # 新增：审查规则分区
+    section_similar_issues: str = "",    # 新增：相似问题分区
+    section_user_question: str = ""      # 标准分区
+) -> str:
+    return f"""{section_persona}
+{section_code_context}
+{section_review_rules}
+{section_similar_issues}
+{section_user_question}"""
+
+# 示例2：在CE Server中实现新分区的展开逻辑
+class LogicalPartitionManager:
+    async def generate_section_code_context(self, user_intent: str) -> str:
+        """新增：生成代码上下文分区"""
+        # 可以通过MCP Resource获取代码库信息
+        code_info = await self.mcp_manager.get_resource("code://repository/context")
+        return f"[代码上下文] {code_info}"
+    
+    async def generate_section_review_rules(self, template_name: str) -> str:
+        """新增：生成审查规则分区"""
+        # 可以通过MCP Resource获取审查规则
+        rules = await self.mcp_manager.get_resource("rules://code_review")
+        return f"[审查规则] {rules}"
+    
+    async def generate_section_similar_issues(self, user_intent: str) -> str:
+        """新增：生成相似问题分区"""
+        # 可以通过MCP Tools调用搜索工具
+        similar = await self.mcp_manager.call_tool("search_similar_issues", {
+            "query": user_intent
+        })
+        return f"[相似问题] {similar}"
+```
+
+**关键点**：
+- ✅ 框架完全不需要修改
+- ✅ 只需在两端各自实现新的分区
+- ✅ 通过MCP协议保持标准化交互
 
 ```mermaid
 graph LR

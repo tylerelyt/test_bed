@@ -1,6 +1,4 @@
 ---
-description:
-globs:
-alwaysApply: true
+alwaysApply: false
 ---
 优先查找并使用官方文档的最佳实践
