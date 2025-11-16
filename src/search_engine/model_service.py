@@ -21,18 +21,171 @@ class ModelService:
         self.ctr_model = CTRModel()  # 默认使用LR模型
         self.current_model_type = "logistic_regression"
         self.model_instances = {}  # 存储不同类型的模型实例
+        
+        # 在线学习相关配置
+        self.online_learning_enabled = False  # 在线学习开关
+        self.online_model_base_dir = os.path.join(os.getcwd(), "models", "online")  # 在线模型目录
+        self.offline_model_base_dir = os.path.join(os.getcwd(), "models", "offline")  # 离线模型目录
+        self._ensure_model_directories()
+        
+        # 在线学习状态
+        self.online_training_in_progress = False  # 是否正在训练
+        self.last_online_training_time = None  # 上次在线训练时间
+        self.online_checkpoint_counter = 0  # 在线checkpoint计数器
+        
         self._load_model()
         
         # Flask API 服务相关
         self.flask_app = None
         self.api_running = False
     
+    def _ensure_model_directories(self):
+        """确保在线和离线模型目录存在"""
+        os.makedirs(self.online_model_base_dir, exist_ok=True)
+        os.makedirs(self.offline_model_base_dir, exist_ok=True)
+    
     def _load_model(self):
-        """加载模型"""
+        """加载模型（优先加载在线模型，如果不存在则加载离线模型）"""
+        # 优先尝试加载最新的在线模型
+        latest_online_checkpoint = self._get_latest_online_checkpoint()
+        if latest_online_checkpoint:
+            online_model_path = self._get_online_model_path(checkpoint_num=latest_online_checkpoint)
+            if os.path.exists(online_model_path):
+                if self.ctr_model.load_model(online_model_path):
+                    print(f"✅ 在线CTR模型加载成功 (checkpoint {latest_online_checkpoint}): {online_model_path}")
+                    self.model_file = online_model_path
+                    self.online_checkpoint_counter = latest_online_checkpoint
+                    return
+        
+        # 如果在线模型不存在，尝试加载离线模型
+        offline_model_path = self._get_offline_model_path()
+        if os.path.exists(offline_model_path):
+            if self.ctr_model.load_model(offline_model_path):
+                print(f"✅ 离线CTR模型加载成功: {offline_model_path}")
+                self.model_file = offline_model_path
+                return
+        
+        # 如果都不存在，尝试加载默认路径的模型（向后兼容）
         if self.ctr_model.load_model(self.model_file):
             print(f"✅ CTR模型加载成功: {self.model_file}")
         else:
             print(f"⚠️ CTR模型未找到，将使用未训练状态: {self.model_file}")
+    
+    def _get_latest_online_checkpoint(self) -> Optional[int]:
+        """获取最新的在线checkpoint编号"""
+        try:
+            if not os.path.exists(self.online_model_base_dir):
+                return None
+            
+            # 查找所有在线checkpoint文件
+            files = os.listdir(self.online_model_base_dir)
+            checkpoint_nums = []
+            
+            for file in files:
+                # 匹配 ctr_model_ckpt_N.pkl 或 wide_deep_ctr_model_ckpt_N.h5
+                if 'ckpt_' in file and (file.endswith('.pkl') or file.endswith('.h5')):
+                    try:
+                        # 提取checkpoint编号
+                        parts = file.split('ckpt_')
+                        if len(parts) == 2:
+                            num_str = parts[1].replace('.pkl', '').replace('.h5', '')
+                            checkpoint_nums.append(int(num_str))
+                    except ValueError:
+                        continue
+            
+            if checkpoint_nums:
+                return max(checkpoint_nums)
+            return None
+            
+        except Exception as e:
+            print(f"❌ 获取最新在线checkpoint失败: {e}")
+            return None
+    
+    def _cleanup_old_online_checkpoints(self, max_checkpoints: int = 5):
+        """清理旧的在线checkpoint，只保留最近的N个
+        
+        Args:
+            max_checkpoints: 保留的最大checkpoint数量（默认5个）
+        """
+        try:
+            if not os.path.exists(self.online_model_base_dir):
+                return
+            
+            # 查找所有在线checkpoint文件（包括.pkl和.h5文件）
+            files = os.listdir(self.online_model_base_dir)
+            checkpoint_files = {}  # {checkpoint_num: [file_paths]}
+            
+            for file in files:
+                if 'ckpt_' in file:
+                    try:
+                        # 提取checkpoint编号
+                        parts = file.split('ckpt_')
+                        if len(parts) == 2:
+                            num_str = parts[1].replace('.pkl', '').replace('.h5', '').replace('_info.json', '')
+                            checkpoint_num = int(num_str)
+                            
+                            if checkpoint_num not in checkpoint_files:
+                                checkpoint_files[checkpoint_num] = []
+                            checkpoint_files[checkpoint_num].append(os.path.join(self.online_model_base_dir, file))
+                    except ValueError:
+                        continue
+            
+            # 如果checkpoint数量超过限制，删除旧的
+            if len(checkpoint_files) > max_checkpoints:
+                # 按checkpoint编号排序，保留最新的N个
+                sorted_checkpoints = sorted(checkpoint_files.keys(), reverse=True)
+                checkpoints_to_keep = set(sorted_checkpoints[:max_checkpoints])
+                
+                for checkpoint_num, file_paths in checkpoint_files.items():
+                    if checkpoint_num not in checkpoints_to_keep:
+                        # 删除这个checkpoint的所有相关文件
+                        for file_path in file_paths:
+                            try:
+                                os.remove(file_path)
+                                print(f"🗑️  删除旧checkpoint: {file_path}")
+                            except Exception as e:
+                                print(f"❌ 删除文件失败 {file_path}: {e}")
+                
+                print(f"✅ 清理完成，保留最近{max_checkpoints}个在线checkpoint")
+        
+        except Exception as e:
+            print(f"❌ 清理旧checkpoint失败: {e}")
+    
+    def _get_online_model_path(self, model_type: str = None, checkpoint_num: int = None) -> str:
+        """获取在线模型路径
+        
+        Args:
+            model_type: 模型类型
+            checkpoint_num: checkpoint编号（如果为None，返回当前最新的checkpoint路径）
+        """
+        model_type = model_type or self.current_model_type
+        
+        if checkpoint_num is None:
+            checkpoint_num = self.online_checkpoint_counter
+        
+        if model_type == 'wide_and_deep':
+            return os.path.join(self.online_model_base_dir, f"wide_deep_ctr_model_ckpt_{checkpoint_num}.h5")
+        else:
+            return os.path.join(self.online_model_base_dir, f"ctr_model_ckpt_{checkpoint_num}.pkl")
+    
+    def _get_offline_model_path(self, model_type: str = None) -> str:
+        """获取离线模型路径"""
+        model_type = model_type or self.current_model_type
+        if model_type == 'wide_and_deep':
+            return os.path.join(self.offline_model_base_dir, "wide_deep_ctr_model.h5")
+        else:
+            return os.path.join(self.offline_model_base_dir, "ctr_model.pkl")
+    
+    def enable_online_learning(self, enabled: bool = True):
+        """启用/禁用在线学习"""
+        self.online_learning_enabled = enabled
+        status = "启用" if enabled else "禁用"
+        print(f"🔄 在线学习已{status}")
+        return enabled
+    
+    def is_online_learning_enabled(self) -> bool:
+        """检查在线学习是否启用"""
+        return self.online_learning_enabled
     
     def create_model_instance(self, model_type: str):
         """创建指定类型的模型实例"""
@@ -83,10 +236,31 @@ class ModelService:
             print(f"切换模型失败: {e}")
             return False
     
-    def train_model(self, data_service) -> Dict[str, Any]:
-        """训练CTR模型"""
+    def train_model(self, data_service, is_online: bool = None) -> Dict[str, Any]:
+        """训练CTR模型
+        
+        Args:
+            data_service: 数据服务实例
+            is_online: 是否在线训练（True=在线，False=离线，None=根据online_learning_enabled决定）
+        """
         try:
-            print("🚀 开始训练CTR模型...")
+            # 确定训练模式
+            if is_online is None:
+                is_online = self.online_learning_enabled
+            
+            training_mode = "在线" if is_online else "离线"
+            print(f"🚀 开始{training_mode}训练CTR模型...")
+            
+            # 在线训练时，检查是否已有模型可以继续训练
+            if is_online:
+                # 尝试加载最新的在线模型作为基础
+                latest_checkpoint = self._get_latest_online_checkpoint()
+                if latest_checkpoint:
+                    online_model_path = self._get_online_model_path(checkpoint_num=latest_checkpoint)
+                    if os.path.exists(online_model_path):
+                        print(f"📥 加载现有在线模型作为基础 (checkpoint {latest_checkpoint}): {online_model_path}")
+                        self.ctr_model.load_model(online_model_path)
+                        self.online_checkpoint_counter = latest_checkpoint
             
             # 获取训练数据
             samples = data_service.get_all_samples()
@@ -100,11 +274,24 @@ class ModelService:
             result = self.ctr_model.train(samples)
             
             if result.get('success', False):
-                # 保存模型
-                self.save_model()
-                print("✅ 模型训练完成并保存")
+                # 在线训练时，先更新checkpoint计数器
+                if is_online:
+                    self.online_checkpoint_counter += 1
+                
+                # 保存模型（在线训练保存到在线目录，离线训练保存到离线目录）
+                self.save_model(is_online=is_online)
+                
+                # 在线训练时的后续处理
+                if is_online:
+                    self.last_online_training_time = datetime.now()
+                    # 清理旧的checkpoint，只保留最近5个
+                    self._cleanup_old_online_checkpoints(max_checkpoints=5)
+                    # 自动热更新：重新加载模型
+                    self._hot_reload_model()
+                
+                print(f"✅ {training_mode}模型训练完成并保存")
             else:
-                print(f"❌ 模型训练失败: {result.get('error', '未知错误')}")
+                print(f"❌ {training_mode}模型训练失败: {result.get('error', '未知错误')}")
             
             return result
             
@@ -116,21 +303,99 @@ class ModelService:
                 'error': error_msg
             }
     
-    def save_model(self, filepath: Optional[str] = None, model_type: Optional[str] = None) -> bool:
-        """保存模型"""
+    def _hot_reload_model(self):
+        """热更新模型：重新加载最新的在线模型"""
+        try:
+            # 获取最新的checkpoint路径
+            online_model_path = self._get_online_model_path(checkpoint_num=self.online_checkpoint_counter)
+            if os.path.exists(online_model_path):
+                # 重新创建模型实例并加载
+                self.ctr_model = CTRModel()
+                if self.ctr_model.load_model(online_model_path):
+                    print(f"🔄 模型热更新成功 (checkpoint {self.online_checkpoint_counter}): {online_model_path}")
+                    self.model_file = online_model_path
+                    # 清除模型实例缓存，强制重新加载
+                    self.model_instances.clear()
+                    return True
+            return False
+        except Exception as e:
+            print(f"❌ 模型热更新失败: {e}")
+            return False
+    
+    def trigger_online_training(self, data_service, min_new_samples: int = 10) -> Dict[str, Any]:
+        """触发在线训练（当检测到新数据时自动调用）
+        
+        Args:
+            data_service: 数据服务实例
+            min_new_samples: 触发训练所需的最少新样本数
+        """
+        if not self.online_learning_enabled:
+            return {
+                'success': False,
+                'error': '在线学习未启用',
+                'skipped': True
+            }
+        
+        if self.online_training_in_progress:
+            return {
+                'success': False,
+                'error': '在线训练正在进行中，请稍候',
+                'skipped': True
+            }
+        
+        try:
+            # 检查是否有足够的新数据
+            samples = data_service.get_all_samples()
+            if len(samples) < min_new_samples:
+                return {
+                    'success': False,
+                    'error': f'数据量不足，需要至少{min_new_samples}条记录',
+                    'skipped': True
+                }
+            
+            # 标记训练进行中
+            self.online_training_in_progress = True
+            
+            # 执行在线训练
+            result = self.train_model(data_service, is_online=True)
+            
+            # 标记训练完成
+            self.online_training_in_progress = False
+            
+            return result
+            
+        except Exception as e:
+            self.online_training_in_progress = False
+            error_msg = f"在线训练触发失败: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {
+                'success': False,
+                'error': error_msg
+            }
+    
+    def save_model(self, filepath: Optional[str] = None, model_type: Optional[str] = None, is_online: bool = None) -> bool:
+        """保存模型
+        
+        Args:
+            filepath: 指定保存路径（如果提供，则忽略is_online参数）
+            model_type: 模型类型
+            is_online: 是否保存为在线模型（True=在线，False=离线，None=根据online_learning_enabled决定）
+        """
         try:
             model_type = model_type or self.current_model_type
             
-            # 根据模型类型确定保存路径
+            # 根据模型类型和在线/离线模式确定保存路径
             if filepath:
                 save_path = filepath
             else:
-                if model_type == 'wide_and_deep':
-                    save_path = os.path.join(os.getcwd(), "models", "wide_deep_ctr_model")
-                elif model_type == 'logistic_regression':
-                    save_path = os.path.join(os.getcwd(), "models", "ctr_model.pkl")  # LR使用标准文件名
+                # 如果没有指定filepath，根据is_online决定保存位置
+                if is_online is None:
+                    is_online = self.online_learning_enabled
+                
+                if is_online:
+                    save_path = self._get_online_model_path(model_type)
                 else:
-                    save_path = os.path.join(os.getcwd(), "models", f"{model_type}_ctr_model.pkl")
+                    save_path = self._get_offline_model_path(model_type)
             
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             
@@ -147,6 +412,8 @@ class ModelService:
                 'save_time': datetime.now().isoformat(),
                 'model_type': model_config.get('name', model_type),
                 'model_class': model_config.get('class', 'Unknown'),
+                'is_online': is_online if is_online is not None else self.online_learning_enabled,
+                'checkpoint_number': self.online_checkpoint_counter if (is_online or self.online_learning_enabled) else None,
                 'feature_count': 0,  # 简化处理
                 'training_samples': 0  # 简化处理
             }
@@ -154,7 +421,8 @@ class ModelService:
             with open(info_path, 'w', encoding='utf-8') as f:
                 json.dump(model_info, f, ensure_ascii=False, indent=2)
             
-            print(f"✅ 模型保存成功: {save_path}")
+            model_type_str = "在线" if (is_online or (is_online is None and self.online_learning_enabled)) else "离线"
+            print(f"✅ {model_type_str}模型保存成功: {save_path}")
             return True
             
         except Exception as e:

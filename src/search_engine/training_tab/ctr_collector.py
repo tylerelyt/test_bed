@@ -8,7 +8,6 @@ CTR收集器实现 - 实现CTR接口
 import json
 import os
 import sys
-import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from ..search_tab.search_interface import CTRInterface
@@ -95,7 +94,60 @@ class CTRCollector(CTRInterface):
                 record['query'] == query):
                 record['clicked'] = 1
                 self.save_data()  # 点击后保存
+                # 检查是否需要触发在线训练
+                self._check_and_trigger_online_training()
                 break
+    
+    def _check_and_trigger_online_training(self):
+        """检查是否需要触发在线训练"""
+        # 如果没有model_service引用，则跳过
+        if not self.model_service:
+            return
+        
+        # 如果在线学习未启用，则跳过
+        if not self.model_service.is_online_learning_enabled():
+            return
+        
+        # 计算新增的数据量
+        current_data_count = len(self.ctr_data)
+        new_data_count = current_data_count - self.last_training_data_count
+        
+        # 如果新增数据达到阈值，触发在线训练
+        if new_data_count >= self.online_training_trigger_threshold:
+            print(f"📊 检测到{new_data_count}条新数据，触发在线训练...")
+            try:
+                # 创建一个简单的数据服务包装器
+                class DataServiceWrapper:
+                    def __init__(self, ctr_data):
+                        self.ctr_data = ctr_data
+                    
+                    def get_all_samples(self):
+                        return self.ctr_data
+                
+                data_service = DataServiceWrapper(self.ctr_data)
+                result = self.model_service.trigger_online_training(
+                    data_service, 
+                    min_new_samples=self.online_training_trigger_threshold
+                )
+                
+                if result.get('success', False):
+                    # 更新训练数据计数
+                    self.last_training_data_count = current_data_count
+                    print(f"✅ 在线训练完成，已处理{new_data_count}条新数据")
+                elif not result.get('skipped', False):
+                    print(f"⚠️ 在线训练失败: {result.get('error', '未知错误')}")
+            except Exception as e:
+                print(f"❌ 触发在线训练时发生错误: {e}")
+    
+    def set_model_service(self, model_service):
+        """设置模型服务引用"""
+        self.model_service = model_service
+        print("✅ 模型服务已关联到CTR收集器")
+    
+    def set_online_training_threshold(self, threshold: int):
+        """设置在线训练触发阈值"""
+        self.online_training_trigger_threshold = max(1, threshold)
+        print(f"🔄 在线训练触发阈值已设置为: {threshold}条新数据")
     
     def get_history(self) -> List[Dict[str, Any]]:
         """获取历史记录"""

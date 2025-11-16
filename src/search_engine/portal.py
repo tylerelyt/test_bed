@@ -94,7 +94,7 @@ class SearchUI:
             - **模型服务 (ModelService)**: 模型训练、配置管理、模型文件
             - **RAG服务 (RAGService)**: 直连LLM / 检索增强 / 多步推理 (Ollama)
             - **上下文工程服务 (MCPService)**: 符号主义专家系统 + 连接主义LLM消费 (v2.0)
-            - **图片服务 (ImageService)**: 基于CLIP的图片检索，支持图搜图和文搜图
+            - **多模态服务 (ImageService)**: 图片检索(CLIP)、图像生成(Stable Diffusion)
             
             ## 📊 服务状态
             - 数据服务: ✅ 运行中
@@ -114,7 +114,7 @@ class SearchUI:
                     build_rag_tab(self.index_service)
                 with gr.Tab("🧠 第四部分：上下文工程"):
                     build_mcp_tab()
-                with gr.Tab("🖼️ 第五部分：图片检索系统"):
+                with gr.Tab("🖼️ 第五部分：多模态系统"):
                     build_image_tab(self.image_service)
                 with gr.Tab("📊 第六部分：数据回收训练"):
                     build_training_tab(self.model_service, self.data_service)

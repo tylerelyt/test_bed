@@ -1,0 +1,77 @@
+# requirements-lock.txt
+# 
+# 此文件记录当前测试环境中已验证通过的精确依赖版本
+# 注意：某些版本可能与 requirements.txt 中的约束不完全一致
+# 建议：在新环境中安装时，优先使用 requirements.txt，此文件仅供参考
+#
+# 生成时间：2025-01-17
+# 生成方式：pip freeze（从当前工作环境提取）
+
+# -------------------------
+# Core System Dependencies
+# -------------------------
+gradio==5.37.0
+gradio-client==1.10.4
+pandas==2.2.3
+numpy==2.1.3
+scikit-learn==1.5.2
+jieba==0.42.1
+requests==2.32.3
+networkx==3.4.1
+psutil==6.0.0
+click==8.1.7
+matplotlib==3.10.0
+seaborn==0.13.2
+pyyaml==6.0.2
+flask==3.1.2
+
+# -------------------------
+# AI & ML Features
+# -------------------------
+openai==1.90.0
+gensim==4.3.3
+# llamafactory - 未在当前环境中找到精确版本，请参考 requirements.txt
+transformers==4.53.3
+torch==2.7.0
+torchvision==0.22.0
+torchaudio==2.7.0
+
+# -------------------------
+# TensorFlow & Keras
+# -------------------------
+# 注意：当前环境为 tensorflow==2.19.0，但 requirements.txt 要求 ==2.20.0
+# 建议：在新环境中按照 requirements.txt 安装 tensorflow==2.20.0
+tensorflow==2.19.0
+keras==3.11.3
+tf-keras==2.20.1
+pyarrow==22.0.0
+
+# -------------------------
+# Image Search (CLIP)
+# -------------------------
+Pillow==11.3.0
+opencv-python==4.11.0.86
+ftfy==6.3.1
+regex==2024.9.11
+
+# -------------------------
+# GUI-Agent (Desktop Automation)
+# -------------------------
+pyautogui==0.9.54
+pynput==1.8.1
+docker==7.1.0
+lxml==6.0.1
+
+# -------------------------
+# MCP (Optional Server)
+# -------------------------
+fastmcp==2.11.3
+
+# -------------------------
+# Development & Tooling
+# -------------------------
+pytest==8.4.1
+black==25.1.0
+flake8==7.3.0
+mypy==1.17.0
+

@@ -311,6 +311,33 @@ def build_training_tab(model_service, data_service):
             with gr.Tab("🎯 CTR模型训练"):
                 gr.Markdown("#### 点击率预测模型训练")
                 
+                # 在线学习配置区域
+                with gr.Accordion("🔄 在线学习配置", open=True):
+                    gr.Markdown("""
+                    **在线学习模式**: 自动检测新增点击数据并触发模型训练，实时优化模型性能
+                    - ✅ **离线训练**: 手动触发，全量训练，保存到 `models/offline/`
+                    - 🔄 **在线训练**: 自动触发，增量训练，保存到 `models/online/`（保留最近5个checkpoint）
+                    """)
+                    with gr.Row():
+                        online_learning_enabled = gr.Checkbox(
+                            label="启用在线学习",
+                            value=False,
+                            info="开启后，每当新增一定数量的点击数据时自动触发训练"
+                        )
+                        online_training_threshold = gr.Slider(
+                            minimum=5,
+                            maximum=50,
+                            value=10,
+                            step=5,
+                            label="训练触发阈值",
+                            info="每新增N条点击数据触发一次在线训练"
+                        )
+                    
+                    online_status_output = gr.HTML(
+                        value="<p style='color: gray;'>⚪ 在线学习未启用</p>",
+                        label="在线学习状态"
+                    )
+                
                 # 模型选择区域
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -331,7 +358,7 @@ def build_training_tab(model_service, data_service):
                 
                 with gr.Row():
                     with gr.Column(scale=2):
-                        train_btn = gr.Button("🚀 开始训练", variant="primary")
+                        train_btn = gr.Button("🚀 开始离线训练", variant="primary")
                         clear_data_btn = gr.Button("🗑️ 清空数据", variant="secondary")
                         export_data_btn = gr.Button("📤 导出数据", variant="secondary")
                         
@@ -346,6 +373,60 @@ def build_training_tab(model_service, data_service):
                 training_output = gr.HTML(value="<p>点击开始训练按钮进行模型训练...</p>", label="训练结果")
                 train_details = gr.HTML(value="<p>训练详情将在这里显示...</p>", label="训练详情")
                 feature_weights = gr.HTML(value="<p>特征重要性将在这里显示...</p>", label="特征重要性")
+                
+                # 模型评估与分析
+                gr.Markdown("---")
+                gr.Markdown("#### 📚 模型评估与分析")
+                with gr.Tabs():
+                    # 交叉验证标签页
+                    with gr.Tab("📊 交叉验证"):
+                        gr.Markdown("**功能**: 使用K折交叉验证评估模型在不同数据子集上的性能，了解模型的泛化能力")
+                        with gr.Row():
+                            cv_folds = gr.Slider(3, 10, value=5, step=1, label="交叉验证折数")
+                            cv_btn = gr.Button("🚀 执行交叉验证", variant="primary")
+                        cv_output = gr.HTML(value="<p>点击按钮执行交叉验证...</p>", label="交叉验证结果")
+                    
+                    # 可解释性分析标签页
+                    with gr.Tab("🔍 可解释性分析"):
+                        gr.Markdown("**功能**: 使用LIME和SHAP分析模型预测的原因和特征重要性")
+                        with gr.Row():
+                            with gr.Column():
+                                interpret_method = gr.Radio(
+                                    choices=["LIME", "SHAP", "特征重要性"],
+                                    value="LIME",
+                                    label="解释方法"
+                                )
+                                num_features = gr.Slider(5, 20, value=10, step=1, label="显示特征数")
+                            with gr.Column():
+                                interpret_btn = gr.Button("🔍 分析模型可解释性", variant="primary")
+                        interpret_output = gr.HTML(value="<p>点击按钮进行可解释性分析...</p>", label="解释结果")
+                    
+                    # 公平性分析标签页
+                    with gr.Tab("⚖️ 公平性分析"):
+                        gr.Markdown("**功能**: 评估模型在不同群体上的性能差异，初步了解模型公平性")
+                        with gr.Row():
+                            fairness_group_by = gr.Dropdown(
+                                choices=["position_range", "query", "doc_id", "score_range"],
+                                value="position_range",
+                                label="分组依据"
+                            )
+                            fairness_btn = gr.Button("⚖️ 分析模型公平性", variant="primary")
+                        fairness_output = gr.HTML(value="<p>点击按钮进行公平性分析...</p>", label="公平性分析结果")
+                    
+                    # AutoML标签页
+                    with gr.Tab("🤖 AutoML"):
+                        gr.Markdown("**功能**: 使用AutoML工具进行模型搜索和超参数优化")
+                        with gr.Row():
+                            with gr.Column():
+                                automl_method = gr.Radio(
+                                    choices=["网格搜索", "Optuna优化"],
+                                    value="网格搜索",
+                                    label="优化方法"
+                                )
+                                automl_cv = gr.Slider(3, 10, value=3, step=1, label="交叉验证折数")
+                            with gr.Column():
+                                automl_btn = gr.Button("🤖 执行AutoML优化", variant="primary")
+                        automl_output = gr.HTML(value="<p>点击按钮执行AutoML优化...</p>", label="AutoML结果")
                 
                 sample_output = gr.Dataframe(
                     headers=None,
@@ -532,7 +613,50 @@ def build_training_tab(model_service, data_service):
             # 使用新的工具函数
             return get_ctr_dataframe()
         
+        def toggle_online_learning(enabled, threshold):
+            """切换在线学习开关"""
+            try:
+                # 启用/禁用在线学习
+                model_service.enable_online_learning(enabled)
+                
+                # 设置训练触发阈值
+                data_service.set_online_training_threshold(int(threshold))
+                
+                # 关联模型服务到数据服务（如果还没有关联）
+                if not data_service.model_service:
+                    data_service.set_model_service(model_service)
+                
+                if enabled:
+                    # 获取当前在线模型状态
+                    latest_checkpoint = model_service._get_latest_online_checkpoint()
+                    checkpoint_info = f"当前checkpoint: #{latest_checkpoint}" if latest_checkpoint else "尚无在线checkpoint"
+                    
+                    return f"""
+                    <div style="background-color: #d4edda; padding: 10px; border-radius: 5px; border-left: 4px solid #28a745;">
+                        <p style='color: #28a745; margin: 0;'><strong>🟢 在线学习已启用</strong></p>
+                        <p style='margin: 5px 0 0 0;'><small>触发阈值: 每{int(threshold)}条新点击数据</small></p>
+                        <p style='margin: 5px 0 0 0;'><small>{checkpoint_info}</small></p>
+                        <p style='margin: 5px 0 0 0;'><small>模型保存: models/online/ (保留最近5个)</small></p>
+                    </div>
+                    """
+                else:
+                    return "<p style='color: gray;'>⚪ 在线学习未启用</p>"
+            except Exception as e:
+                return f"<p style='color: red;'>❌ 切换失败: {str(e)}</p>"
+        
         # 绑定事件
+        # 在线学习开关事件
+        online_learning_enabled.change(
+            fn=toggle_online_learning,
+            inputs=[online_learning_enabled, online_training_threshold],
+            outputs=[online_status_output]
+        )
+        online_training_threshold.change(
+            fn=toggle_online_learning,
+            inputs=[online_learning_enabled, online_training_threshold],
+            outputs=[online_status_output]
+        )
+        
         train_btn.click(
             fn=train_model_with_selection, 
             inputs=[model_dropdown], 
@@ -546,6 +670,276 @@ def build_training_tab(model_service, data_service):
         # 绑定数据管理按钮事件
         show_data_stats_btn.click(fn=show_data_stats, outputs=data_stats_output)
         refresh_btn.click(fn=refresh_samples, outputs=sample_output)
+        
+        # ============ 模型评估与分析 ============
+        from .model_evaluation import ModelEvaluator
+        from .model_interpretability import ModelInterpretability
+        from .model_fairness import ModelFairnessAnalyzer
+        from .model_automl import AutoMLOptimizer
+        from sklearn.linear_model import LogisticRegression
+        
+        evaluator = ModelEvaluator()
+        interpretability = ModelInterpretability()
+        fairness_analyzer = ModelFairnessAnalyzer()
+        automl_optimizer = AutoMLOptimizer()
+        
+        def run_cross_validation(folds):
+            """执行交叉验证"""
+            try:
+                ctr_model = model_service.ctr_model if hasattr(model_service, 'ctr_model') else None
+                if not ctr_model or not ctr_model.is_trained:
+                    return "<p style='color: orange;'>⚠️ 请先训练模型</p>"
+                
+                # 获取训练数据
+                records = data_service.get_all_samples()
+                
+                if len(records) < folds * 2:
+                    return f"<p style='color: red;'>❌ 数据量不足，至少需要{folds * 2}条记录</p>"
+                
+                # 执行交叉验证
+                result = evaluator.cross_validate_model(
+                    ctr_model.model,
+                    records,
+                    cv_folds=int(folds)
+                )
+                
+                if 'error' in result:
+                    return f"<p style='color: red;'>❌ {result['error']}</p>"
+                
+                # 格式化结果
+                html = "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                html += f"<h4>📊 交叉验证结果（{folds}折）</h4>"
+                html += f"<p><strong>样本数:</strong> {result.get('n_samples', 0)}</p>"
+                html += f"<p><strong>特征数:</strong> {result.get('n_features', 0)}</p>"
+                
+                if result.get('cv_mean'):
+                    html += "<h5>各指标的平均值和标准差:</h5><table border='1' style='border-collapse: collapse;'>"
+                    html += "<tr><th>指标</th><th>平均值</th><th>标准差</th></tr>"
+                    for metric, mean_val in result['cv_mean'].items():
+                        std_val = result['cv_std'].get(metric, 0)
+                        html += f"<tr><td>{metric}</td><td>{mean_val:.4f}</td><td>{std_val:.4f}</td></tr>"
+                    html += "</table>"
+                
+                html += "</div>"
+                return html
+                
+            except Exception as e:
+                return f"<p style='color: red;'>❌ 交叉验证失败: {str(e)}</p>"
+        
+        def run_interpretability_analysis(method, num_feat):
+            """执行可解释性分析"""
+            try:
+                ctr_model = model_service.ctr_model if hasattr(model_service, 'ctr_model') else None
+                if not ctr_model or not ctr_model.is_trained:
+                    return "<p style='color: orange;'>⚠️ 请先训练模型</p>"
+                
+                # 获取训练数据
+                records = data_service.get_all_samples()
+                
+                if len(records) < 10:
+                    return "<p style='color: red;'>❌ 数据量不足</p>"
+                
+                # 提取特征
+                features, labels = ctr_model.extract_features(records)
+                if len(features) == 0:
+                    return "<p style='color: red;'>❌ 特征提取失败</p>"
+                
+                # 标准化
+                if ctr_model.scaler:
+                    features_scaled = ctr_model.scaler.transform(features)
+                else:
+                    from sklearn.preprocessing import StandardScaler
+                    scaler = StandardScaler()
+                    features_scaled = scaler.fit_transform(features)
+                
+                # 获取特征名称
+                from .ctr_config import CTRFeatureConfig
+                feature_names = CTRFeatureConfig.get_feature_names()
+                
+                if method == "LIME":
+                    # 准备LIME解释器
+                    success, msg = interpretability.prepare_lime_explainer(
+                        features_scaled,
+                        feature_names[:len(features_scaled[0])] if len(feature_names) >= len(features_scaled[0]) else [f"特征{i}" for i in range(len(features_scaled[0]))]
+                    )
+                    if not success:
+                        return f"<p style='color: red;'>❌ {msg}</p>"
+                    
+                    # 解释一个样本
+                    sample_idx = 0
+                    explanation = interpretability.explain_with_lime(
+                        ctr_model.model,
+                        features_scaled[sample_idx:sample_idx+1],
+                        num_features=int(num_feat)
+                    )
+                    
+                    if 'error' in explanation:
+                        return f"<p style='color: red;'>❌ {explanation['error']}</p>"
+                    
+                    html = f"<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                    html += f"<h4>🔍 LIME解释结果</h4>"
+                    html += f"<p><strong>预测概率:</strong> {explanation.get('prediction', 0):.4f}</p>"
+                    html += "<h5>特征贡献:</h5><ul>"
+                    for feat in explanation.get('features', [])[:int(num_feat)]:
+                        color = "green" if feat['weight'] > 0 else "red"
+                        html += f"<li><span style='color: {color};'>{feat['feature']}: {feat['weight']:.4f}</span></li>"
+                    html += "</ul></div>"
+                    return html
+                
+                elif method == "SHAP":
+                    explanation = interpretability.explain_with_shap(
+                        ctr_model.model,
+                        features_scaled,
+                        max_samples=50
+                    )
+                    
+                    if 'error' in explanation:
+                        return f"<p style='color: red;'>❌ {explanation['error']}</p>"
+                    
+                    html = "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                    html += "<h4>🔍 SHAP解释结果</h4>"
+                    if 'feature_importance_dict' in explanation:
+                        html += "<h5>特征重要性（平均绝对SHAP值）:</h5><ul>"
+                        sorted_features = sorted(explanation['feature_importance_dict'].items(), key=lambda x: x[1], reverse=True)
+                        for feat_name, importance in sorted_features[:int(num_feat)]:
+                            html += f"<li><strong>{feat_name}:</strong> {importance:.4f}</li>"
+                        html += "</ul>"
+                    html += "</div>"
+                    return html
+                
+                else:  # 特征重要性
+                    importance = interpretability.get_feature_importance_from_model(ctr_model.model)
+                    html = "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                    html += "<h4>🔍 模型特征重要性</h4>"
+                    if 'by_feature' in importance and 'coefficients' in importance['by_feature']:
+                        html += "<h5>特征系数（绝对值）:</h5><ul>"
+                        sorted_features = sorted(importance['by_feature']['coefficients'].items(), key=lambda x: abs(x[1]), reverse=True)
+                        for feat_name, coef in sorted_features[:int(num_feat)]:
+                            html += f"<li><strong>{feat_name}:</strong> {coef:.4f}</li>"
+                        html += "</ul>"
+                    html += "</div>"
+                    return html
+                    
+            except Exception as e:
+                import traceback
+                return f"<p style='color: red;'>❌ 可解释性分析失败: {str(e)}</p><pre>{traceback.format_exc()[:500]}</pre>"
+        
+        def run_fairness_analysis(group_by):
+            """执行公平性分析"""
+            try:
+                ctr_model = model_service.ctr_model if hasattr(model_service, 'ctr_model') else None
+                if not ctr_model or not ctr_model.is_trained:
+                    return "<p style='color: orange;'>⚠️ 请先训练模型</p>"
+                
+                # 获取训练数据
+                records = data_service.get_all_samples()
+                
+                if len(records) < 20:
+                    return "<p style='color: red;'>❌ 数据量不足，至少需要20条记录</p>"
+                
+                # 执行公平性分析
+                result = fairness_analyzer.analyze_fairness(
+                    ctr_model.model,
+                    records,
+                    group_by=group_by,
+                    model_instance_extract_features=ctr_model.extract_features
+                )
+                
+                if 'error' in result:
+                    return f"<p style='color: red;'>❌ {result['error']}</p>"
+                
+                # 生成报告
+                report = fairness_analyzer.generate_fairness_report(result)
+                return f"<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>{report}</div>"
+                
+            except Exception as e:
+                import traceback
+                return f"<p style='color: red;'>❌ 公平性分析失败: {str(e)}</p><pre>{traceback.format_exc()[:500]}</pre>"
+        
+        def run_automl_optimization(method, cv_folds):
+            """执行AutoML优化"""
+            try:
+                # 获取训练数据
+                records = data_service.get_all_samples()
+                
+                if len(records) < 30:
+                    return "<p style='color: red;'>❌ 数据量不足，至少需要30条记录</p>"
+                
+                # 提取特征
+                ctr_model = model_service.ctr_model if hasattr(model_service, 'ctr_model') else None
+                if not ctr_model:
+                    return "<p style='color: red;'>❌ CTR模型不可用</p>"
+                
+                features, labels = ctr_model.extract_features(records)
+                if len(features) == 0:
+                    return "<p style='color: red;'>❌ 特征提取失败</p>"
+                
+                # 标准化
+                from sklearn.preprocessing import StandardScaler
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(features)
+                
+                if method == "网格搜索":
+                    # 定义参数网格
+                    param_grid = {
+                        'C': [0.1, 1.0, 10.0],
+                        'max_iter': [500, 1000],
+                        'solver': ['liblinear', 'lbfgs']
+                    }
+                    
+                    result = automl_optimizer.simple_grid_search(
+                        LogisticRegression,
+                        X_scaled,
+                        labels,
+                        param_grid,
+                        cv=int(cv_folds)
+                    )
+                    
+                    if 'error' in result:
+                        return f"<p style='color: red;'>❌ {result['error']}</p>"
+                    
+                    html = "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                    html += "<h4>🤖 网格搜索优化结果</h4>"
+                    html += f"<p><strong>最佳参数:</strong> {result.get('best_params', {})}</p>"
+                    html += f"<p><strong>最佳得分:</strong> {result.get('best_score', 0):.4f}</p>"
+                    html += "</div>"
+                    return html
+                
+                else:  # Optuna优化
+                    param_space = {
+                        'C': {'type': 'float', 'low': 0.1, 'high': 10.0, 'log': True},
+                        'max_iter': {'type': 'int', 'low': 500, 'high': 2000, 'log': False}
+                    }
+                    
+                    result = automl_optimizer.optimize_hyperparameters_with_optuna(
+                        LogisticRegression,
+                        X_scaled,
+                        labels,
+                        param_space,
+                        n_trials=10,
+                        cv=int(cv_folds)
+                    )
+                    
+                    if 'error' in result:
+                        return f"<p style='color: red;'>❌ {result['error']}</p>"
+                    
+                    html = "<div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px;'>"
+                    html += "<h4>🤖 Optuna优化结果</h4>"
+                    html += f"<p><strong>最佳参数:</strong> {result.get('best_params', {})}</p>"
+                    html += f"<p><strong>最佳得分:</strong> {result.get('best_score', 0):.4f}</p>"
+                    html += f"<p><strong>试验次数:</strong> {result.get('n_trials', 0)}</p>"
+                    html += "</div>"
+                    return html
+                    
+            except Exception as e:
+                import traceback
+                return f"<p style='color: red;'>❌ AutoML优化失败: {str(e)}</p><pre>{traceback.format_exc()[:500]}</pre>"
+        
+        # 绑定新功能的事件
+        cv_btn.click(fn=run_cross_validation, inputs=[cv_folds], outputs=[cv_output])
+        interpret_btn.click(fn=run_interpretability_analysis, inputs=[interpret_method, num_features], outputs=[interpret_output])
+        fairness_btn.click(fn=run_fairness_analysis, inputs=[fairness_group_by], outputs=[fairness_output])
+        automl_btn.click(fn=run_automl_optimization, inputs=[automl_method, automl_cv], outputs=[automl_output])
         
         # 初始化样本数据
         sample_output.value = get_ctr_dataframe()

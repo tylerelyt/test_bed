@@ -24,8 +24,9 @@ print_banner() {
     echo -e "${BLUE}🚀 MLOps搜索引擎测试床 - 快速启动脚本${NC}"
     echo -e "${BLUE}===============================================${NC}"
     echo -e "${GREEN}📖 功能: 一键启动完整的搜索引擎系统${NC}"
-    echo -e "${GREEN}🔧 包含: 依赖检查、环境设置、系统启动${NC}"
-    echo -e "${GREEN}🌐 访问: http://localhost:7861${NC}"
+    echo -e "${GREEN}🔧 包含: 依赖检查、图像服务、主系统${NC}"
+    echo -e "${GREEN}🌐 主系统: http://localhost:7861${NC}"
+    echo -e "${GREEN}🎨 图像服务: http://localhost:5001${NC}"
     echo -e "${GREEN}🛑 停止: 按 Ctrl+C 或关闭终端${NC}"
     echo -e "${BLUE}===============================================${NC}"
 }
@@ -166,7 +167,8 @@ cleanup_ports() {
     echo -e "\n${YELLOW}🔧 步骤4: 清理端口占用${NC}"
     echo "----------------------------------------"
     
-    ports=(7860 7861 7862 7863 7864 7865)
+    # 包含主系统端口和图像服务端口
+    ports=(7860 7861 7862 7863 7864 7865 5001)
     for port in "${ports[@]}"; do
         if lsof -i:$port &> /dev/null; then
             echo -e "${BLUE}🔄 清理端口 $port${NC}"
@@ -181,9 +183,86 @@ cleanup_ports() {
     echo -e "${GREEN}✅ 端口清理完成${NC}"
 }
 
+# 启动图像生成服务
+start_image_service() {
+    echo -e "\n${YELLOW}🎨 步骤5: 启动图像生成服务${NC}"
+    echo "----------------------------------------"
+    
+    # 检查服务脚本是否存在
+    if [ ! -f "image_generation_service.py" ]; then
+        echo -e "${YELLOW}⚠️  未找到图像生成服务脚本，跳过${NC}"
+        echo -e "${BLUE}💡 图像生成功能将不可用${NC}"
+        return 0
+    fi
+    
+    # 检查 testbed-image conda 环境
+    echo -e "${BLUE}🔍 检查 testbed-image conda 环境...${NC}"
+    
+    if command -v conda &> /dev/null; then
+        if conda env list | grep -q "testbed-image"; then
+            echo -e "${GREEN}✅ 找到 testbed-image 环境${NC}"
+            
+            # 获取 conda 环境路径
+            CONDA_ENV_PATH=$(conda env list | grep "testbed-image" | awk '{print $NF}')
+            
+            if [[ "$OSTYPE" == "darwin"* ]] || [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                PYTHON_PATH="$CONDA_ENV_PATH/bin/python"
+            else
+                PYTHON_PATH="$CONDA_ENV_PATH/python.exe"
+            fi
+            
+            echo -e "${BLUE}📥 使用 testbed-image 环境启动服务${NC}"
+            echo -e "${BLUE}   Python: $PYTHON_PATH${NC}"
+            
+        else
+            echo -e "${YELLOW}⚠️  未找到 testbed-image 环境${NC}"
+            echo -e "${YELLOW}💡 将使用当前环境启动服务（可能导致依赖冲突）${NC}"
+            echo -e "${BLUE}📖 推荐创建独立环境:${NC}"
+            echo -e "${BLUE}   conda create -n testbed-image python=3.10 -y${NC}"
+            echo -e "${BLUE}   conda activate testbed-image${NC}"
+            echo -e "${BLUE}   pip install -r image_generation_service_requirements.txt${NC}"
+            
+            PYTHON_PATH="python"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  未安装 conda，使用当前 Python 环境${NC}"
+        PYTHON_PATH="python"
+    fi
+    
+    # 启动图像生成服务（后台运行）
+    echo -e "${BLUE}🚀 正在启动图像生成服务（后台运行）...${NC}"
+    
+    # 创建日志目录
+    mkdir -p logs
+    
+    # 启动服务
+    nohup $PYTHON_PATH image_generation_service.py > logs/image_service.log 2>&1 &
+    IMAGE_SERVICE_PID=$!
+    
+    echo -e "${GREEN}✅ 图像生成服务已启动 (PID: $IMAGE_SERVICE_PID)${NC}"
+    echo -e "${BLUE}📊 服务地址: http://localhost:5001${NC}"
+    echo -e "${BLUE}📝 日志文件: logs/image_service.log${NC}"
+    
+    # 等待服务启动
+    echo -e "${BLUE}⏳ 等待服务就绪...${NC}"
+    for i in {1..10}; do
+        if curl -s http://localhost:5001/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ 图像生成服务就绪！${NC}"
+            return 0
+        fi
+        sleep 1
+        echo -n "."
+    done
+    
+    echo -e "\n${YELLOW}⚠️  服务启动耗时较长，将在后台继续...${NC}"
+    echo -e "${BLUE}💡 服务启动后才能使用图像生成功能${NC}"
+    
+    return 0
+}
+
 # 启动系统
 start_system() {
-    echo -e "\n${YELLOW}🚀 步骤5: 启动系统${NC}"
+    echo -e "\n${YELLOW}🚀 步骤6: 启动主系统${NC}"
     echo "----------------------------------------"
     
     echo -e "${BLUE}🌐 正在启动MLOps系统...${NC}"
@@ -209,13 +288,15 @@ main() {
     if check_system_requirements && \
        check_project_structure && \
        check_dependencies && \
-       cleanup_ports; then
+       cleanup_ports && \
+       start_image_service; then
         
         start_system
         
         echo -e "\n${GREEN}🎉 感谢使用MLOps搜索引擎测试床！${NC}"
         echo -e "${BLUE}📖 更多信息请查看: README.md${NC}"
         echo -e "${BLUE}🐛 问题反馈: 请提交GitHub Issue${NC}"
+        echo -e "${BLUE}🎨 图像生成服务日志: logs/image_service.log${NC}"
         
     else
         echo -e "\n${RED}❌ 启动过程中发生错误${NC}"

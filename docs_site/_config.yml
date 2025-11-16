@@ -1,0 +1,85 @@
+title: AI Engineering Testbed
+description: 企业级AI系统工程测试床 - 从经典搜索系统到前沿LLM训练的端到端MLOps工作流
+url: https://tylerelyt.github.io
+baseurl: /test_bed
+
+# 使用 just-the-docs 主题
+theme: just-the-docs
+
+# 插件
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# 搜索配置
+search_enabled: true
+search:
+  heading_level: 2
+  preview_words: 20
+  preview_lines: 3
+  tokenizer_separator: /[\s/]+/
+
+# 导航配置
+aux_links:
+  "GitHub Repository":
+    - "https://github.com/tylerelyt/test_bed"
+  "View Demo":
+    - "https://github.com/tylerelyt/test_bed#demo"
+
+aux_links_new_tab: true
+
+# 返回顶部按钮
+back_to_top: true
+back_to_top_text: "Back to top"
+
+# 页脚配置
+footer_content: "Copyright &copy; 2025 AI Engineering Testbed. Distributed under the <a href=\"https://github.com/tylerelyt/test_bed/blob/main/LICENSE\">MIT License</a>."
+
+# 显示上次修改时间
+last_edit_timestamp: true
+last_edit_time_format: "%Y-%m-%d %H:%M"
+
+# 导航层级
+nav_sort: case_insensitive
+
+# 代码高亮
+color_scheme: nil
+callouts_level: quiet
+callouts:
+  highlight:
+    color: yellow
+  important:
+    title: Important
+    color: blue
+  new:
+    title: New
+    color: green
+  note:
+    title: Note
+    color: purple
+  warning:
+    title: Warning
+    color: red
+
+# 自定义 CSS
+sass:
+  style: compressed
+
+# 其他配置
+permalink: pretty
+
+# 启用自定义 head 和 footer
+# 自定义样式
+heading_anchors: true
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - README.md
+

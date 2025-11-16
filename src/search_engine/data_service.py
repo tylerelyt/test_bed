@@ -51,7 +51,7 @@ class DataService(DataServiceInterface):
     - 数据缓存：内存缓存提高访问速度
     """
     
-    def __init__(self, auto_save_interval: int = 30, batch_size: int = 100):
+    def __init__(self, auto_save_interval: int = 30, batch_size: int = 100, model_service=None):
         self.ctr_data: List[Dict[str, Any]] = []
         self.lock = threading.Lock()
         self.data_file = "models/ctr_data.json"
@@ -71,7 +71,13 @@ class DataService(DataServiceInterface):
         self._stats_cache_time = 0
         self._cache_ttl = 10  # 缓存TTL（秒）
         
+        # 在线学习相关
+        self.model_service = model_service  # 模型服务引用
+        self.last_training_data_count = 0  # 上次训练时的数据量
+        self.online_training_trigger_threshold = 10  # 每新增N条数据触发一次在线训练
+        
         self._load_existing_data()
+        self.last_training_data_count = len(self.ctr_data)  # 初始化训练数据计数
         self._start_auto_save_timer()
     
     def _start_auto_save_timer(self):
@@ -216,6 +222,17 @@ class DataService(DataServiceInterface):
                     if self._should_save_now():
                         self._save_data_async()
                     print(f"✅ 记录点击事件成功: doc_id={doc_id_clean}, request_id={request_id_clean}, 更新{updated_count}条记录")
+                    
+                    # 临时禁用在线训练触发，排查 segmentation fault
+                    # TODO: 重新启用后需要调试 threading + scikit-learn 的兼容性
+                    # 检查是否需要触发在线训练（释放锁后执行）
+                    # should_trigger = self._should_trigger_online_training()
+                    # 
+                    # # 释放锁
+                    # if should_trigger:
+                    #     # 在锁外执行训练，避免死锁
+                    #     threading.Thread(target=self._trigger_online_training_async, daemon=True).start()
+                    
                     return True
                 else:
                     print(f"⚠️ 未找到匹配的CTR样本: doc_id={doc_id_clean}, request_id={request_id_clean}")
@@ -659,3 +676,54 @@ class DataService(DataServiceInterface):
                     'total_samples': len(self.ctr_data),
                     'pending_changes': self.pending_changes
                 } 
+    
+    def set_model_service(self, model_service):
+        """设置模型服务引用"""
+        self.model_service = model_service
+        print("✅ 模型服务已关联到数据服务")
+    
+    def set_online_training_threshold(self, threshold: int):
+        """设置在线训练触发阈值"""
+        self.online_training_trigger_threshold = max(1, threshold)
+        print(f"🔄 在线训练触发阈值已设置为: {threshold}条新数据")
+    
+    def _should_trigger_online_training(self) -> bool:
+        """检查是否应该触发在线训练（需要在锁内调用）"""
+        # 如果没有model_service引用，则跳过
+        if not self.model_service:
+            return False
+        
+        # 如果在线学习未启用，则跳过
+        if not self.model_service.is_online_learning_enabled():
+            return False
+        
+        # 计算新增的数据量
+        current_data_count = len(self.ctr_data)
+        new_data_count = current_data_count - self.last_training_data_count
+        
+        # 如果新增数据达到阈值，触发在线训练
+        return new_data_count >= self.online_training_trigger_threshold
+    
+    def _trigger_online_training_async(self):
+        """异步触发在线训练"""
+        try:
+            with self.lock:
+                current_data_count = len(self.ctr_data)
+                new_data_count = current_data_count - self.last_training_data_count
+            
+            print(f"📊 检测到{new_data_count}条新数据，触发在线训练...")
+            
+            result = self.model_service.trigger_online_training(
+                self, 
+                min_new_samples=self.online_training_trigger_threshold
+            )
+            
+            if result.get('success', False):
+                # 更新训练数据计数
+                with self.lock:
+                    self.last_training_data_count = len(self.ctr_data)
+                print(f"✅ 在线训练完成，已处理{new_data_count}条新数据")
+            elif not result.get('skipped', False):
+                print(f"⚠️ 在线训练失败: {result.get('error', '未知错误')}")
+        except Exception as e:
+            print(f"❌ 触发在线训练时发生错误: {e}") 

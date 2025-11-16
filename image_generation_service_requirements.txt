@@ -1,0 +1,24 @@
+# 图像生成服务专用依赖
+# 使用方法：
+# 1. conda create -n testbed-image python=3.10 -y
+# 2. conda activate testbed-image
+# 3. pip install -r image_generation_service_requirements.txt
+
+# 核心依赖
+torch>=2.0.0
+diffusers>=0.27.0
+transformers>=4.50.0
+accelerate>=0.20.0
+safetensors>=0.4.0
+peft>=0.17.0
+
+# 图像处理
+Pillow>=9.0.0
+
+# Web 服务
+flask>=2.0.0
+flask-cors>=4.0.0
+
+# 其他
+numpy>=1.24.0
+

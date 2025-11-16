@@ -1,0 +1,12 @@
+_site
+.sass-cache
+.jekyll-cache
+.jekyll-metadata
+vendor
+.bundle
+Gemfile.lock
+
+PREVIEW_MATH.html
+vendor/
+.bundle/
+Gemfile.lock

@@ -50,7 +50,7 @@ tf-keras==2.20.1
 pyarrow==22.0.0
 
 # -------------------------
-# Image Search (CLIP)
+# Image Search (CLIP) & Generation (Stable Diffusion)
 # -------------------------
 # For Image Search functionality
 Pillow>=9.0.0
@@ -66,6 +66,42 @@ opencv-python>=4.5.0
 ftfy>=6.1.1
 regex>=2022.1.18
 
+# For Image Generation with Stable Diffusion
+# Hugging Face Diffusers: State-of-the-art diffusion models
+diffusers>=0.27.0
+# Accelerate: For faster model loading and mixed precision training
+accelerate>=0.20.0
+# Safetensors: Secure and fast model serialization format
+safetensors>=0.4.0
+
+# -------------------------
+# GUI-Agent (Desktop Automation)
+# -------------------------
+# For desktop automation based on OSWorld architecture
+pyautogui>=0.9.50
+# PyAutoGUI depends on:
+# - PyScreeze (screenshot capture)
+# - PyMsgBox (message boxes)
+# - PyTweening (mouse movement easing)
+# These are installed automatically with pyautogui
+
+# For keyboard event listening (ESC to interrupt tasks)
+pynput>=1.7.6
+
+# For Docker container management (OSWorld VM)
+docker>=6.0.0
+
+# For Accessibility Tree (macOS/Linux) - Optional but recommended
+# macOS: Provides UI element tree structure for more precise element localization
+# Linux: AT-SPI support (not yet implemented)
+lxml>=6.0.0
+# macOS-specific (only installs on macOS)
+# pyobjc-framework-Quartz>=12.0
+# pyobjc-framework-ApplicationServices>=12.0
+# Note: pyobjc packages are platform-specific and should be installed manually:
+#   macOS: pip install pyobjc-framework-Quartz pyobjc-framework-ApplicationServices
+#   Linux: pip install python-atspi (when implemented)
+
 # -------------------------
 # Development & Tooling
 # -------------------------
@@ -80,3 +116,13 @@ mypy>=0.991
 # -------------------------
 # To expose project capabilities via Model Context Protocol (FastMCP)
 fastmcp>=2.0.0
+
+# -------------------------
+# Model Evaluation & Interpretability (Teaching Features)
+# -------------------------
+# For model interpretability analysis
+lime>=0.2.0.1
+shap>=0.42.0
+# For AutoML - model search and hyperparameter optimization
+tpot>=0.12.0
+optuna>=3.0.0

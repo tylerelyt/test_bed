@@ -1,0 +1,66 @@
+<!-- Custom head content -->
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/tylerelyt/test_bed/main/favicon.ico">
+
+<!-- MathJax for mathematical formulas -->
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true,
+      processEnvironments: true
+    },
+    options: {
+      ignoreHtmlClass: 'tex2jax_ignore',
+      processHtmlClass: 'tex2jax_process'
+    }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+<!-- Mermaid.js -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  // Initialize mermaid with explicit configuration
+  mermaid.initialize({ 
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose'
+  });
+  
+  // Function to render mermaid diagrams
+  function renderMermaid() {
+    try {
+      mermaid.run({
+        querySelector: '.mermaid',
+        suppressErrors: false
+      });
+      console.log('Mermaid diagrams rendered successfully');
+    } catch (error) {
+      console.error('Mermaid rendering error:', error);
+    }
+  }
+  
+  // Wait for DOM to be fully loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid);
+  } else {
+    // DOM is already loaded
+    renderMermaid();
+  }
+</script>
+
+<!-- Open Graph / Social Media Meta Tags -->
+<meta property="og:title" content="{{ page.title | default: site.title }}">
+<meta property="og:description" content="{{ page.description | default: site.description }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ page.url | absolute_url }}">
+
+<!-- Twitter Card Meta Tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ page.title | default: site.title }}">
+<meta name="twitter:description" content="{{ page.description | default: site.description }}">
+

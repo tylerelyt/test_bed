@@ -195,4 +195,46 @@ Dockerfile.local
 
 # Lock files
 poetry.lock
-Pipfile.lock 
+Pipfile.lock
+
+# ML/AI Training artifacts
+checkpoints/
+*.safetensors
+*.ckpt
+runs/
+wandb/
+
+# Data directories
+data/gui_agent/
+data/gui_screenshots/
+data/llmops/
+data/osworld_vm/
+*.qcow2
+*.qcow
+*.vmdk
+*.vdi
+
+# Generated images and outputs
+models/generated_images/
+models/test_generated_images/
+outputs/
+
+# Screenshots and images (exclude from version control)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+
+# Test files (temporary)
+test_*.py
+debug_*.py
+
+# TensorBoard logs
+events.out.tfevents.*
+
+# Large tokenizer files
+merges.txt
+vocab.json
+tokenizer.json 

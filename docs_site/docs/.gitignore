@@ -1,0 +1,4 @@
+# 忽略临时检查文件
+*_CHECK.md
+*_STATUS.md
+*_SUMMARY.md
