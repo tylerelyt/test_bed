@@ -1,0 +1,4 @@
+model_name_or_path: Qwen/Qwen2-0.5B
+adapter_name_or_path: checkpoints/sft/test_qwen_sft
+template: qwen
+finetuning_type: lora

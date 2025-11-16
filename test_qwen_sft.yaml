@@ -1,0 +1,41 @@
+### model
+model_name_or_path: Qwen/Qwen2-0.5B
+adapter_name_or_path: checkpoints/test_qwen_cpt  # 从CPT checkpoint继续训练
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all
+
+### dataset
+dataset: test_sft_data
+dataset_dir: data/llmops
+template: qwen
+cutoff_len: 512
+max_samples: 100
+overwrite_cache: true
+preprocessing_num_workers: 1
+
+### output
+output_dir: checkpoints/test_qwen_sft
+logging_steps: 5
+save_steps: 100
+plot_loss: true
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 2
+learning_rate: 5.0e-5
+num_train_epochs: 1.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: false
+fp16: false
+
+### lora
+lora_rank: 8
+lora_alpha: 16
+lora_dropout: 0.1
+

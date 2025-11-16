@@ -3,6 +3,14 @@
 # MLOps搜索引擎测试床 - 快速启动脚本
 # 功能：一键启动搜索引擎系统，包含完整的预检查和用户指导
 
+# 优先使用 zsh，但默认兼容 bash
+if [ -z "$RUNNING_IN_ZSH" ] && [ -n "$ZSH_VERSION" ]; then
+    :  # Already running in zsh
+elif [ -z "$RUNNING_IN_ZSH" ] && command -v zsh >/dev/null 2>&1 && [ -t 0 ]; then
+    export RUNNING_IN_ZSH=1
+    exec zsh "$0" "$@"
+fi
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'

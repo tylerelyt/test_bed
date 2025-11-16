@@ -3,15 +3,22 @@
 # -------------------------
 gradio>=4.0.0
 pandas>=1.5.0
-numpy>=1.21.0
+# numpy version must be compatible with TensorFlow 2.19.0 and llamafactory
+# TensorFlow 2.19.0 requires: numpy>=1.26.0,<2.2.0
+# llamafactory requires: numpy<2.0.0
+# Final constraint: numpy>=1.26.0,<2.0.0
+numpy>=1.26.0,<2.0.0
 scikit-learn>=1.2.0
 jieba>=0.42.1
 requests>=2.28.0
 networkx>=3.0.0
 psutil>=5.9.0
 click>=8.0.0
+# For visualization in training tab
 matplotlib>=3.5.0
 seaborn>=0.12.0
+pyyaml>=6.0
+# For model service API
 flask>=2.0.0
 
 # -------------------------
@@ -23,17 +30,36 @@ openai>=1.0.0
 # For Word2Vec
 gensim>=4.3.0
 
+# For LLM Fine-tuning (LLaMA-Factory)
+# Unified Efficient Fine-Tuning of 100+ LLMs & VLMs
+# Reference: https://github.com/hiyouga/LLaMA-Factory
+# Note: llamafactory requires transformers >= 4.41.2
+# We use transformers 4.41.2-4.44.x to balance compatibility with TensorFlow 2.19.0
+llamafactory>=0.9.0
+
 # For Wide & Deep CTR Model (Optional)
 # If not installed, the system will fall back to Logistic Regression.
-tensorflow>=2.13.0
-keras>=2.13.0
+# Note: TensorFlow 2.19.0 is used to avoid mutex.cc lock blocking issue on macOS
+# Reference: https://github.com/tensorflow/tensorflow/issues/98563
+# SOLUTION: TensorFlow 2.20.0 + PyArrow 22.0.0 + tf-keras resolves all compatibility issues
+# - PyArrow 22.0.0 fixes the mutex.cc lock blocking issue on MacOS ARM  
+# - TensorFlow 2.20.0 + Keras 3 + tf-keras satisfies llamafactory requirements
+tensorflow==2.20.0
+keras==3.12.0
+tf-keras==2.20.1
+pyarrow==22.0.0
 
 # -------------------------
 # Image Search (CLIP)
 # -------------------------
 # For Image Search functionality
 Pillow>=9.0.0
-transformers>=4.20.0
+# transformers version constraint to avoid tf-keras requirement with TensorFlow 2.19.0
+# transformers >= 4.40.0 may require tf-keras when Keras 3 is detected
+# llamafactory requires transformers >= 4.41.2
+# We use TensorFlow 2.19.0 to fix mutex.cc issue, which conflicts with tf-keras (needs TF >= 2.20.0)
+# Try transformers 4.41.x - 4.44.x range to balance compatibility
+transformers>=4.41.2,<4.45.0
 torch>=1.12.0
 torchvision>=0.13.0
 opencv-python>=4.5.0

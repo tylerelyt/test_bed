@@ -1,0 +1,100 @@
+[INFO|2025-11-15 20:14:15] configuration_utils.py:699 >> loading configuration file config.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/config.json
+
+[INFO|2025-11-15 20:14:15] configuration_utils.py:771 >> Model config Qwen2Config {
+  "_name_or_path": "Qwen/Qwen2-1.5B",
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "bos_token_id": 151643,
+  "eos_token_id": 151643,
+  "hidden_act": "silu",
+  "hidden_size": 1536,
+  "initializer_range": 0.02,
+  "intermediate_size": 8960,
+  "max_position_embeddings": 131072,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 28,
+  "num_key_value_heads": 2,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 1000000.0,
+  "sliding_window": 131072,
+  "tie_word_embeddings": true,
+  "torch_dtype": "bfloat16",
+  "transformers_version": "4.49.0",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 151936
+}
+
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file vocab.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/vocab.json
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file merges.txt from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/merges.txt
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file tokenizer.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/tokenizer.json
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file added_tokens.json from cache at None
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file special_tokens_map.json from cache at None
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file tokenizer_config.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/tokenizer_config.json
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2050 >> loading file chat_template.jinja from cache at None
+
+[INFO|2025-11-15 20:14:16] tokenization_utils_base.py:2313 >> Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
+
+[INFO|2025-11-15 20:14:18] configuration_utils.py:699 >> loading configuration file config.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/config.json
+
+[INFO|2025-11-15 20:14:18] configuration_utils.py:771 >> Model config Qwen2Config {
+  "_name_or_path": "Qwen/Qwen2-1.5B",
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "bos_token_id": 151643,
+  "eos_token_id": 151643,
+  "hidden_act": "silu",
+  "hidden_size": 1536,
+  "initializer_range": 0.02,
+  "intermediate_size": 8960,
+  "max_position_embeddings": 131072,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 28,
+  "num_key_value_heads": 2,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 1000000.0,
+  "sliding_window": 131072,
+  "tie_word_embeddings": true,
+  "torch_dtype": "bfloat16",
+  "transformers_version": "4.49.0",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 151936
+}
+
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file vocab.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/vocab.json
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file merges.txt from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/merges.txt
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file tokenizer.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/tokenizer.json
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file added_tokens.json from cache at None
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file special_tokens_map.json from cache at None
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file tokenizer_config.json from cache at /Users/tyler/.cache/huggingface/hub/models--Qwen--Qwen2-1.5B/snapshots/8a16abf2848eda07cc5253dec660bf1ce007ad7a/tokenizer_config.json
+
+[INFO|2025-11-15 20:14:18] tokenization_utils_base.py:2050 >> loading file chat_template.jinja from cache at None
+
+[INFO|2025-11-15 20:14:19] tokenization_utils_base.py:2313 >> Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
+
+[INFO|2025-11-15 20:14:19] logging.py:157 >> Loading dataset domain_corpus_20251115_200152.jsonl...
+
