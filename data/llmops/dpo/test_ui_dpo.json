@@ -1,0 +1,50 @@
+[
+  {
+    "conversations": [
+      {
+        "role": "user",
+        "content": "DPO测试问题 1"
+      }
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "好的回答 1"
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "差的回答 1"
+    }
+  },
+  {
+    "conversations": [
+      {
+        "role": "user",
+        "content": "DPO测试问题 2"
+      }
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "好的回答 2"
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "差的回答 2"
+    }
+  },
+  {
+    "conversations": [
+      {
+        "role": "user",
+        "content": "DPO测试问题 3"
+      }
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "好的回答 3"
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "差的回答 3"
+    }
+  }
+]

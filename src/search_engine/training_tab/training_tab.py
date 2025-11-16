@@ -285,6 +285,28 @@ def build_training_tab(model_service, data_service):
         gr.Markdown("""### 📊 第三部分：模型训练与实验""")
         
         with gr.Tabs():
+            # LLMOps 闭环系统标签页
+            try:
+                with gr.Tab("🔄 LLMOps 闭环"):
+                    from .llmops_tab import build_llmops_content
+                    train_engine = build_llmops_content()
+            except Exception as e:
+                print(f"❌ LLMOps 标签页加载失败: {type(e).__name__}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                # 创建一个错误提示标签页
+                with gr.Tab("🔄 LLMOps 闭环"):
+                    gr.Markdown(f"""
+                    ## ❌ LLMOps 标签页加载失败
+                    
+                    **错误类型**: {type(e).__name__}
+                    
+                    **错误信息**: {str(e)}
+                    
+                    请检查日志获取详细信息。
+                    """)
+                train_engine = None
+            
             # CTR模型训练标签页
             with gr.Tab("🎯 CTR模型训练"):
                 gr.Markdown("#### 点击率预测模型训练")
@@ -991,5 +1013,20 @@ def build_training_tab(model_service, data_service):
         load_clip_btn.click(load_clip, inputs=[clip_model_name], outputs=[clip_status])
         clip_train_btn.click(finetune_clip, inputs=[clip_model_name], outputs=[clip_log])
         viz_clip_data_btn.click(visualize_clip_data, outputs=[clip_data_viz, clip_image_gallery, clip_text_display])
+        
+        # 添加 LLMOps Engine 的 resume 支持（参考 LLaMA-Factory 的设计）
+        # 注意：暂时禁用 resume 功能，避免 Gradio 类型推断错误
+        # 如果需要恢复功能，需要确保所有组件都已正确注册且类型注解正确
+        # if train_engine is not None:
+        #     try:
+        #         output_elems = [elem for elem in train_engine.manager.get_elem_list() if elem is not None]
+        #         if output_elems:
+        #             training_tab.load(
+        #                 train_engine.resume,
+        #                 outputs=output_elems,
+        #                 concurrency_limit=None
+        #             )
+        #     except Exception as e:
+        #         print(f"警告: LLMOps resume 功能初始化失败: {e}")
 
         return training_tab 

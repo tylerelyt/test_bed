@@ -1,0 +1,38 @@
+[
+  {
+    "conversations": [
+      {"role": "user", "content": "什么是人工智能？"}
+    ],
+    "chosen": {"role": "assistant", "content": "人工智能是模拟人类智能的计算机系统，包括学习、推理等能力。"},
+    "rejected": {"role": "assistant", "content": "AI是一种技术。"}
+  },
+  {
+    "conversations": [
+      {"role": "user", "content": "机器学习的定义"}
+    ],
+    "chosen": {"role": "assistant", "content": "机器学习使计算机能够从数据中自动学习规律并改进性能。"},
+    "rejected": {"role": "assistant", "content": "机器学习就是让机器学习。"}
+  },
+  {
+    "conversations": [
+      {"role": "user", "content": "深度学习的应用"}
+    ],
+    "chosen": {"role": "assistant", "content": "深度学习在图像识别、语音识别、NLP等领域有广泛应用。"},
+    "rejected": {"role": "assistant", "content": "深度学习很有用。"}
+  },
+  {
+    "conversations": [
+      {"role": "user", "content": "神经网络的作用"}
+    ],
+    "chosen": {"role": "assistant", "content": "神经网络可以学习数据的复杂模式，进行分类、预测等任务。"},
+    "rejected": {"role": "assistant", "content": "神经网络就是模仿大脑的。"}
+  },
+  {
+    "conversations": [
+      {"role": "user", "content": "NLP的应用场景"}
+    ],
+    "chosen": {"role": "assistant", "content": "NLP应用于机器翻译、情感分析、问答系统、文本生成等领域。"},
+    "rejected": {"role": "assistant", "content": "NLP可以处理文本。"}
+  }
+]
+

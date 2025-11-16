@@ -1,0 +1,130 @@
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "回答：深度学习和机器学习的区别是什么？"
+      },
+      {
+        "role": "assistant",
+        "content": "深度学习是机器学习的子集，使用多层神经网络自动学习特征。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "将这段文字改写为正式语体\n这个方法挺不错的"
+      },
+      {
+        "role": "assistant",
+        "content": "该方法具有良好的效果。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "判断这段文字的情感倾向\n这个产品性价比很高"
+      },
+      {
+        "role": "assistant",
+        "content": "积极"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "判断这个句子是陈述句还是疑问句\n今天天气怎么样"
+      },
+      {
+        "role": "assistant",
+        "content": "疑问句"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "把这句话改写得更简洁\n由于天气不好，所以我们决定取消外出计划"
+      },
+      {
+        "role": "assistant",
+        "content": "天气不好，我们取消了外出。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "创作一首关于春天的小诗"
+      },
+      {
+        "role": "assistant",
+        "content": "春风拂面暖如酥，万物复苏绿满途。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "描述一下未来城市的样子"
+      },
+      {
+        "role": "assistant",
+        "content": "未来城市将实现智能化管理，清洁能源驱动，人与自然和谐共生。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "写一段关于教育重要性的文字"
+      },
+      {
+        "role": "assistant",
+        "content": "教育是个人成长和社会进步的基石，它不仅传授知识，更培养思维能力和价值观。"
+      }
+    ]
+  }
+]
