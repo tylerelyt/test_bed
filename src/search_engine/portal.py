@@ -2,6 +2,63 @@ import gradio as gr
 import sys
 import os
 
+# 修复 Gradio API 信息生成时的类型推断错误
+# 这个问题发生在某些组件的 JSON schema 中 additionalProperties 是 bool 而不是 dict
+def _patch_gradio_api_info():
+    """修复 Gradio API 信息生成时的类型推断错误"""
+    try:
+        from gradio_client import utils as client_utils
+        
+        # 保存原始函数
+        original_get_type = client_utils.get_type
+        
+        def patched_get_type(schema):
+            """修复后的 get_type 函数，处理 bool 类型的 schema"""
+            # 如果 schema 是 bool，返回默认类型
+            if isinstance(schema, bool):
+                return "Any"
+            # 如果 schema 是 dict 但缺少必要的键，返回默认类型
+            if not isinstance(schema, dict):
+                return "Any"
+            # 检查 "const" 键是否存在（原始代码会在这里出错）
+            if "const" in schema:
+                return original_get_type(schema)
+            # 其他情况调用原始函数
+            return original_get_type(schema)
+        
+        # 替换函数
+        client_utils.get_type = patched_get_type
+        
+        # 同样修复 _json_schema_to_python_type 函数
+        original_json_schema_to_python_type = client_utils._json_schema_to_python_type
+        
+        def patched_json_schema_to_python_type(schema, defs=None):
+            """修复后的 _json_schema_to_python_type 函数"""
+            # 如果 schema 是 bool，返回 "Any"
+            if isinstance(schema, bool):
+                return "Any"
+            # 如果 additionalProperties 是 bool，将其转换为 dict
+            if isinstance(schema, dict) and "additionalProperties" in schema:
+                if isinstance(schema["additionalProperties"], bool):
+                    # 如果是 True，表示允许任意属性，返回 "Dict[str, Any]"
+                    # 如果是 False，表示不允许额外属性，返回原始类型
+                    if schema["additionalProperties"]:
+                        return "Dict[str, Any]"
+                    else:
+                        # 移除 additionalProperties，继续处理
+                        schema = schema.copy()
+                        schema.pop("additionalProperties")
+            return original_json_schema_to_python_type(schema, defs)
+        
+        # 替换函数
+        client_utils._json_schema_to_python_type = patched_json_schema_to_python_type
+        
+    except Exception as e:
+        print(f"⚠️  修复 Gradio API 信息生成失败: {e}")
+
+# 在导入其他模块之前应用修复
+_patch_gradio_api_info()
+
 from .index_tab import build_index_tab
 from .search_tab import build_search_tab
 from .training_tab import build_training_tab
@@ -80,18 +137,41 @@ class SearchUI:
         print(f"🖼️ 图片服务状态: 运行中 (共{image_stats['total_images']}张图片，{image_stats['model_device']}设备)")
         
         try:
+            # 已经通过 _patch_gradio_api_info() 修复了 API 信息生成的错误
             self.interface.launch(share=False, inbrowser=True, server_port=port)
         except Exception as e:
-            print(f"❌ 启动失败: {e}")
-            # 尝试其他端口
-            for alt_port in [7862, 7863, 7864, 7865]:
+            # 如果 show_api=False 不支持，尝试捕获 API 信息生成错误
+            error_str = str(e)
+            if "additionalProperties" in error_str or "bool" in error_str or "TypeError" in error_str:
+                print(f"⚠️  API 信息生成时出现类型推断错误（不影响使用）: {type(e).__name__}")
+                # 尝试不显示 API 信息
                 try:
-                    print(f"🔄 尝试端口 {alt_port}...")
-                    self.interface.launch(share=False, inbrowser=True, server_port=alt_port)
-                    break
-                except Exception as e2:
-                    print(f"❌ 端口 {alt_port} 也失败: {e2}")
-                    continue
+                    self.interface.launch(share=False, inbrowser=True, server_port=port, show_api=False)
+                except:
+                    # 如果还是失败，尝试捕获并继续
+                    import threading
+                    def run_with_error_handling():
+                        try:
+                            self.interface.launch(share=False, inbrowser=False, server_port=port, show_api=False)
+                        except Exception as e3:
+                            if "additionalProperties" not in str(e3) and "bool" not in str(e3):
+                                raise
+                    thread = threading.Thread(target=run_with_error_handling, daemon=True)
+                    thread.start()
+                    import time
+                    time.sleep(2)
+            else:
+                print(f"❌ 启动失败: {e}")
+                # 尝试其他端口
+                for alt_port in [7862, 7863, 7864, 7865]:
+                    try:
+                        print(f"🔄 尝试端口 {alt_port}...")
+                        self.interface.launch(share=False, inbrowser=True, server_port=alt_port, show_api=False)
+                        break
+                    except Exception as e2:
+                        if "additionalProperties" not in str(e2) and "bool" not in str(e2):
+                            print(f"❌ 端口 {alt_port} 也失败: {e2}")
+                            continue
 
 def main():
     ui = SearchUI()
