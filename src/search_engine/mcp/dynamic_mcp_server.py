@@ -23,7 +23,22 @@ class DynamicMCPServer:
         """初始化动态MCP服务器"""
         self.mcp = FastMCP(server_name)
         self.index_service = get_index_service()
-        self.conversation_history = []
+        
+        # ✅ 对话历史持久化文件（JSONL 格式，方便 append）
+        self.history_file = os.path.join(
+            os.path.dirname(__file__), 
+            "../../..", 
+            "data", 
+            "conversation_history.jsonl"  # 改用 JSONL
+        )
+        
+        # 确保data目录存在
+        os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+        
+        # 初始化历史文件（如果不存在）
+        if not os.path.exists(self.history_file):
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                pass  # 创建空文件
         
         # 注册所有功能
         self._register_prompts()
@@ -31,163 +46,270 @@ class DynamicMCPServer:
         self._register_resources()
         
         print(f"🚀 初始化动态MCP服务器: {server_name}")
+        print(f"📁 历史文件: {self.history_file}")
         print("🔒 架构: 完全隔离解耦，所有功能通过MCP协议动态发现")
     
     def _register_prompts(self):
         """注册提示词 - 通过MCP协议动态发现"""
         
         @self.mcp.prompt("simple_chat")
-        def simple_chat_prompt(
-            section_persona: str = "",
-            section_current_status: str = "",
-            section_conversation_history: str = "",
-            section_user_profile: str = "",
-            section_system_overview: str = "",
-            section_available_tools: str = "",
-            section_user_question: str = "",
-            section_tao_output_example: str = ""
-        ) -> str:
-            """简单对话提示词 - 统一分区参数装配"""
-            return f"""{section_persona}
+        def simple_chat_prompt(user_input: str = "") -> str:
+            """简单对话提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、输出格式
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个友好、专业的AI助手，善于回答各种问题。
+你的特点：
+1. 回答简洁明了，重点突出
+2. 语言流畅自然，易于理解
+3. 必要时提供例子或解释
+4. 态度友好，乐于助人
 
-{section_current_status}
+[当前状态] 
+处理时间: ${{local:current_time}}
+用户意图: ${{local:user_intent}}
 
-{section_conversation_history}
+[对话历史] 
+${{mcp:resource:conversation://current/history}}
 
-{section_user_profile}
+[用户信息] 
+${{local:user_profile}}
 
-{section_system_overview}
+[系统概览] 
+${{local:system_overview}}
 
-{section_available_tools}
+[可用工具] 
+${{mcp:tool:dynamic_tool_selection}}
 
-{section_user_question}
+[用户问题] 
+{user_input}
 
-{section_tao_output_example}"""
+[输出格式] 
+${{local:tao_example}}
+
+现在请回答用户问题。"""
         
         @self.mcp.prompt("rag_answer")
-        def rag_answer_prompt(
-            section_persona: str = "",
-            section_current_status: str = "",
-            section_conversation_history: str = "",
-            section_user_profile: str = "",
-            section_system_overview: str = "",
-            section_available_tools: str = "",
-            section_user_question: str = "",
-            section_tao_output_example: str = ""
-        ) -> str:
-            """RAG检索增强提示词 - 统一分区参数装配"""
-            return f"""{section_persona}
+        def rag_answer_prompt(user_input: str = "") -> str:
+            """RAG检索增强提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、RAG流程、输出格式
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个专业的信息检索与分析专家，擅长使用RAG（检索增强生成）技术回答问题。
+你的核心能力：
+1. 精准检索：从知识库中检索最相关的信息
+2. 深度理解：分析检索结果，提取关键信息
+3. 综合回答：结合检索内容和背景知识，给出完整答案
+4. 来源标注：明确标注信息来源，增强可信度
 
-{section_current_status}
+[当前状态] 
+处理时间: ${{local:current_time}}
+用户意图: ${{local:user_intent}}
 
-{section_conversation_history}
+[对话历史] 
+${{mcp:resource:conversation://current/history}}
 
-{section_user_profile}
+[用户信息] 
+${{local:user_profile}}
 
-{section_system_overview}
+[系统概览] 
+${{local:system_overview}}
 
-{section_available_tools}
+[可用工具] 
+${{mcp:tool:dynamic_tool_selection}}
 
-{section_user_question}
+[用户问题] 
+{user_input}
 
-{section_tao_output_example}"""
+[RAG工作流程]
+1. **理解问题**：分析用户问题的核心意图和关键信息需求
+2. **检索信息**：使用retrieve工具从知识库检索相关文档
+3. **分析整合**：评估检索结果的相关性和可信度
+4. **生成答案**：基于检索内容生成准确、完整的回答
+5. **标注来源**：注明信息来源，便于用户验证
+
+[输出格式] 
+${{local:tao_example}}
+
+现在请使用RAG流程回答用户问题。"""
         
         @self.mcp.prompt("react_reasoning")
-        def react_reasoning_prompt(
-            section_persona: str = "",
-            section_current_status: str = "",
-            section_conversation_history: str = "",
-            section_user_profile: str = "",
-            section_system_overview: str = "",
-            section_available_tools: str = "",
-            section_user_question: str = "",
-            section_tao_output_example: str = ""
-        ) -> str:
-            """ReAct推理提示词 - 统一分区参数装配"""
-            return f"""{section_persona}
+        def react_reasoning_prompt(user_input: str = "") -> str:
+            """ReAct推理提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、Few-shot示例
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个专业的AI智能体，擅长使用ReAct范式进行推理和决策。
+你的核心能力：
+1. 深度思考：分析问题、拆解任务、规划步骤
+2. 工具调用：根据需要调用合适的工具获取信息
+3. 持续观察：基于观察结果调整策略
+4. 最终回答：综合所有信息给出准确答案
 
-{section_current_status}
+[当前状态] 处理时间: ${{local:current_time}}
+用户意图: ${{local:user_intent}}
+模型: ${{local:model_name}}
 
-{section_conversation_history}
+[历史] ${{mcp:resource:conversation://current/history}}
 
-{section_user_profile}
+[可用工具] ${{mcp:tool:dynamic_tool_selection}}
 
-{section_system_overview}
+[用户问题] {user_input}
 
-{section_available_tools}
+[执行范式] ReAct (Reasoning + Acting)
+你必须严格按照以下格式输出：
 
-{section_user_question}
+**示例1：需要调用工具**
+Thought: 我需要搜索相关信息来回答这个问题
+Action: retrieve
+Action Input: {{"query": "xxx", "top_k": 3}}
+Observation: [工具返回的结果]
+Thought: 基于搜索结果，我现在可以回答了
+Final Answer: 最终答案内容
 
-{section_tao_output_example}"""
+**示例2：无需调用工具**
+Thought: 这是一个简单的问题，我可以直接回答
+Final Answer: 最终答案内容
+
+**重要规则**：
+1. 每次必须以 Thought: 开始思考
+2. 如需工具，输出 Action: 和 Action Input:
+3. 观察工具结果后继续思考
+4. 确定答案后，以 Final Answer: 输出
+5. Final Answer: 标记表示任务完成
+
+请开始执行："""
         
         @self.mcp.prompt("code_review")
-        def code_review_prompt() -> str:
-            """代码审查提示词"""
-            return """[人设] 你是一个经验丰富的代码审查专家
-[代码] {code_content}
-[审查要求] {review_requirements}
-[审查结果] 请从以下方面进行审查：
-1. 代码质量
-2. 安全性
-3. 性能
-4. 可维护性
-5. 最佳实践"""
+        def code_review_prompt(user_input: str = "") -> str:
+            """代码审查提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、审查标准、输出格式
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个经验丰富的高级软件工程师和代码审查专家。
+你的专长：
+1. 代码质量：评估代码的可读性、可维护性和健壮性
+2. 安全审计：识别潜在的安全漏洞和风险
+3. 性能优化：发现性能瓶颈和优化机会
+4. 最佳实践：确保代码符合行业标准和最佳实践
+
+[当前状态] 
+处理时间: ${{local:current_time}}
+审查任务: ${{local:user_intent}}
+
+[对话历史] 
+${{mcp:resource:conversation://current/history}}
+
+[代码/问题] 
+{user_input}
+
+[审查维度]
+1. **代码质量**：命名规范、代码结构、注释完整性
+2. **安全性**：输入验证、权限控制、敏感信息处理
+3. **性能**：算法效率、资源使用、潜在瓶颈
+4. **可维护性**：模块化、耦合度、测试覆盖
+5. **最佳实践**：设计模式、错误处理、日志记录
+
+[输出格式]
+请按照以下结构提供审查意见：
+1. 总体评价（优点和问题概述）
+2. 具体问题列表（按严重程度排序）
+3. 改进建议（附代码示例）
+4. 最佳实践建议
+
+现在请进行代码审查。"""
         
         @self.mcp.prompt("financial_analysis")
-        def financial_analysis_prompt(
-            section_persona: str = "",
-            section_current_status: str = "",
-            section_conversation_history: str = "",
-            section_user_profile: str = "",
-            section_system_overview: str = "",
-            section_available_tools: str = "",
-            section_user_question: str = "",
-            section_tao_output_example: str = ""
-        ) -> str:
-            """财务分析提示词 - 统一分区参数装配"""
-            return f"""{section_persona}
+        def financial_analysis_prompt(user_input: str = "") -> str:
+            """财务分析提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、分析框架、输出格式
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个资深的财务分析专家和投资顾问。
+你的核心能力：
+1. 财务报表分析：深入理解资产负债表、利润表、现金流量表
+2. 比率分析：计算和解释关键财务比率
+3. 趋势分析：识别财务数据的变化趋势和规律
+4. 风险评估：评估财务风险和投资价值
+5. 战略建议：提供基于数据的决策建议
 
-{section_current_status}
+[当前状态] 
+处理时间: ${{local:current_time}}
+分析任务: ${{local:user_intent}}
 
-{section_conversation_history}
+[对话历史] 
+${{mcp:resource:conversation://current/history}}
 
-{section_user_profile}
+[用户信息] 
+${{local:user_profile}}
 
-{section_system_overview}
+[系统概览] 
+${{local:system_overview}}
 
-{section_available_tools}
+[可用工具] 
+${{mcp:tool:dynamic_tool_selection}}
 
-{section_user_question}
+[分析需求] 
+{user_input}
 
-{section_tao_output_example}"""
+[分析框架]
+1. **数据收集**：确认需要的财务数据和信息来源
+2. **比率计算**：计算关键财务比率（流动比率、ROE、ROA等）
+3. **趋势分析**：分析历史数据，识别变化趋势
+4. **对标分析**：与行业平均水平或竞争对手对比
+5. **风险评估**：识别潜在风险和机会
+6. **结论建议**：给出明确的结论和行动建议
+
+[输出格式] 
+${{local:tao_example}}
+
+现在请进行财务分析。"""
         
         @self.mcp.prompt("context_engineering")
-        def context_engineering_prompt(
-            section_persona: str = "",
-            section_current_status: str = "",
-            section_conversation_history: str = "",
-            section_user_profile: str = "",
-            section_system_overview: str = "",
-            section_available_tools: str = "",
-            section_user_question: str = "",
-            section_tao_output_example: str = ""
-        ) -> str:
-            """上下文工程专用提示词 - 统一分区参数装配"""
-            return f"""{section_persona}
+        def context_engineering_prompt(user_input: str = "") -> str:
+            """上下文工程专用提示词 - 使用占位符模式
+            
+            固定分区（模板内定义）：人设、Few-shot示例
+            动态分区（占位符）：通过CE Server替换
+            
+            占位符格式：${local:xxx} 或 ${mcp:resource:xxx} 或 ${mcp:tool:xxx}
+            """
+            return f"""[人设] 你是一个专业的上下文工程专家，擅长动态决策和智能推理
 
-{section_current_status}
+[当前状态] 处理时间: ${{local:current_time}}
+用户意图: ${{local:user_intent}}
+模型: ${{local:model_name}}
 
-{section_conversation_history}
+[历史] ${{mcp:resource:conversation://current/history}}
 
-{section_user_profile}
+[可用工具] ${{mcp:tool:dynamic_tool_selection}}
 
-{section_system_overview}
+[用户问题] {user_input}
 
-{section_available_tools}
+[上下文工程模式] 请严格按照以下格式进行回答：
 
-{section_user_question}
+思考: <详细分析用户问题，评估是否需要外部信息，制定解决方案>
+行动: <选择适合的工具，格式：工具名(参数1="值1", 参数2="值2")>
+观察: <工具返回的结果或观察到的信息>
 
-{section_tao_output_example}"""
+如果需要多步推理，请重复上述格式。
+
+[最终答案] 基于所有思考、行动和观察，给出完整的答案："""
 
     
     def _register_tools(self):
@@ -247,14 +369,33 @@ class DynamicMCPServer:
                 results = self.index_service.search(query, top_k)
                 documents = []
                 
-                for doc in results.get("documents", []):
-                    doc_info = {
-                        "content": doc.get("content", ""),
-                        "score": doc.get("score", 0.0)
-                    }
-                    if include_metadata:
-                        doc_info["metadata"] = doc.get("metadata", {})
-                    documents.append(doc_info)
+                # index_service.search 返回 List[Tuple[str, float, str]]
+                # 格式: (doc_id, score, text)
+                if isinstance(results, list):
+                    for doc_id, score, text in results:
+                        doc_info = {
+                            "id": doc_id,
+                            "content": text,
+                            "score": float(score)
+                        }
+                        documents.append(doc_info)
+                    
+                    index_size = len(results)
+                elif isinstance(results, dict):
+                    # 兼容其他可能的返回格式（字典）
+                    for doc in results.get("documents", []):
+                        doc_info = {
+                            "content": doc.get("content", ""),
+                            "score": doc.get("score", 0.0)
+                        }
+                        if include_metadata:
+                            doc_info["metadata"] = doc.get("metadata", {})
+                        documents.append(doc_info)
+                    
+                    index_size = results.get("total_documents", 0)
+                else:
+                    # 未知格式
+                    index_size = 0
                 
                 observation["result"] = "检索完成"
                 observation["documents"] = documents
@@ -269,7 +410,7 @@ class DynamicMCPServer:
                     "source": "dynamic_mcp_server",
                     "search_metadata": {
                         "query_time": "real_time",
-                        "index_size": results.get("total_documents", 0)
+                        "index_size": index_size
                     }
                 }
             except Exception as e:
@@ -300,15 +441,36 @@ class DynamicMCPServer:
             mime_type="application/json"
         )
         def get_conversation_history() -> str:
-            """获取对话历史资源
+            """
+            获取对话历史资源 - 读取 JSONL 文件
             
             返回当前会话的完整对话历史，包括用户输入和AI回复。
             支持多轮对话的上下文管理，为LLM提供对话连续性。
+            
+            ✅ 读写解耦设计（JSONL格式）：
+            - 读：逐行解析 JSONL，返回 JSON 数组
+            - 写：直接 append 一行到文件末尾（O(1)）
             """
             try:
-                print(f"🔍 MCP服务器: 获取对话历史，当前长度: {len(self.conversation_history)}")
-                print(f"📝 MCP服务器: 历史内容: {self.conversation_history}")
-                return json.dumps(self.conversation_history, ensure_ascii=False, indent=2)
+                # ✅ 从 JSONL 文件逐行读取
+                history = []
+                if os.path.exists(self.history_file):
+                    with open(self.history_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:  # 跳过空行
+                                try:
+                                    history.append(json.loads(line))
+                                except json.JSONDecodeError as e:
+                                    print(f"⚠️ MCP服务器: 跳过无效行: {line[:50]}... 错误: {e}")
+                
+                print(f"🔍 MCP服务器: 读取对话历史，当前长度: {len(history)}")
+                # 返回 JSON 数组格式（与客户端兼容）
+                return json.dumps(history, ensure_ascii=False, indent=2)
+                
+            except FileNotFoundError:
+                print(f"⚠️ MCP服务器: 历史文件不存在，返回空历史")
+                return "[]"
             except Exception as e:
                 print(f"❌ MCP服务器: 获取历史失败: {e}")
                 return json.dumps({
@@ -317,45 +479,31 @@ class DynamicMCPServer:
                     "timestamp": "now"
                 }, ensure_ascii=False, indent=2)
         
-        @self.mcp.tool("add_conversation_turn")
-        def add_conversation_turn(tao_data: str) -> str:
-            """添加对话轮次工具
+    def append_to_history(self, tao_record: dict) -> None:
+        """
+        追加记录到历史文件 - MCP Server端写入方法（JSONL格式）
+        
+        ✅ JSONL 格式优势：
+        - O(1) 追加操作，无需读取整个文件
+        - 支持流式处理，内存友好
+        - 并发写入更安全
             
-            Args:
-                tao_data: JSON格式的TAO数据，包含reasoning、action、observation
-            """
-            try:
-                print(f"🔄 MCP服务器: 开始添加对话轮次")
-                print(f"📥 MCP服务器: 接收到的数据: {tao_data}")
-                
-                tao_record = json.loads(tao_data)
-                # 只保存TAO结构
-                simplified_tao = {
-                    "turn": len(self.conversation_history) + 1,
-                    "timestamp": tao_record.get("timestamp", "now"),
-                    "reasoning": tao_record.get("reasoning", ""),
-                    "action": tao_record.get("action", ""),
-                    "observation": tao_record.get("observation", "")
-                }
-                
-                print(f"📝 MCP服务器: 简化的TAO记录: {simplified_tao}")
-                
-                self.conversation_history.append(simplified_tao)
-                
-                print(f"✅ MCP服务器: 历史已更新，当前长度: {len(self.conversation_history)}")
-                print(f"📋 MCP服务器: 完整历史: {self.conversation_history}")
-                
-                return json.dumps({
-                    "status": "success",
-                    "message": f"已添加第{simplified_tao['turn']}轮对话",
-                    "total_turns": len(self.conversation_history)
-                }, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"❌ MCP服务器: 添加对话轮次失败: {e}")
-                return json.dumps({
-                    "status": "error",
-                    "error": str(e)
-                }, ensure_ascii=False, indent=2)
+        Args:
+            tao_record: 要追加的TAO记录
+        """
+        try:
+            # ✅ 直接 append 一行到 JSONL 文件末尾
+            with open(self.history_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(tao_record, ensure_ascii=False) + '\n')
+            
+            print(f"✅ MCP服务器: 历史已追加（JSONL格式）")
+            
+            # TODO: 发送 notifications/resources/updated
+            # 需要 FastMCP 支持订阅机制
+            
+        except Exception as e:
+            print(f"❌ MCP服务器: 追加历史失败: {e}")
+            raise
     
     async def start_server(self, host: str = "localhost", port: int = 3001):
         """启动服务器"""

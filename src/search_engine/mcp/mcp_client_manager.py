@@ -30,20 +30,34 @@ class MCPClientManager:
         }
         self._connection_status = {}
     
+        # ✅ 对话历史文件路径（与MCP Server保持一致，JSONL格式）
+        self.history_file = os.path.join(
+            os.path.dirname(__file__),
+            "../../..",
+            "data",
+            "conversation_history.jsonl"  # JSONL 格式
+        )
+    
     async def connect_all_servers(self) -> Dict[str, bool]:
-        """连接所有MCP服务器"""
+        """连接所有MCP服务器 - 使用标准 FastMCP Client"""
         print("🔗 连接MCP服务器...")
+        
+        from fastmcp import Client
         
         connection_results = {}
         
         for server_name, config in self.server_configs.items():
             try:
                 print(f"   📡 连接 {server_name}: {config['url']}")
-                client = FastMCP.as_proxy(config['url'])
                 
-                # 测试连接
+                # ✅ 使用标准 FastMCP Client 而不是 as_proxy
+                # Client 支持完整的 MCP 协议，包括 read_resource()
+                client = Client(config['url'])
+                
+                # 测试连接（进入上下文）
                 await self._test_connection(client, server_name)
                 
+                # 保存客户端
                 self.clients[server_name] = client
                 self._connection_status[server_name] = True
                 connection_results[server_name] = True
@@ -57,20 +71,22 @@ class MCPClientManager:
         
         return connection_results
     
-    async def _test_connection(self, client: FastMCP, server_name: str):
-        """测试MCP服务器连接"""
+    async def _test_connection(self, client, server_name: str):
+        """测试MCP服务器连接 - C/S架构"""
         try:
+            # ✅ 使用 async with 测试连接
+            async with client:
             # 获取工具列表测试连接
-            tools = await client.get_tools()
-            print(f"   📋 {server_name} 可用工具: {len(tools)} 个")
+                tools = await client.list_tools()
+                print(f"   📋 {server_name} 可用工具: {len(tools) if tools else 0} 个")
             
             # 获取资源列表测试连接
-            resources = await client.get_resources()
-            print(f"   📚 {server_name} 可用资源: {len(resources)} 个")
+                resources = await client.list_resources()
+                print(f"   📚 {server_name} 可用资源: {len(resources) if resources else 0} 个")
             
             # 获取提示词列表测试连接
-            prompts = await client.get_prompts()
-            print(f"   📝 {server_name} 可用提示词: {len(prompts)} 个")
+                prompts = await client.list_prompts()
+                print(f"   📝 {server_name} 可用提示词: {len(prompts) if prompts else 0} 个")
             
         except Exception as e:
             raise Exception(f"连接测试失败: {e}")
@@ -102,148 +118,140 @@ class MCPClientManager:
             return False
     
     async def call_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """调用MCP工具 - 使用FastMCP依赖注入"""
+        """调用MCP工具 - C/S架构"""
         client = self.get_client("unified_server")
         
         if not client:
             raise Exception("统一MCP服务器未连接")
         
         try:
-            # 使用FastMCP的依赖注入系统调用工具
-            # 这里我们需要在FastMCP的上下文中运行
-            result = await self._run_in_fastmcp_context(client, tool_name, params)
-            return result
-        except Exception as e:
-            raise Exception(f"调用工具 {tool_name} 失败: {e}")
-    
-    async def _run_in_fastmcp_context(self, client: FastMCP, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """在FastMCP上下文中运行工具调用"""
-        try:
-            # 使用FastMCP的内部API直接调用工具
-            # 绕过依赖注入系统的限制
-            result = await client._mcp_call_tool(tool_name, params)
+            # ✅ 使用标准 FastMCP Client API
+            async with client:
+                result = await client.call_tool(
+                    name=tool_name,
+                    arguments=params
+                )
             
-            # 处理返回结果，确保可以序列化
+                # 处理返回结果
             if hasattr(result, 'content'):
-                # 如果是TextContent对象，提取内容
                 return {"content": str(result.content), "type": "text"}
             elif isinstance(result, (dict, list, str, int, float, bool)):
                 return result
             else:
-                # 其他类型，转换为字符串
                 return {"content": str(result), "type": "unknown"}
-                
         except Exception as e:
-            # 如果直接调用失败，尝试其他方法
-            try:
-                # 尝试使用工具管理器
-                tool_manager = client._tool_manager
-                if tool_manager:
-                    tool = tool_manager.get_tool(tool_name)
-                    if tool:
-                        result = await tool.call(params)
-                        return result
-            except Exception as inner_e:
-                pass
-            
-            raise e
+            raise Exception(f"调用工具 {tool_name} 失败: {e}")
     
     async def get_resource(self, resource_uri: str) -> str:
-        """获取MCP资源 - 使用FastMCP依赖注入"""
+        """
+        获取MCP资源
+        
+        特殊处理：
+        - conversation://current/history → 通过MCP Resource读取文件内容
+        - 其他资源 → 从MCP Server获取
+        
+        ✅ 读写解耦：读通过MCP，写直接操作文件
+        """
+        # ✅ 对话历史通过MCP Resource读取（MCP Server会读文件）
         client = self.get_client("unified_server")
         
         if not client:
             raise Exception("统一MCP服务器未连接")
         
         try:
-            # 使用FastMCP的内部API获取资源
-            resource = await client._mcp_read_resource(resource_uri)
+            # FastMCP Client 需要在 async with 上下文中使用
+            async with client:
+                content = await client.read_resource(resource_uri)
             
-            # 递归规范化资源，提取可序列化的基础类型
-            async def ensure_loaded(value: Any) -> Any:
-                # 异步读取可读资源
-                if hasattr(value, 'read'):
-                    try:
-                        return await value.read()
-                    except Exception:
-                        return value
-                return value
-
-            async def normalize(value: Any) -> Any:
-                value = await ensure_loaded(value)
-
-                # 包装对象：优先取 content / text / messages
-                if hasattr(value, 'content'):
-                    return await normalize(getattr(value, 'content'))
-                if hasattr(value, 'text'):
-                    return str(getattr(value, 'text'))
-                if hasattr(value, 'messages'):
-                    return await normalize(getattr(value, 'messages'))
-
-                # 基本类型
-                if isinstance(value, (int, float, bool)) or value is None:
-                    return value
-                if isinstance(value, bytes):
-                    try:
-                        return value.decode('utf-8', errors='ignore')
-                    except Exception:
-                        return str(value)
-                if isinstance(value, str):
-                    # 如果是JSON字符串，尽量解析
-                    try:
-                        return json.loads(value)
-                    except Exception:
-                        return value
-                if isinstance(value, list):
-                    return [await normalize(v) for v in value]
-                if isinstance(value, tuple):
-                    return [await normalize(v) for v in value]
-                if isinstance(value, dict):
-                    return {k: await normalize(v) for k, v in value.items()}
-
-                # 兜底字符串化
-                return str(value)
-
-            normalized = await normalize(resource)
-            return normalized
+                # 提取文本内容
+                if content and len(content) > 0:
+                    first_content = content[0]
+                    
+                    if hasattr(first_content, 'text'):
+                        return first_content.text
+                    elif isinstance(first_content, str):
+                        return first_content
+                    elif isinstance(first_content, dict):
+                        if 'text' in first_content:
+                            return first_content['text']
+                        return json.dumps(first_content, ensure_ascii=False)
+                    else:
+                        return str(first_content)
+                
+                return "[]"
+            
         except Exception as e:
             raise Exception(f"获取资源 {resource_uri} 失败: {e}")
     
     async def add_conversation_turn(self, tao_data: str) -> str:
-        """添加对话轮次 - 使用工具调用"""
-        client = self.get_client("unified_server")
+        """
+        添加对话轮次 - 直接 append 到 JSONL 文件
         
-        if not client:
-            raise Exception("统一MCP服务器未连接")
+        ✅ JSONL 格式优势：
+        - O(1) 追加操作，无需读取整个文件
+        - 高效：只需在文件末尾写一行
+        - 并发安全：追加操作原子性更好
+        - 流式处理：支持增量读取
         
+        📚 参考：https://modelcontextprotocol.info/docs/concepts/resources/
+        
+        MCP 标准订阅流程（未来可实现）：
+        1. Client: resources/subscribe("conversation://current/history")
+        2. Client: 写入数据（直接 append）
+        3. Server: notifications/resources/updated
+        4. Client: resources/read（获取最新内容）
+        
+        Args:
+            tao_data: JSON格式的TAO记录
+            
+        Returns:
+            操作结果消息
+        """
         try:
-            # 使用工具调用添加对话轮次
-            result = await self._run_in_fastmcp_context(client, "add_conversation_turn", {"tao_data": tao_data})
-            return result
+            import json
+            
+            # 解析TAO数据
+            tao_record = json.loads(tao_data)
+            
+            # ✅ 确保目录存在
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            
+            # ✅ 直接 append 一行到 JSONL 文件（O(1) 操作）
+            with open(self.history_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(tao_record, ensure_ascii=False) + '\n')
+            
+            print(f"✅ 对话轮次已追加到 JSONL 文件")
+            print(f"📁 文件路径: {self.history_file}")
+            print(f"📝 新增TAO: user={tao_record.get('user', '')[:30]}...")
+            
+            return "成功追加对话轮次到 JSONL"
+            
         except Exception as e:
             raise Exception(f"添加对话轮次失败: {e}")
     
     async def list_tools(self) -> List[Dict[str, Any]]:
-        """列出所有工具"""
+        """列出所有工具 - C/S架构"""
         client = self.get_client("unified_server")
         if not client:
             raise Exception("统一MCP服务器未连接")
         
         try:
-            tools = await client.get_tools()
-            return tools
+            async with client:
+                tools = await client.list_tools()
+                return tools if isinstance(tools, list) else []
         except Exception as e:
             raise Exception(f"获取工具列表失败: {e}")
     
     async def list_resources(self) -> List[Dict[str, Any]]:
-        """列出所有资源"""
+        """列出所有资源 - C/S架构"""
         client = self.get_client("unified_server")
         if not client:
             raise Exception("统一MCP服务器未连接")
         
         try:
-            resources = await client.get_resources()
-            return resources
+            async with client:
+                resources = await client.list_resources()
+                return resources if isinstance(resources, list) else []
         except Exception as e:
             raise Exception(f"获取资源列表失败: {e}")
     
@@ -254,16 +262,10 @@ class MCPClientManager:
             raise Exception("统一MCP服务器未连接")
         
         try:
-            prompts_dict = await client.get_prompts()
-            # FastMCP返回的是dict[str, Prompt]格式，需要转换为列表
-            prompts_list = []
-            for name, prompt in prompts_dict.items():
-                prompts_list.append({
-                    "name": name,
-                    "description": getattr(prompt, 'description', f'提示词: {name}'),
-                    "prompt": prompt
-                })
-            return prompts_list
+            async with client:
+                prompts = await client.list_prompts()
+                # FastMCP Client 返回 prompts 列表
+                return prompts if isinstance(prompts, list) else []
         except Exception as e:
             raise Exception(f"获取提示词列表失败: {e}")
     
@@ -355,18 +357,18 @@ class MCPClientManager:
             return f"同步提示词获取失败: {str(e)}"
     
     async def _get_prompt_async(self, client, prompt_name: str, arguments: Dict[str, Any] = None) -> str:
-        """异步获取提示词并原生返回纯文本内容。"""
+        """异步获取提示词并原生返回纯文本内容 - C/S架构"""
         try:
-            proxy_prompt = await client.get_prompt(prompt_name)
-            # 始终渲染以获取标准化结果
-            try:
-                rendered = await proxy_prompt.render(arguments or {})
-                # 确保返回的是渲染后的文本内容
-                return self._extract_plain_text(rendered)
-            except Exception as render_error:
-                # 如果渲染失败，尝试直接获取prompt内容
-                print(f"Prompt渲染失败: {render_error}, 尝试直接获取内容")
-                return self._extract_plain_text(proxy_prompt)
+            # ✅ 使用 async with 确保 C/S 架构
+            async with client:
+                prompt_result = await client.get_prompt(
+                    name=prompt_name,
+                    arguments=arguments or {}
+                )
+                
+                # FastMCP Client 的 get_prompt 返回已渲染的提示词
+                # 提取纯文本内容
+                return self._extract_plain_text(prompt_result)
         except Exception as e:
             return f"异步提示词获取失败: {str(e)}"
 
