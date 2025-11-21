@@ -152,7 +152,7 @@ class WideAndDeepCTRModel:
         deep_features = []
         
         # 1. 长度特征
-        doc_lengths = df['summary'].str.len().values.reshape(-1, 1)
+        doc_lengths = df['doc_length'].values.reshape(-1, 1)
         query_lengths = df['query'].str.len().values.reshape(-1, 1)
         summary_lengths = df['summary'].str.len().values.reshape(-1, 1)
         deep_features.extend([doc_lengths, query_lengths, summary_lengths])

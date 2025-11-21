@@ -39,7 +39,7 @@ class CTRModel:
         position_features = df['position'].values.reshape(-1, 1)
         
         # 2. 文档长度特征
-        doc_lengths = df['summary'].str.len().values.reshape(-1, 1)
+        doc_lengths = df['doc_length'].values.reshape(-1, 1)
         
         # 3. 查询长度特征
         query_lengths = df['query'].str.len().values.reshape(-1, 1)
