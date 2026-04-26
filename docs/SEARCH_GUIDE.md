@@ -626,6 +626,19 @@ logs/                              # 日志目录
 └── data_quality_report.json      # 数据质量报告
 ```
 
+### 4.2.1 知识图谱 NER 审阅入库流程
+
+当前知识图谱写入采用受控流程，避免直接把 LLM 原始抽取结果写入图库：
+
+1. 在知识图谱页面输入文本，触发 NER 抽取候选三元组  
+2. 根据候选 ID 删除不需要入库的行（人工审阅）  
+3. 执行批量写入，系统仅写入 `可入库=true` 的候选  
+
+本体一致性约束：
+- 谓词集合以 `data/openkg_triples.tsv` 为准（OpenKG 当前域数据）
+- 在 LLM 提示词阶段已注入谓词白名单，要求优先映射到本体谓词
+- 在写入阶段再次校验，不合规谓词会被跳过，不写入 JanusGraph
+
 ### 4.3 关键入口函数
 ```python
 # 主要搜索入口 - src/search_engine/search_tab/search_tab.py

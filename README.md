@@ -87,13 +87,20 @@ Note: If no preloaded file is present, the system will still start but the text 
 ### Preloaded Knowledge Graph (Read-Only)
 
 The system automatically loads a preloaded Chinese knowledge graph if available:
-- **Primary Source**: `data/openkg_triples.tsv` - Real OpenKG concept hierarchy data (290 entities, 254 relations)
-- **Fallback**: `data/preloaded_knowledge_graph.json` - Alternative format if TSV not available
-- **Auto-generation**: Run `python tools/openkg_generator.py` to download fresh OpenKG sample data
-- **Format**: TSV format with concept-category relationships (e.g., "移动应用 属于 软件")
-- **Data Source**: OpenKG OpenConcepts project from GitHub
+- **Primary Source**: `data/openkg_triples.tsv` (currently generated from OpenKG Douban movie subset with sci-fi closure filtering)
+- **Fallback**: `data/preloaded_knowledge_graph.json` (used only when TSV is unavailable)
+- **Generator**: `python tools/openkg_movie_to_triples.py --scifi-closure --seed-genre 科幻`
+- **Storage Backend**: JanusGraph (Gremlin Server) is the single graph backend; TSV/JSON are bootstrap inputs only
 
 The knowledge graph powers entity recognition and context engineering features.
+
+### NER Review-to-Insert Workflow (Controlled Write)
+
+The knowledge-graph page supports a controlled pipeline:
+- Extract candidate triples from free text using LLM NER
+- Remove unwanted candidates by candidate IDs
+- Insert remaining candidates in batch (`can_insert=true` only)
+- Enforce ontology alignment: predicates must match the predicate set in `data/openkg_triples.tsv` (both prompt-time constraint and write-time validation)
 
 ### Start the System
 

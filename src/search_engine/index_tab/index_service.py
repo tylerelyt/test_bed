@@ -310,6 +310,25 @@ class InvertedIndexService(IndexServiceInterface):
             print(f"获取所有文档失败: {e}")
             return {}
 
+    def merge_preloaded_documents(self) -> Dict[str, Any]:
+        """
+        从 data/preloaded_documents.json 将文档合并入倒排索引并保存（本体域知识刷新入口）。
+        """
+        preloaded = self._load_preloaded_documents()
+        if not preloaded:
+            return {"success": False, "error": "no_preloaded_documents", "merged": 0}
+        try:
+            for doc_id, content in preloaded.items():
+                self.index.add_document(doc_id, content)
+            ok = self.save_index(self.index_file)
+            return {
+                "success": ok,
+                "merged": len(preloaded),
+                "index_file": self.index_file,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "merged": 0}
+
 # 全局索引服务实例
 _index_service = None
 

@@ -189,13 +189,20 @@ pip install -r requirements.txt
 ### 预加载知识图谱（只读）
 
 系统会自动加载预加载的中文知识图谱（如果可用）：
-- **主要来源**：`data/openkg_triples.tsv` - 真实的 OpenKG 概念层次数据（290 个实体，254 个关系）
-- **备用格式**：`data/preloaded_knowledge_graph.json` - 如果 TSV 不可用时的替代格式
-- **自动生成**：运行 `python tools/openkg_generator.py` 下载最新的 OpenKG 样本数据
-- **格式**：TSV 格式，包含概念-类别关系（例如："移动应用 属于 软件"）
-- **数据源**：GitHub 上的 OpenKG OpenConcepts 项目
+- **主要来源**：`data/openkg_triples.tsv`（当前默认使用 OpenKG Douban 电影子集，含科幻闭包筛选结果）
+- **备用格式**：`data/preloaded_knowledge_graph.json`（仅在 TSV 不可用时兜底）
+- **生成脚本**：`python tools/openkg_movie_to_triples.py --scifi-closure --seed-genre 科幻`
+- **存储后端**：JanusGraph（Gremlin Server）为唯一图数据后端；TSV/JSON 仅用于初始化补种
 
 知识图谱为实体识别和上下文工程功能提供支持。
+
+### NER 审阅入库流程（受控写入）
+
+知识图谱页支持“文本抽取 -> 人工审阅 -> 入库”的受控流程：
+- **抽取候选**：输入文本后调用 LLM 提取候选三元组
+- **删除候选**：通过候选 ID 删除不需要的行
+- **批量写入**：写入剩余候选（仅 `可入库=true` 生效）
+- **本体约束**：谓词需与 `data/openkg_triples.tsv` 谓词集合对齐（前置提示词约束 + 后置写入校验）
 
 ### 启动系统
 
@@ -385,7 +392,7 @@ graph TB
     
     subgraph "💾 存储层"
         FileStore["文件存储<br/>• 模型 (pkl, h5)<br/>• 索引 (json)<br/>• 图像 (png, jpg)"]
-        DataStore["数据存储<br/>• CTR 数据 (json)<br/>• 知识图谱 (pkl)<br/>• 训练检查点"]
+        DataStore["数据存储<br/>• CTR 数据 (json)<br/>• 知识图谱初始化数据 (tsv/json)<br/>• 训练检查点"]
     end
     
     subgraph "🏗️ 基础设施"
@@ -560,14 +567,14 @@ Testbed/
 │   ├── wide_deep_ctr_model.h5             # Wide & Deep CTR
 │   ├── wide_deep_ctr_model_tf_serving/    # TF Serving 格式
 │   ├── index_data.json                    # 倒排索引
-│   ├── knowledge_graph.pkl                # 知识图谱
 │   └── images/                            # 图像嵌入
 │       ├── image_index.json
 │       └── image_embeddings.npy
 │
 ├── data/                                  # 数据存储
 │   ├── preloaded_documents.json           # 维基百科语料
-│   ├── preloaded_kg.json                  # 预加载知识图谱
+│   ├── preloaded_knowledge_graph.json     # 预加载知识图谱（备用）
+│   ├── openkg_triples.tsv                 # OpenKG 三元组（默认初始化输入）
 │   ├── ctr_data.json                      # CTR 训练数据
 │   ├── llmops/                            # LLMOps 数据集
 │   │   ├── dataset_info.json              # 数据集注册表
@@ -599,7 +606,7 @@ Testbed/
 │
 ├── tools/                                 # 工具
 │   ├── model_service_manager.py           # 模型服务生命周期
-│   ├── openkg_generator.py                # 知识图谱数据生成
+│   ├── openkg_movie_to_triples.py         # OpenKG 电影三元组生成
 │   └── performance_monitor.py
 │
 ├── start_system.py                        # 主启动脚本

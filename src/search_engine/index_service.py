@@ -14,10 +14,9 @@ class IndexService:
     def __init__(self, index_file: str = "models/index_data.json"):
         self.index_file = index_file
         self.index_service = InvertedIndexService(index_file)
-        # 确保KGRetrievalService使用Ollama作为默认API配置
         self.kg_retrieval_service = KGRetrievalService(
-            api_type="ollama",
-            default_model="qwen2.5-coder:latest"
+            api_type="openai",
+            default_model=os.environ.get("LLM_MODEL", "qwen-plus"),
         )
         self._ensure_index_exists()
         # 记录预置文档集合，便于导入/清理时保护
@@ -25,29 +24,50 @@ class IndexService:
             self.core_doc_ids = getattr(self.index_service, 'core_doc_ids', set())
         except Exception:
             self.core_doc_ids = set()
-        
-    def set_ner_api_config(self, 
-                          api_type: str = "ollama",
+        try:
+            self.kg_retrieval_service.register_financial_knowledge_ontology_services(self)
+        except Exception as e:
+            print(f"JanusGraph 本体检索服务注册跳过: {e}")
+
+    def get_janus_graph_backend(self):
+        """供 Ontology Action 校验 ontology_service 注册状态；无 Janus 时返回 None。"""
+        try:
+            kg = self.kg_retrieval_service.knowledge_graph
+            if hasattr(kg, "janus_backend"):
+                return kg.janus_backend
+        except Exception:
+            pass
+        return None
+
+    def merge_preloaded_documents(self) -> Dict[str, Any]:
+        """将 data/preloaded_documents.json 合并入倒排索引并落盘。"""
+        return self.index_service.merge_preloaded_documents()
+
+    def set_ner_api_config(self,
+                          api_type: str = "openai",
                           api_key: Optional[str] = None,
                           base_url: Optional[str] = None,
                           default_model: Optional[str] = None):
         """
-        设置NER服务的API配置
-        
+        设置 NER 服务的 API 配置（OpenAI 兼容）。
+
         Args:
-            api_type: API类型 ("ollama" 或 "openai")
-            api_key: API密钥
-            base_url: API基础URL
+            api_type: 固定为 "openai"
+            api_key: API 密钥
+            base_url: API 基础 URL
             default_model: 默认模型名称
         """
-        # 重新初始化知识图谱检索服务
         self.kg_retrieval_service = KGRetrievalService(
             api_type=api_type,
             api_key=api_key,
             base_url=base_url,
-            default_model=default_model
+            default_model=default_model,
         )
-    
+        try:
+            self.kg_retrieval_service.register_financial_knowledge_ontology_services(self)
+        except Exception as e:
+            print(f"JanusGraph 本体检索服务注册跳过: {e}")
+
     def _ensure_index_exists(self):
         """确保索引存在，如果不存在则构建"""
         if not os.path.exists(self.index_file):
@@ -394,6 +414,47 @@ class IndexService:
     def clear_knowledge_graph(self) -> str:
         """清空知识图谱"""
         return self.kg_retrieval_service.clear_graph()
+
+    def reload_knowledge_graph(self) -> Dict[str, Any]:
+        """从预置数据源重新加载知识图谱"""
+        return self.kg_retrieval_service.reload_from_preloaded()
+
+    def add_kg_entity(self, entity_name: str, entity_type: str = "未分类", description: str = "") -> Dict[str, Any]:
+        """添加知识图谱实体"""
+        return self.kg_retrieval_service.add_entity(entity_name, entity_type, description)
+
+    def add_kg_relation(self, subject: str, predicate: str, object_entity: str, description: str = "") -> Dict[str, Any]:
+        """添加知识图谱关系"""
+        return self.kg_retrieval_service.add_relation(subject, predicate, object_entity, description)
+
+    def remove_kg_entity(self, entity_name: str) -> Dict[str, Any]:
+        """删除知识图谱实体"""
+        return self.kg_retrieval_service.remove_entity(entity_name)
+
+    def remove_kg_relation(self, subject: str, predicate: str, object_entity: str) -> Dict[str, Any]:
+        """删除知识图谱关系"""
+        return self.kg_retrieval_service.remove_relation(subject, predicate, object_entity)
+
+    def save_knowledge_graph(self) -> Tuple[bool, str]:
+        """持久化知识图谱到磁盘"""
+        return self.kg_retrieval_service.save_graph()
+
+    def extract_kg_triples_from_text(
+        self,
+        text: str,
+        model: Optional[str] = None,
+        max_items: int = 200,
+    ) -> Dict[str, Any]:
+        """文本 NER 抽取三元组（仅预览，不入库）"""
+        return self.kg_retrieval_service.extract_text_triples_for_review(
+            text=text,
+            model=model,
+            max_items=max_items,
+        )
+
+    def insert_selected_kg_triples(self, triples: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """将勾选三元组写入 JanusGraph"""
+        return self.kg_retrieval_service.insert_selected_triples(triples)
     
     def get_graph_visualization_data(self) -> Dict[str, Any]:
         """获取图谱可视化数据"""

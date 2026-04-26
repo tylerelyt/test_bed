@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-基于LLM的命名实体识别服务
-用于从文档中提取实体和关系，构建知识图谱
-支持 Ollama 本地部署和 OpenAI 兼容的 API 接口
+基于 LLM 的命名实体识别服务：从文档中提取实体和关系，构建知识图谱。
+仅支持 OpenAI 兼容 API（如 DashScope）。
 """
 
 import json
-import requests
 import os
 from typing import List, Dict, Tuple, Optional, Any
 from datetime import datetime
@@ -19,55 +17,61 @@ try:
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
-    print("⚠️ openai 包未安装，只能使用 Ollama 方式")
 
 class NERService:
-    """基于LLM的命名实体识别服务"""
-    
-    def __init__(self, 
-                 api_type: str = "ollama",
-                 ollama_url: str = "http://localhost:11434",
+    """基于 LLM 的命名实体识别服务（仅 OpenAI 兼容 API）。"""
+
+    @classmethod
+    def try_create(
+        cls,
+        api_type: str = "openai",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        default_model: Optional[str] = None,
+    ) -> Optional["NERService"]:
+        """在缺少 API 密钥等配置时返回 ``None``，避免调用方用裸 ``try/except`` 分支。"""
+        try:
+            return cls(
+                api_type=api_type,
+                api_key=api_key,
+                base_url=base_url,
+                default_model=default_model,
+            )
+        except ValueError:
+            return None
+
+    def __init__(self,
+                 api_type: str = "openai",
                  api_key: Optional[str] = None,
                  base_url: Optional[str] = None,
                  default_model: Optional[str] = None):
         """
-        初始化NER服务
-        
+        初始化 NER 服务。
+
         Args:
-            api_type: API类型 ("ollama" 或 "openai")
-            ollama_url: Ollama服务URL (当api_type为ollama时使用)
-            api_key: API密钥 (当api_type为openai时使用)
-            base_url: API基础URL (当api_type为openai时使用)
+            api_type: 固定为 "openai"（保留参数兼容）
+            api_key: API 密钥
+            base_url: API 基础 URL
             default_model: 默认模型名称
         """
-        self.api_type = api_type.lower()
-        self.ollama_url = ollama_url
+        if not HAS_OPENAI:
+            raise ValueError("需要安装 openai 包: pip install openai")
+
+        self.api_type = "openai"
+        self.api_key = api_key or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        self.base_url = base_url or os.environ.get("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        if not self.api_key:
+            raise ValueError("需要设置 api_key 或环境变量 DASHSCOPE_API_KEY/OPENAI_API_KEY")
+
+        self.openai_client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.default_model = default_model or os.environ.get("LLM_MODEL", "qwen-plus")
         
-        # API 配置
-        if self.api_type == "openai":
-            if not HAS_OPENAI:
-                raise ValueError("使用 OpenAI API 需要安装 openai 包: pip install openai")
-            
-            self.api_key = api_key or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("OPENAI_API_KEY")
-            self.base_url = base_url or os.environ.get("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-            
-            print(f"🔑 [NER-Config] API密钥: {self.api_key[:15] if self.api_key else 'None'}...")
-            print(f"🌐 [NER-Config] 基础URL: {self.base_url}")
-            
-            if not self.api_key:
-                raise ValueError("使用 OpenAI API 需要设置 api_key 或环境变量 DASHSCOPE_API_KEY/OPENAI_API_KEY")
-            
-            # 初始化 OpenAI 客户端
-            self.openai_client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url
-            )
-            self.default_model = default_model or os.environ.get("LLM_MODEL", "qwen-plus")
-        else:
-            # Ollama 配置
-            self.default_model = default_model or "qwen2.5-coder:latest"
-        
-    def extract_entities_and_relations(self, text: str, model: Optional[str] = None) -> Dict[str, Any]:
+    def extract_entities_and_relations(
+        self,
+        text: str,
+        model: Optional[str] = None,
+        ontology_predicates: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         使用LLM提取实体和关系
         
@@ -81,6 +85,16 @@ class NERService:
         if model is None:
             model = self.default_model
             
+        ontology_predicates = [p.strip() for p in (ontology_predicates or []) if str(p).strip()]
+        if ontology_predicates:
+            allowed_predicates_text = "、".join(sorted(set(ontology_predicates)))
+            predicate_instruction = (
+                f"关系谓词必须只从以下集合中选择：{allowed_predicates_text}。\n"
+                "如果文本表达与集合不完全一致，请映射到最接近的同义谓词；无法映射则不要输出该关系。"
+            )
+        else:
+            predicate_instruction = "关系类型包括：属于、位于、开发、使用、相关、影响等。"
+
         # 构建NER提示词
         prompt = f"""请从以下文本中提取实体和关系，返回JSON格式的结果。
 
@@ -106,7 +120,7 @@ class NERService:
 }}
 
 实体类型包括：人物、地点、组织、概念、技术、产品、事件等。
-关系类型包括：属于、位于、开发、使用、相关、影响等。
+{predicate_instruction}
 
 请确保返回的是有效的JSON格式。"""
         
@@ -115,11 +129,7 @@ class NERService:
             print(f"🤖 [NER] 使用模型: {model}")
             print(f"🔧 [NER] API类型: {self.api_type}")
             
-            # 根据API类型调用不同的接口
-            if self.api_type == "openai":
-                llm_response = self._call_openai_api(prompt, model)
-            else:
-                llm_response = self._call_ollama_api(prompt, model)
+            llm_response = self._call_openai_api(prompt, model)
             
             # 检查API调用是否出错
             if llm_response.startswith("ERROR:"):
@@ -146,33 +156,6 @@ class NERService:
             import traceback
             print(f"📝 [NER] 详细错误: {traceback.format_exc()}")
             return {"error": error_msg}
-    
-    def _call_ollama_api(self, prompt: str, model: str) -> str:
-        """调用Ollama API"""
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False
-                },
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("response", "")
-            else:
-                error_msg = f"Ollama API调用失败，状态码: {response.status_code}"
-                print(f"❌ [NER] {error_msg}")
-                print(f"📝 [NER] 响应内容: {response.text[:500]}...")
-                return f"ERROR: {error_msg}"
-                
-        except Exception as e:
-            error_msg = f"Ollama API调用异常: {str(e)}"
-            print(f"❌ [NER] {error_msg}")
-            return f"ERROR: {error_msg}"
     
     def _call_openai_api(self, prompt: str, model: str) -> str:
         """调用OpenAI兼容API"""
@@ -407,10 +390,7 @@ class NERService:
             "supported_relation_types": ["属于", "位于", "开发", "使用", "相关", "影响"]
         }
         
-        if self.api_type == "ollama":
-            stats["ollama_url"] = self.ollama_url
-        else:
-            stats["base_url"] = self.base_url
-            stats["has_api_key"] = bool(self.api_key)
+        stats["base_url"] = self.base_url
+        stats["has_api_key"] = bool(self.api_key)
         
         return stats 
