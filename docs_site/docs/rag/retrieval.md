@@ -1,17 +1,17 @@
 ---
 layout: default
-title: Retrieval Strategies
+title: 检索策略
 parent: RAG & Context Engineering
 nav_order: 2
 ---
 
-# Retrieval Strategies
+# 检索策略
 {: .no_toc }
 
-Multi-source hybrid retrieval for comprehensive context gathering.
+面向完整上下文收集的多源混合检索方案。
 {: .fs-6 .fw-300 }
 
-## Table of contents
+## 目录
 {: .no_toc .text-delta }
 
 1. TOC
@@ -19,33 +19,33 @@ Multi-source hybrid retrieval for comprehensive context gathering.
 
 ---
 
-## Hybrid Retrieval
+## 混合检索
 
-### Three-Layer Approach
+### 三层检索路径
 
 ```mermaid
 graph LR
-    A[User Query] --> B[Keyword Search<br/>TF-IDF]
-    A --> C[Semantic Search<br/>SBERT]
-    A --> D[Graph Traversal<br/>NetworkX]
+    A[用户查询] --> B[关键词检索<br/>TF-IDF]
+    A --> C[语义检索<br/>SBERT]
+    A --> D[图遍历<br/>NetworkX]
     
-    B --> E[Fusion]
+    B --> E[融合]
     C --> E
     D --> E
     
-    E --> F[Reranked Results]
+    E --> F[重排结果]
 ```
 
 ---
 
-## 1. Keyword Search
+## 1. 关键词检索
 
-**TF-IDF Inverted Index**:
-- Fast exact matching
-- Good for specific terms/entities
-- Handles multi-word queries
+**TF-IDF 倒排索引**：
+- 精确匹配速度快
+- 适合特定术语和实体
+- 支持多词查询
 
-**Implementation**:
+**实现示例**：
 ```python
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -55,72 +55,72 @@ vectorizer = TfidfVectorizer(
     ngram_range=(1, 2)
 )
 
-# Build index
+# 构建索引
 tfidf_matrix = vectorizer.fit_transform(documents)
 
-# Query
+# 查询
 query_vec = vectorizer.transform([query])
 scores = cosine_similarity(query_vec, tfidf_matrix)
 ```
 
 ---
 
-## 2. Semantic Search
+## 2. 语义检索
 
-**Sentence-BERT Embeddings**:
-- Captures semantic meaning
-- Cross-lingual capability
-- Handles paraphrasing
+**Sentence-BERT 向量表示**：
+- 捕捉语义信息
+- 支持跨语言能力
+- 适合处理改写表达
 
-**Model**: `all-MiniLM-L6-v2` (384 dimensions)
+**模型**：`all-MiniLM-L6-v2`（384 维）
 
 ```python
 from sentence_transformers import SentenceTransformer
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Encode documents
+# 文档向量化
 doc_embeddings = model.encode(documents)
 
-# Query
+# 查询向量化
 query_embedding = model.encode(query)
 scores = cosine_similarity([query_embedding], doc_embeddings)
 ```
 
 ---
 
-## 3. Knowledge Graph
+## 3. 知识图谱
 
-**Entity-Relation-Entity Triples**:
+**实体-关系-实体三元组**：
 ```
 (Machine Learning, is_a, AI Field)
 (Neural Networks, used_in, Deep Learning)
 (Python, used_for, Data Science)
 ```
 
-**Graph Traversal**:
+**图遍历**：
 ```python
 import networkx as nx
 
-# Query expansion via graph
+# 基于图结构进行查询扩展
 def expand_query(entity, depth=2):
     neighbors = nx.single_source_shortest_path_length(
         kg_graph, entity, cutoff=depth
     )
     return list(neighbors.keys())
 
-# Example: "machine learning" → ["AI", "deep learning", "neural networks"]
+# 示例："machine learning" → ["AI", "deep learning", "neural networks"]
 ```
 
 ---
 
-## Result Fusion
+## 结果融合
 
-### Reciprocal Rank Fusion
+### 倒数排序融合（RRF）
 
 ```python
 def reciprocal_rank_fusion(rankings, k=60):
-    """Fuse multiple rankings into one"""
+    """将多路排序结果融合为单一路径"""
     scores = {}
     
     for ranking in rankings:
@@ -132,12 +132,12 @@ def reciprocal_rank_fusion(rankings, k=60):
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 ```
 
-### Weighted Linear Combination
+### 加权线性组合
 
 ```python
 def weighted_fusion(keyword_scores, semantic_scores, graph_scores,
                    α=0.3, β=0.5, γ=0.2):
-    """Weighted combination of scores"""
+    """按权重融合不同检索分数"""
     final_scores = {}
     
     all_docs = set(keyword_scores.keys()) | set(semantic_scores.keys()) | set(graph_scores.keys())
@@ -154,9 +154,9 @@ def weighted_fusion(keyword_scores, semantic_scores, graph_scores,
 
 ---
 
-## Reranking
+## 重排序
 
-### Cross-Encoder Reranking
+### Cross-Encoder 重排
 
 ```python
 from sentence_transformers import CrossEncoder
@@ -164,7 +164,7 @@ from sentence_transformers import CrossEncoder
 reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
 def rerank(query, candidates, top_k=5):
-    """Rerank candidates using cross-encoder"""
+    """使用 cross-encoder 对候选结果重排"""
     pairs = [[query, doc] for doc in candidates]
     scores = reranker.predict(pairs)
     
@@ -174,33 +174,33 @@ def rerank(query, candidates, top_k=5):
 
 ---
 
-## Query Enhancement
+## 查询增强
 
-### Query Expansion
+### 查询扩展
 
 ```python
 def expand_query(query):
-    """Expand query with synonyms and related terms"""
-    # Use WordNet, knowledge graph, or LLM
+    """使用同义词和关联词扩展查询"""
+    # 可使用 WordNet、知识图谱或 LLM
     expansions = [
-        query,  # Original
+        query,  # 原始查询
         get_synonyms(query),
         get_related_entities(query)
     ]
     return ' '.join(expansions)
 ```
 
-### Hypothetical Document Embeddings (HyDE)
+### 假设文档嵌入（HyDE）
 
 ```python
 def hyde_retrieval(query, llm):
-    """Generate hypothetical answer, then retrieve similar docs"""
-    # Step 1: LLM generates hypothetical answer
+    """先生成假设答案，再检索相似文档"""
+    # 步骤 1：由 LLM 生成假设答案
     hypothetical_doc = llm.generate(
         f"Answer the question: {query}"
     )
     
-    # Step 2: Retrieve docs similar to hypothetical answer
+    # 步骤 2：检索与假设答案相近的文档
     results = semantic_search(hypothetical_doc)
     
     return results
@@ -208,23 +208,23 @@ def hyde_retrieval(query, llm):
 
 ---
 
-## Performance Optimization
+## 性能优化
 
-### Caching
+### 缓存
 
 ```python
 from functools import lru_cache
 
 @lru_cache(maxsize=1000)
 def retrieve_cached(query):
-    """Cache frequent queries"""
+    """缓存高频查询"""
     return retrieve(query)
 ```
 
-### Index Sharding
+### 索引分片
 
 ```python
-# Split large index into shards for parallel search
+# 将大索引拆分为分片以支持并行检索
 shards = split_index(documents, num_shards=4)
 
 def parallel_search(query, shards):
@@ -236,20 +236,20 @@ def parallel_search(query, shards):
 
 ---
 
-## Evaluation Metrics
+## 评估指标
 
-**Retrieval Quality**:
-- **Recall@K**: Percentage of relevant docs in top-K
-- **MRR (Mean Reciprocal Rank)**: Position of first relevant doc
-- **NDCG**: Normalized discounted cumulative gain
+**检索质量**：
+- **Recall@K**：Top-K 中相关文档的覆盖比例
+- **MRR（Mean Reciprocal Rank）**：首个相关文档的平均倒数排名
+- **NDCG**：归一化折损累积增益
 
 ```python
 def recall_at_k(retrieved, relevant, k):
-    """Calculate Recall@K"""
+    """计算 Recall@K"""
     return len(set(retrieved[:k]) & set(relevant)) / len(relevant)
 
 def mrr(retrieved, relevant):
-    """Calculate MRR"""
+    """计算 MRR"""
     for i, doc in enumerate(retrieved, 1):
         if doc in relevant:
             return 1 / i

@@ -1,25 +1,25 @@
 ---
 layout: default
-title: VLM Reasoning
+title: VLM 推理
 parent: GUI Automation Agent
 nav_order: 3
 ---
 
-# Vision-Language Model Reasoning
+# VLM 推理
 
-Using Qwen-VL for visual understanding and action planning.
+使用 Qwen-VL 类模型进行桌面界面理解、动作规划与结果校验的实现说明。
 
 ---
 
-## Model Selection
+## 模型选择
 
 ### Qwen-VL-Chat (7B)
 
-**Advantages**:
-- Strong visual understanding
-- Multi-turn conversation
-- Efficient inference
-- Open-source
+**优势**：
+- 视觉理解能力稳定
+- 支持多轮上下文
+- 本地部署链路成熟
+- 适合作为可复现基线
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -38,182 +38,154 @@ tokenizer = AutoTokenizer.from_pretrained(
 
 ---
 
-## Prompt Design
+## 提示词设计
 
-### System Prompt
+### 系统提示词
 
+```text
+你是桌面自动化助手。请根据截图和任务描述，判断下一步动作。
+
+可用动作：
+- CLICK(x, y)
+- TYPE(text)
+- SCROLL(direction)
+- WAIT(seconds)
+- DONE
+
+仅输出 JSON：
+{"type":"ACTION","reasoning":"...","params":{...}}
 ```
-You are a desktop automation assistant. Given a screenshot and task description, decide the next action.
 
-Available actions:
-- CLICK(x, y): Click at coordinates
-- TYPE(text): Type text
-- SCROLL(direction): Scroll up/down
-- WAIT(seconds): Wait
-- DONE: Task completed
-
-Respond ONLY with JSON:
-{"type": "ACTION", "reasoning": "...", ...params}
-```
-
-### Task Prompt
+### 任务提示词
 
 ```python
-prompt = f"""Task: {task_description}
+prompt = f"""任务：{task_description}
 
-Previous actions:
+历史动作：
 {format_history(action_history)}
 
-Current screenshot shows: [image]
+当前截图：[image]
 
-What should I do next? Respond in JSON format."""
+请给出下一步动作，并严格按 JSON 格式输出。"""
 ```
 
 ---
 
-## Action Grounding
+## 动作定位
 
-### Coordinate Prediction
+### 坐标预测
 
 ```python
 def predict_coordinates(vlm, screenshot, element_description):
-    """Predict click coordinates for UI element"""
-    
-    prompt = f"""In this screenshot, where is the {element_description}?
-
-Provide coordinates as JSON: {{"x": 123, "y": 456}}"""
-    
-    response = vlm.chat(
-        tokenizer,
-        query=prompt,
-        image=screenshot
-    )
-    
+    """预测目标元素点击坐标"""
+    prompt = f"""请在截图中定位：{element_description}
+输出 JSON：{{"x": 123, "y": 456}}"""
+    response = vlm.chat(tokenizer, query=prompt, image=screenshot)
     coords = json.loads(response)
-    return coords['x'], coords['y']
+    return coords["x"], coords["y"]
 ```
 
-### UI Element Recognition
+### 可操作元素识别
 
 ```python
 def identify_elements(vlm, screenshot):
-    """Identify clickable elements in screenshot"""
-    
-    prompt = """List all clickable UI elements visible in this screenshot.
-
-Format:
-1. [Element type] at approximately (x, y)
-2. ..."""
-    
+    """识别截图中的可点击元素"""
+    prompt = """列出截图中可操作元素及大致位置。"""
     response = vlm.chat(tokenizer, query=prompt, image=screenshot)
     return parse_elements(response)
 ```
 
 ---
 
-## Multi-Step Planning
+## 多步任务规划
 
-### High-Level Plan Generation
+### 计划生成
 
 ```python
 def generate_plan(task):
-    """Create step-by-step plan"""
-    
-    prompt = f"""Task: {task}
+    """生成任务分步计划"""
+    prompt = f"""任务：{task}
 
-Create a step-by-step plan to accomplish this task on Ubuntu desktop.
-
-Plan:
+请在 Ubuntu 桌面环境中给出执行计划：
 1.
 2.
 ..."""
-    
     plan = vlm.generate(prompt)
     return parse_plan(plan)
 ```
 
-### Step Execution with Feedback
+### 执行与反馈闭环
 
 ```python
 def execute_with_feedback(step, screenshot):
-    """Execute step and verify"""
-    
-    # Execute
+    """执行动作并校验结果"""
     action = decide_action(step, screenshot)
     execute(action)
-    
-    # Verify
+
     new_screenshot = capture()
     verification_prompt = f"""
-Previous screenshot: [old]
-Current screenshot: [new]
-Intended action: {action}
+前一截图：[old]
+当前截图：[new]
+目标动作：{action}
 
-Was the action successful? (yes/no)"""
-    
+请判断动作是否成功（yes/no）
+"""
     success = vlm.chat(tokenizer, verification_prompt)
-    
-    return 'yes' in success.lower()
+    return "yes" in success.lower()
 ```
 
 ---
 
-## Error Handling
+## 错误处理
 
-### Action Failure Detection
+### 失败检测与重试
 
 ```python
 if not verify_action_success(action, before, after):
-    # Retry with adjusted coordinates
     adjusted_action = adjust_coordinates(action, offset=10)
     execute(adjusted_action)
 ```
 
-### Recovery Strategies
+### 恢复策略
 
-1. **Retry**: Same action, slight offset
-2. **Alternative Path**: Try different UI element
-3. **Reset**: Return to known state
-4. **Abort**: Report failure
+1. 重试当前动作（小幅坐标偏移）
+2. 切换备选路径（寻找同义控件）
+3. 回到已知安全状态后重试
+4. 超过阈值后终止并上报
 
 ---
 
-## Optimization
+## 性能优化
 
-### Inference Speedup
+### 推理加速
 
 ```python
-# Use quantization
 model = AutoModelForCausalLM.from_pretrained(
     "Qwen/Qwen-VL-Chat",
     device_map="auto",
-    load_in_4bit=True  # 4-bit quantization
+    load_in_4bit=True
 )
 ```
 
-### Caching
+### 缓存策略
 
 ```python
 @lru_cache(maxsize=100)
 def cached_vlm_call(screenshot_hash, prompt):
-    """Cache VLM responses for identical inputs"""
     return vlm.chat(tokenizer, prompt, image=load_image(screenshot_hash))
 ```
 
 ---
 
-## Evaluation
+## 评估指标
 
-### Success Metrics
-
-- **Task Completion Rate**: % of tasks completed
-- **Action Efficiency**: Steps taken / optimal steps
-- **Error Recovery**: % of errors recovered from
+- **任务完成率**：成功任务占比
+- **动作效率**：实际步数 / 理想步数
+- **恢复成功率**：异常后恢复比例
 
 ```python
 def evaluate_agent(test_tasks):
     results = []
-    
     for task in test_tasks:
         success, steps, errors = agent.execute(task)
         results.append({
@@ -222,10 +194,8 @@ def evaluate_agent(test_tasks):
             "steps": steps,
             "errors": errors
         })
-    
     return {
-        "completion_rate": sum(r['success'] for r in results) / len(results),
-        "avg_steps": mean([r['steps'] for r in results])
+        "completion_rate": sum(r["success"] for r in results) / len(results),
+        "avg_steps": mean([r["steps"] for r in results])
     }
 ```
-

@@ -1,17 +1,17 @@
 ---
 layout: default
-title: VLM Integration
+title: VLM 集成
 parent: GUI Automation Agent
 nav_order: 2
 ---
 
-# VLM Integration
+# VLM 集成
 {: .no_toc }
 
-Vision-language models for screenshot understanding and action generation in GUI automation.
+面向 GUI 自动化代理的视觉语言模型（VLM）集成说明，涵盖模型选择、配置方式、提示词设计与常见问题处理。
 {: .fs-6 .fw-300 }
 
-## Table of contents
+## 目录
 {: .no_toc .text-delta }
 
 1. TOC
@@ -19,146 +19,92 @@ Vision-language models for screenshot understanding and action generation in GUI
 
 ---
 
-## Overview
+## 概述
 
-### What is a VLM?
+### 什么是 VLM
 
-**Vision-Language Model (VLM)** is a type of AI model that can understand both visual (images) and textual information simultaneously. In GUI automation, VLMs analyze screenshots to understand the current screen state and generate appropriate actions.
+视觉语言模型（Vision-Language Model, VLM）可同时理解截图中的视觉信息与文本指令。在 GUI 自动化场景中，VLM 负责“看懂当前界面并给出下一步动作建议”。
 
-**Key Capabilities**:
-- **Visual Understanding**: Recognize UI elements, text, buttons, menus
-- **Context Awareness**: Understand relationships between screen elements
-- **Task Reasoning**: Determine what actions are needed to complete a task
-- **Natural Language**: Process task instructions in natural language
+**核心能力**：
+- **界面理解**：识别按钮、输入框、菜单与状态信息
+- **上下文建模**：理解组件之间的关系与当前任务阶段
+- **动作推理**：根据目标生成可执行动作
+- **自然语言交互**：直接处理自然语言任务描述
 
-### Why VLMs for GUI Automation?
+### 为什么用于 GUI 自动化
 
-**Traditional Approaches vs VLM**:
+| 方案 | 工作方式 | 局限性 |
+|:-----|:--------|:------|
+| 坐标硬编码 | 预先写死坐标点击 | UI 变更后易失效，迁移成本高 |
+| 模板/OCR 匹配 | 靠模板识别元素 | 维护复杂，对样式变化敏感 |
+| VLM 语义理解 | 结合图像与文本推理 | 对模型能力和提示词质量有要求 |
 
-| Approach | How It Works | Limitations |
-|:---------|:------------|:------------|
-| **Coordinate-based** | Hardcoded pixel coordinates | ❌ Breaks when UI changes<br>❌ Not portable across screens |
-| **Element Detection** | Template matching, OCR | ❌ Requires templates for each UI<br>❌ Fragile to UI updates |
-| **VLM-based** | Understands screen semantically | ✅ Adapts to UI changes<br>✅ Works across different applications<br>✅ Understands context |
+**VLM 方案优势**：
+- 对布局变化有更好适应性
+- 支持跨应用、跨页面任务
+- 可以解释动作理由，便于审计与调试
 
-**VLM Advantages**:
-- ✅ **Semantic Understanding**: Understands what UI elements mean, not just where they are
-- ✅ **Adaptability**: Works with different UI layouts and applications
-- ✅ **Natural Instructions**: Accepts task descriptions in natural language
-- ✅ **Context Awareness**: Considers entire screen context, not just individual elements
+---
 
-### How VLM Integration Works
-
-**Basic Workflow**:
+## 基本流程
 
 ```mermaid
 graph LR
-    A[Screenshot] --> B[VLM Processing]
-    B --> C[Screen Understanding]
-    C --> D[Task Analysis]
-    D --> E[Action Generation]
-    E --> F[Execute Action]
-    F --> G[New Screenshot]
-    G --> B
+    A[截图] --> B[VLM 分析]
+    B --> C[界面理解]
+    C --> D[动作决策]
+    D --> E[执行动作]
+    E --> F[新截图]
+    F --> B
 ```
 
-**Process**:
-1. **Capture Screenshot**: Take current screen state
-2. **VLM Analysis**: Send screenshot + task instruction to VLM
-3. **Understanding**: VLM identifies UI elements and their relationships
-4. **Reasoning**: VLM determines next action based on task goal
-5. **Action Generation**: VLM outputs action in executable format (e.g., `pyautogui.click(x, y)`)
-6. **Execution**: System executes the action
-7. **Repeat**: Capture new screenshot and continue until task complete
+**执行步骤**：
+1. 获取当前截图
+2. 拼接任务说明与历史轨迹
+3. 调用 VLM 获取动作建议
+4. 解析成可执行指令（如 `pyautogui.click(x, y)`）
+5. 执行并继续下一轮，直到 `DONE` / `FAIL`
 
 ---
 
-## Supported Models
+## 支持模型
 
-### Model Comparison
-
-| Model | Provider | Speed | Quality | Thinking | Use Case |
-|:------|:---------|:------|:--------|:---------|:---------|
-| **qwen3-vl-plus** | Alibaba Cloud | Medium | High | ✅ | Recommended, excellent Chinese |
-| **qwen3-vl-flash** | Alibaba Cloud | Fast | Medium | ✅ | Quick prototyping |
-| **gpt-4o** | OpenAI | Medium | Very High | ❌ | High precision tasks |
-| **qvq-max** | Alibaba Cloud | Slow | Very High | ✅ | Complex reasoning |
-
-### Model Selection Guide
-
-**For Fast Prototyping**:
-- Use `qwen3-vl-flash` for quick iteration
-- Good for simple tasks and testing
-
-**For Production Tasks**:
-- Use `qwen3-vl-plus` for balanced performance
-- Excellent Chinese language support
-- Supports thinking mode for transparency
-
-**For Complex Reasoning**:
-- Use `qvq-max` for difficult multi-step tasks
-- Best for tasks requiring deep understanding
-
-**For Maximum Precision**:
-- Use `gpt-4o` for critical tasks
-- Strong general intelligence
-- Good for English-language tasks
+| 模型 | 提供方 | 速度 | 质量 | 思考模式 | 适用场景 |
+|:-----|:------|:----|:----|:-------|:--------|
+| `qwen3-vl-plus` | 阿里云 | 中 | 高 | 支持 | 默认推荐，中文场景表现稳定 |
+| `qwen3-vl-flash` | 阿里云 | 快 | 中 | 支持 | 快速联调与低延迟任务 |
+| `gpt-4o` | OpenAI | 中 | 很高 | 不支持 | 高精度复杂场景 |
+| `qvq-max` | 阿里云 | 慢 | 很高 | 支持 | 多步骤复杂推理 |
 
 ---
 
-## Configuration
+## 配置说明
 
-### Qwen-VL Setup
+### DashScope（Qwen-VL）
 
-**1. Get API Key**:
-- Sign up at [Alibaba Cloud DashScope](https://dashscope.console.aliyun.com/)
-- Create API key in the console
+1. 在 DashScope 控制台创建 API Key  
+2. 设置环境变量：
 
-**2. Set Environment Variable**:
 ```bash
 export DASHSCOPE_API_KEY="your_key_here"
 ```
 
-**3. Test API Connection**:
-```bash
-curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions \
-  -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-vl-plus",
-    "messages": [
-      {
-        "role": "user",
-        "content": [
-          {"type": "text", "text": "What do you see in this image?"},
-          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
-        ]
-      }
-    ]
-  }'
-```
+3. 在服务配置中选择模型，例如 `qwen3-vl-plus`
 
-### OpenAI Setup
+### OpenAI
 
-**1. Get API Key**:
-- Sign up at [OpenAI Platform](https://platform.openai.com/)
-- Create API key in settings
+1. 在 OpenAI 平台创建 API Key  
+2. 设置环境变量：
 
-**2. Set Environment Variable**:
 ```bash
 export OPENAI_API_KEY="your_key_here"
 ```
 
-**3. Test API Connection**:
-```bash
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-```
+3. 在服务配置中选择 `gpt-4o`
 
-### Configuration in Code
+### 代码配置示例
 
 ```python
-# VLM Configuration
 VLM_CONFIG = {
     "qwen": {
         "api_key": os.getenv("DASHSCOPE_API_KEY"),
@@ -176,258 +122,91 @@ VLM_CONFIG = {
 
 ---
 
-## VLM Prompt Design
+## 提示词设计
 
-### Prompt Structure
+### 推荐结构
 
-**Basic Prompt Template**:
+```text
+你是 GUI 自动化代理。请根据截图和任务目标给出下一步动作。
 
-```
-You are a GUI automation agent. Your task is to analyze the screenshot and determine the next action to complete the user's goal.
+任务：{user_instruction}
+当前界面：{screenshot_context}
+历史动作：{action_history}
 
-Task: {user_instruction}
+可用动作：
+- pyautogui.click(x, y)
+- pyautogui.typewrite(text)
+- pyautogui.press("key")
+- pyautogui.scroll(amount)
+- WAIT / DONE / FAIL
 
-Current Screen:
-[SCREENSHOT]
-
-Available Actions:
-- pyautogui.click(x, y) - Click at coordinates
-- pyautogui.typewrite(text) - Type text
-- pyautogui.press('key') - Press key
-- pyautogui.scroll(amount) - Scroll
-- WAIT - Wait for UI to update
-- DONE - Task completed
-- FAIL - Task failed
-
-Analyze the screenshot and output the next action in the format:
-Action: pyautogui.click(x, y)
-Reasoning: [Explain why this action]
+请按如下格式输出：
+Action: ...
+Reasoning: ...
 ```
 
-### Thinking Mode (Qwen-VL)
+### 设计原则
 
-**With Thinking Enabled**:
-
-```
-Task: Open browser and search for "Python tutorial"
-
-Thought: I need to:
-1. First, check if browser is already open
-2. If not, find and click browser icon
-3. Then navigate to search engine
-4. Enter search query
-
-Action: pyautogui.click(100, 200)  # Browser icon location
-Reasoning: Clicking browser icon to open browser
-```
-
-**Benefits of Thinking Mode**:
-- ✅ **Transparency**: See model's reasoning process
-- ✅ **Debugging**: Understand why model chose specific action
-- ✅ **Trust**: Verify model's understanding is correct
+- **目标清晰**：避免“帮我处理一下”这类模糊描述
+- **上下文完整**：带上最近步骤与当前界面状态
+- **输出约束**：限定格式，便于程序解析
+- **可审计**：保留 reasoning，支持复盘
 
 ---
 
-## Implementation Details
+## 工程建议
 
-### SimplePromptAgent Class
+### 截图处理
 
-```python
-class SimplePromptAgent:
-    """VLM-based GUI automation agent"""
-    
-    def __init__(self, model="qwen3-vl-plus", api_key=None):
-        self.model = model
-        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
-        self.client = self._init_client()
-        self.history = []  # Trajectory history
-    
-    def predict(self, instruction: str, screenshot: np.ndarray) -> Tuple[str, List[str]]:
-        """Predict next action based on screenshot and instruction"""
-        
-        # 1. Encode screenshot
-        screenshot_b64 = self._encode_screenshot(screenshot)
-        
-        # 2. Build prompt with history
-        prompt = self._build_prompt(instruction, screenshot_b64)
-        
-        # 3. Call VLM
-        response = self._call_vlm(prompt)
-        
-        # 4. Parse action
-        action = self._parse_action(response)
-        
-        # 5. Update history
-        self.history.append({
-            "screenshot": screenshot_b64,
-            "instruction": instruction,
-            "response": response,
-            "action": action
-        })
-        
-        return response, action
-```
+- 限制截图尺寸，降低请求开销
+- 关键区域可裁剪以减少干扰
+- 保留原图用于失败排查
 
-### Screenshot Encoding
+### 状态管理
 
-```python
-import base64
-import cv2
+- 历史轨迹只保留近几步，避免上下文膨胀
+- 每步记录“截图摘要 + 动作 + 结果”
+- 对 `WAIT` 动作设置最大连续次数，防止死循环
 
-def encode_screenshot(screenshot: np.ndarray) -> str:
-    """Encode screenshot to base64 for API"""
-    # Resize if too large (VLMs have size limits)
-    if screenshot.shape[0] > 1024 or screenshot.shape[1] > 1024:
-        scale = min(1024 / screenshot.shape[0], 1024 / screenshot.shape[1])
-        new_size = (int(screenshot.shape[1] * scale), int(screenshot.shape[0] * scale))
-        screenshot = cv2.resize(screenshot, new_size)
-    
-    # Encode to JPEG
-    _, buffer = cv2.imencode('.jpg', screenshot, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    
-    # Convert to base64
-    b64_string = base64.b64encode(buffer).decode('utf-8')
-    
-    return f"data:image/jpeg;base64,{b64_string}"
-```
+### 容错策略
 
-### Action Parsing
-
-```python
-import re
-
-def parse_action(response: str) -> List[str]:
-    """Parse actions from VLM response"""
-    actions = []
-    
-    # Extract pyautogui commands
-    pyautogui_pattern = r'pyautogui\.\w+\([^)]+\)'
-    matches = re.findall(pyautogui_pattern, response)
-    actions.extend(matches)
-    
-    # Extract control signals
-    if 'DONE' in response.upper():
-        actions.append('DONE')
-    elif 'FAIL' in response.upper():
-        actions.append('FAIL')
-    elif 'WAIT' in response.upper():
-        actions.append('WAIT')
-    
-    return actions
-```
+- 解析失败时优先重试并给出更强约束
+- 关键动作前做前置验证（窗口是否聚焦、元素是否可见）
+- 超过重试阈值后输出 `FAIL` 并附错误上下文
 
 ---
 
-## Best Practices
+## 常见问题
 
-### Prompt Engineering
+### 1) 模型动作不相关
 
-**1. Clear Task Instructions**:
-```python
-# Good
-instruction = "Open browser, navigate to google.com, and search for 'Python tutorial'"
+**排查顺序**：
+1. 检查任务指令是否具体
+2. 检查截图是否清晰且包含关键区域
+3. 缩短历史上下文，避免噪声
+4. 切换到更强模型验证
 
-# Bad
-instruction = "Search"  # Too vague
-```
+### 2) 响应延迟高
 
-**2. Include Context**:
-```python
-# Include previous actions in prompt
-context = f"""
-Previous actions:
-- Clicked browser icon
-- Browser is now open
-Current task: Navigate to google.com
-"""
-```
+**建议**：
+- 使用更快模型（如 `qwen3-vl-flash`）
+- 降低截图分辨率
+- 缩短历史轨迹长度
+- 检查接口配额与网络稳定性
 
-**3. Specify Output Format**:
-```python
-prompt = f"""
-{instruction}
+### 3) API 调用失败
 
-Output format:
-Action: pyautogui.click(x, y)
-Reasoning: [explanation]
-"""
-```
-
-### Model Selection
-
-**Task Complexity → Model Choice**:
-
-| Task Type | Recommended Model | Reason |
-|:----------|:------------------|:-------|
-| Simple clicks | qwen3-vl-flash | Fast, sufficient |
-| Multi-step tasks | qwen3-vl-plus | Better reasoning |
-| Complex workflows | qvq-max | Deep understanding |
-| Critical tasks | gpt-4o | Highest accuracy |
-
-### Performance Optimization
-
-**1. Screenshot Resolution**:
-```python
-# Reduce resolution for faster processing
-screenshot = cv2.resize(screenshot, (800, 600))  # Instead of full screen
-```
-
-**2. Limit History**:
-```python
-# Keep only last 3 screenshots
-if len(self.history) > 3:
-    self.history = self.history[-3:]
-```
-
-**3. Cache Common Actions**:
-```python
-# Cache frequently used UI element locations
-ui_cache = {
-    "browser_icon": (100, 200),
-    "search_box": (500, 300)
-}
-```
+**检查项**：
+- API Key 是否有效
+- Base URL 与模型名是否匹配
+- 请求体格式是否符合接口要求
+- 网络与代理配置是否可用
 
 ---
 
-## Troubleshooting
+## 相关文档
 
-### VLM Not Understanding Screen
-
-**Problem**: VLM generates incorrect or irrelevant actions
-
-**Solutions**:
-1. **Improve Screenshot Quality**: Ensure screenshot is clear and complete
-2. **Better Instructions**: Make task instruction more specific
-3. **Add Context**: Include information about current application state
-4. **Try Different Model**: Switch to more capable model (e.g., qvq-max)
-
-### Slow Response Time
-
-**Problem**: VLM calls take too long (> 10 seconds)
-
-**Solutions**:
-1. **Use Faster Model**: Switch to qwen3-vl-flash
-2. **Reduce Screenshot Size**: Resize before sending
-3. **Limit History**: Reduce trajectory history length
-4. **Check API Status**: Verify API service is responsive
-
-### API Errors
-
-**Problem**: API calls fail or return errors
-
-**Checklist**:
-- [ ] API key is correct and valid
-- [ ] API quota not exceeded
-- [ ] Network connection stable
-- [ ] Base URL is correct
-- [ ] Request format matches API specification
-
----
-
-## Related Resources
-
-- [Task Execution]({{ site.baseurl }}/docs/gui-agent/task-execution) - How actions are executed
-- [Environment Setup]({{ site.baseurl }}/docs/gui-agent/environment-setup) - System configuration
-- [Qwen-VL Documentation](https://help.aliyun.com/zh/model-studio/visual-reasoning)
+- [任务执行]({{ site.baseurl }}/docs/gui-agent/task-execution)
+- [环境配置]({{ site.baseurl }}/docs/gui-agent/environment-setup)
+- [Qwen 视觉推理文档](https://help.aliyun.com/zh/model-studio/visual-reasoning)
 - [OpenAI Vision API](https://platform.openai.com/docs/guides/vision)

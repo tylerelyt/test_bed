@@ -1,56 +1,36 @@
-# 📚 Documentation
+# 📚 文档导航（中文）
 
-## Documentation Has Moved! 🚀
+仓库文档已统一为中文语境，在线文档站点为主入口：
 
-The technical documentation has been migrated to our new **GitHub Pages site** for a better reading experience with improved navigation, search, and interactive examples.
+- 文档首页：<https://tylerelyt.github.io/test_bed/>
 
-### 🌐 View Documentation Online
+## 快速入口
 
-**Main Documentation Site**: [https://tylerelyt.github.io/test_bed/](https://tylerelyt.github.io/test_bed/)
+### 核心模块
 
-### 📖 Quick Links
+- 🔍 **[搜索推荐系统](https://tylerelyt.github.io/test_bed/docs/search-recommendation/)**：倒排索引、CTR 模型、A/B 测试
+- 🤖 **[LLMOps 训练管道](https://tylerelyt.github.io/test_bed/docs/llmops)**：CPT/SFT/DPO 与在线反馈
+- 💬 **[RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag)**：检索增强与上下文编排
+- 🖼️ **[多模态系统](https://tylerelyt.github.io/test_bed/docs/multimodal/)**：图像检索与图像生成
+- 🖱️ **[GUI 自动化代理](https://tylerelyt.github.io/test_bed/docs/gui-agent)**：桌面自动化与 VLM 推理
 
-#### Core Systems
-- 🔍 **[Search & Recommendation](https://tylerelyt.github.io/test_bed/docs/search-recommendation/)** - Inverted index, CTR models, A/B testing
-- 🤖 **[LLMOps Training Pipeline](https://tylerelyt.github.io/test_bed/docs/llmops)** - CPT/SFT/DPO workflows with online feedback
-- 💬 **[RAG & Context Engineering](https://tylerelyt.github.io/test_bed/docs/rag)** - Hybrid retrieval with LLM integration
-- 🖼️ **[Multimodal AI](https://tylerelyt.github.io/test_bed/docs/multimodal/)** - CLIP-based image search and generation
-- 🖱️ **[GUI Automation Agent](https://tylerelyt.github.io/test_bed/docs/gui-agent)** - OSWorld-based desktop automation
+### 基础设施
 
-#### Infrastructure
-- 🛠️ **[Model Serving](https://tylerelyt.github.io/test_bed/docs/model-serving)** - RESTful APIs and deployment patterns
+- 🛠️ **[模型服务](https://tylerelyt.github.io/test_bed/docs/model-serving)**：REST API 与部署模式
 
----
+## 仓库内历史文档说明
 
-## 📝 Legacy Documentation Files
+`docs/` 目录中的部分 Markdown 文件为历史版本，保留用于兼容与参考；如需最新内容，请以在线文档站点为准。
 
-The Markdown files in this directory are **legacy versions** and are kept for reference only. For the most up-to-date documentation with better formatting and navigation, please visit the GitHub Pages site above.
+### 文件映射
 
-### File Migration Map
-
-| Legacy File | New Location |
+| 历史文件 | 在线位置 |
 |------------|--------------|
-| `SEARCH_GUIDE.md` | [Search & Recommendation](https://tylerelyt.github.io/test_bed/docs/search-recommendation/) |
-| `LLMOPS_GUIDE.md` | [LLMOps Training Pipeline](https://tylerelyt.github.io/test_bed/docs/llmops) |
-| `RAG_GUIDE.md` | [RAG & Context Engineering](https://tylerelyt.github.io/test_bed/docs/rag) |
-| `CONTEXT_ENGINEERING_GUIDE.md` | [RAG & Context Engineering](https://tylerelyt.github.io/test_bed/docs/rag) |
-| `IMAGE_SEARCH_GUIDE.md` | [Multimodal AI](https://tylerelyt.github.io/test_bed/docs/multimodal/) |
-| `GUI_AGENT_GUIDE.md` | [GUI Automation Agent](https://tylerelyt.github.io/test_bed/docs/gui-agent) |
-| `MODEL_SERVING_GUIDE.md` | [Model Serving](https://tylerelyt.github.io/test_bed/docs/model-serving) |
-
----
-
-## 🎯 Why the Move?
-
-The new documentation site offers:
-- ✨ **Better User Experience**: Clean, professional design with the just-the-docs theme
-- 🔍 **Full-Text Search**: Quickly find what you need
-- 📱 **Responsive Design**: Works great on mobile and desktop
-- 🎨 **Syntax Highlighting**: Better code examples with proper formatting
-- 📊 **Interactive Diagrams**: Mermaid diagrams for architecture visualization
-- 🧭 **Easy Navigation**: Sidebar navigation with hierarchical organization
-
----
-
-*For questions or feedback about the documentation, please open an issue on GitHub.*
+| `SEARCH_GUIDE.md` | [搜索推荐系统](https://tylerelyt.github.io/test_bed/docs/search-recommendation/) |
+| `LLMOPS_GUIDE.md` | [LLMOps 训练管道](https://tylerelyt.github.io/test_bed/docs/llmops) |
+| `RAG_GUIDE.md` | [RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag) |
+| `CONTEXT_ENGINEERING_GUIDE.md` | [RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag) |
+| `IMAGE_SEARCH_GUIDE.md` | [多模态系统](https://tylerelyt.github.io/test_bed/docs/multimodal/) |
+| `GUI_AGENT_GUIDE.md` | [GUI 自动化代理](https://tylerelyt.github.io/test_bed/docs/gui-agent) |
+| `MODEL_SERVING_GUIDE.md` | [模型服务](https://tylerelyt.github.io/test_bed/docs/model-serving) |
 

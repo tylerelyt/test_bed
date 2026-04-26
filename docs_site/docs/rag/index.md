@@ -137,9 +137,9 @@ src/search_engine/
 ├── portal.py                       # Main entry and UI orchestration
 └── service_manager.py              # Service manager
 
-data/                               # Data storage directory
-├── preloaded_documents.json       # Preloaded knowledge base documents
-└── openkg_triples.tsv             # Knowledge graph data
+data/                               # 数据存储目录
+├── preloaded_documents.json       # 预加载知识库文档
+└── openkg_triples.tsv             # 知识图谱数据
 
 logs/                               # Log directory
 └── rag_query_logs.json            # RAG query logs

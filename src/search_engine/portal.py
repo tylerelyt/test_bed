@@ -92,7 +92,7 @@ class SearchUI:
             - **数据服务 (DataService)**: CTR事件收集、样本状态管理
             - **索引服务 (IndexService)**: 索引构建、文档管理、检索功能
             - **模型服务 (ModelService)**: 模型训练、配置管理、模型文件
-            - **RAG服务 (RAGService)**: 直连LLM / 检索增强 / 多步推理 (Ollama)
+            - **RAG服务 (RAGService)**: 直连LLM / 检索增强 / OAG图谱游走推理
             - **上下文工程服务 (MCPService)**: 符号主义专家系统 + 连接主义LLM消费 (v2.0)
             - **多模态服务 (ImageService)**: 图片检索(CLIP)、图像生成(Stable Diffusion)
             
@@ -100,7 +100,7 @@ class SearchUI:
             - 数据服务: ✅ 运行中
             - 索引服务: ✅ 运行中
             - 模型服务: ✅ 运行中
-            - RAG服务: ✅ 运行中 (需要Ollama支持)
+            - RAG服务: ✅ 运行中
             - 上下文工程服务: ✅ 运行中 (v2.0完整架构)
             - 图片服务: ✅ 运行中 (基于CLIP模型)
             """)
@@ -110,15 +110,17 @@ class SearchUI:
                     build_index_tab(self.index_service)
                 with gr.Tab("🔍 第二部分：在线召回排序"):
                     build_search_tab(self.index_service, self.data_service)
-                with gr.Tab("🤖 第三部分：RAG检索增强"):
-                    build_rag_tab(self.index_service)
-                with gr.Tab("🧠 第四部分：上下文工程"):
+                with gr.Tab("🤖 第三部分：RAG"):
+                    build_rag_tab(self.index_service, page_mode="rag")
+                with gr.Tab("🧠 第四部分：OAG（图谱游走推理）"):
+                    build_rag_tab(self.index_service, page_mode="oag")
+                with gr.Tab("🧩 第五部分：上下文工程"):
                     build_mcp_tab()
-                with gr.Tab("🖼️ 第五部分：多模态系统"):
+                with gr.Tab("🖼️ 第六部分：多模态系统"):
                     build_image_tab(self.image_service)
-                with gr.Tab("📊 第六部分：数据回收训练"):
+                with gr.Tab("📊 第七部分：数据回收训练"):
                     build_training_tab(self.model_service, self.data_service)
-                with gr.Tab("🛡️ 第七部分：系统监控"):
+                with gr.Tab("🛡️ 第八部分：系统监控"):
                     build_monitoring_tab(self.data_service, self.index_service, self.model_service)
 
     def run(self):

@@ -48,7 +48,7 @@ graph TB
     subgraph DataLayer["Data Layer"]
         E1 --> G[SearchEngine<br/>TF-IDF]
         E1 --> H[VectorStore<br/>Embeddings]
-        E1 --> I[KnowledgeGraph<br/>NetworkX]
+        E1 --> I[知识图谱<br/>NetworkX]
     end
     
     subgraph InferenceLayer["Inference Layer"]
@@ -81,7 +81,7 @@ class RAGService:
 **Three-Layer Retrieval**:
 - **Keyword**: TF-IDF inverted index (fast, exact match)
 - **Semantic**: Sentence-BERT embeddings (meaning-based)
-- **Structured**: Knowledge graph traversal (entity relationships)
+- **结构化层**：知识图谱遍历（实体关系）
 
 **Result Fusion**:
 ```python

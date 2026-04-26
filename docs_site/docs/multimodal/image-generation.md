@@ -1,17 +1,17 @@
 ---
 layout: default
-title: Image Generation
-parent: Multimodal AI
+title: 图像生成
+parent: 多模态系统
 nav_order: 2
 ---
 
-# Image Generation
+# 图像生成
 {: .no_toc }
 
-Text-to-image generation using pre-trained diffusion models for creative and experimental applications.
+基于扩散模型的文生图能力说明，覆盖模型选择、参数配置、服务运行与故障排查。
 {: .fs-6 .fw-300 }
 
-## Table of contents
+## 目录
 {: .no_toc .text-delta }
 
 1. TOC
@@ -19,304 +19,141 @@ Text-to-image generation using pre-trained diffusion models for creative and exp
 
 ---
 
-## Overview
+## 功能概览
 
-### What is Image Generation?
+### 能力说明
 
-Image generation allows users to create images from text descriptions using AI models. This system supports **text-to-image** generation, where a natural language prompt is converted into a visual image.
+图像生成模块支持通过自然语言提示词生成图像，适用于概念验证、创意草图和实验场景。
 
-**Key Concept**:
-- **Prompt**: A text description of what you want to generate (e.g., "a cat playing with a ball")
-- **Model**: A pre-trained neural network that understands the relationship between text and images
-- **Generation**: The process of creating a new image based on the text prompt
+### 核心概念
 
-### Why Image Generation?
+- **提示词（Prompt）**：描述希望生成的图像内容
+- **负向提示词（Negative Prompt）**：约束不希望出现的内容
+- **推理步数（Steps）**：去噪迭代次数，影响质量与耗时
+- **引导强度（CFG Scale）**：模型对提示词的遵循程度
 
-**Use Cases**:
-1. **Creative Design**: Generate concept art, illustrations, or visual ideas
-2. **Prototyping**: Quickly visualize ideas without manual drawing
-3. **Content Creation**: Generate images for presentations, blogs, or social media
-4. **Experimentation**: Explore AI capabilities and model behavior
+---
 
-**Technical Benefits**:
-- **No Manual Drawing Required**: Generate images from text descriptions
-- **Rapid Iteration**: Quickly try different prompts and parameters
-- **Creative Exploration**: Discover unexpected visual combinations
-- **Accessibility**: Enable image creation without artistic skills
-
-### How It Works
-
-**Core Technology**: **Diffusion Models** (e.g., Stable Diffusion)
-
-Diffusion models learn to generate images by gradually removing noise from random noise, guided by text prompts.
-
-**Basic Workflow**:
+## 工作原理
 
 ```mermaid
 graph LR
-    A[Text Prompt] --> B[Text Encoder]
-    B --> C[Text Embedding]
-    C --> D[Diffusion Model]
-    E[Random Noise] --> D
-    D --> F[Denoising Process]
-    F --> G[Generated Image]
+    A[文本提示词] --> B[文本编码]
+    B --> C[条件向量]
+    D[随机噪声] --> E[扩散模型]
+    C --> E
+    E --> F[迭代去噪]
+    F --> G[生成图像]
 ```
 
-**Process**:
-1. **Text Encoding**: Convert the text prompt into a numerical embedding
-2. **Noise Initialization**: Start with random noise
-3. **Iterative Denoising**: Gradually remove noise, guided by the text embedding
-4. **Image Generation**: After multiple steps, a coherent image emerges
+简化流程：
+1. 文本编码为条件向量
+2. 以随机噪声为起点
+3. 多轮去噪得到最终图像
 
 ---
 
-## Features
+## 支持模型
 
-### Core Capabilities
-
-- **Text-to-Image**: Input a text description, generate a corresponding image
-- **Pre-trained Models**: Uses state-of-the-art models like Stable Diffusion
-- **Parameter Control**: Adjust generation parameters (steps, guidance scale, etc.)
-- **GPU Acceleration**: Supports local inference with GPU acceleration
-
-### Supported Models
-
-The system now supports multiple Stable Diffusion models:
-
-| Model | Key | Size | Speed | Quality | Best For |
-|-------|-----|------|-------|---------|----------|
-| **SDXL-Turbo** | `sdxl-turbo` | ~7GB | ⚡ Very Fast (1-4 steps) | Good | Real-time preview, rapid iteration |
-| **SD v1.5** | `stable-diffusion-v1-5` | ~4GB | 🐢 Moderate (20-50 steps) | High | General-purpose, balanced |
-| **SD v2.1** | `stable-diffusion-2-1` | ~5GB | 🐢 Moderate (20-50 steps) | Very High | Better details, improved quality |
-| **SDXL Base** | `stable-diffusion-xl-base` | ~7GB | 🐌 Slow (30-50 steps) | Excellent | High-resolution, professional |
+| 模型 | 键名 | 体积 | 速度 | 质量 | 建议场景 |
+|:-----|:-----|:----|:----|:----|:--------|
+| SDXL-Turbo | `sdxl-turbo` | ~7GB | 很快 | 良好 | 预览与快速迭代 |
+| SD v1.5 | `stable-diffusion-v1-5` | ~4GB | 中等 | 高 | 通用场景 |
+| SD v2.1 | `stable-diffusion-2-1` | ~5GB | 中等 | 很高 | 细节要求高 |
+| SDXL Base | `stable-diffusion-xl-base` | ~7GB | 较慢 | 优秀 | 高质量输出 |
 
 ---
 
-## Usage Guide
+## 使用说明
 
-### Architecture Update
+### 快速启动
 
-**NEW**: Image generation now runs as an **independent service** to avoid dependency conflicts.
-
-**Benefits**:
-- No conflicts with LLMOps (LlamaFactory) dependencies
-- Testbed environment remains stable
-- Service can be started/stopped independently
-- Uses latest Stable Diffusion XL
-
-### Basic Usage
-
-1. **Start System** using quick_start.sh:
-   ```bash
-   ./quick_start.sh
-   ```
-   - The script will automatically start the image generation service in the background
-   - Service runs on `http://localhost:5001`
-   - Logs are saved to `logs/image_service.log`
-
-2. Navigate to the **"🖼️ 多模态系统"** → **"🎨 图像生成"** tab in the Web UI
-
-3. **Load Model**:
-   - Click **"📥 加载 SDXL 模型"** button
-   - The service will load Stable Diffusion XL model
-   - First-time setup: Model download (~7GB, please wait patiently)
-   - **Note**: If downloading models, ensure proxy is configured before starting:
-     ```bash
-     export https_proxy=http://127.0.0.1:7890
-     export http_proxy=http://127.0.0.1:7890
-     export all_proxy=socks5://127.0.0.1:7890
-     ```
-
-4. **Configure Generation Parameters**:
-   - **正向提示词 (Prompt)**: Describe what you want to see
-     - Example: `a cute cat playing with a ball, high quality, detailed`
-   - **负向提示词 (Negative Prompt)**: Describe what you DON'T want
-     - Example: `blurry, low quality, watermark`
-   - **推理步数 (Steps)**: 20-100 (more steps = higher quality but slower)
-     - Recommended: 50 steps for SDXL
-   - **引导强度 (CFG Scale)**: 1-20 (how closely to follow the prompt)
-     - Recommended: 7.5 for SDXL
-   - **尺寸 (Width/Height)**: 512-1024 pixels (default: 1024x1024 for SDXL)
-   - **随机种子 (Seed)**: -1 for random, or specific number for reproducibility
-   - **生成数量**: 1-4 images per generation
-
-5. **Generate**: Click **"🎨 生成图像"** button
-
-6. **View Results**: 
-   - Generated images appear in the gallery
-   - Generation info (metadata) shows below
-   - Images are automatically saved to `models/generated_images_service/`
-
-7. **Optional - View History**:
-   - Expand **"📜 生成历史"** to see past generations
-   - Click **"🔄 刷新历史"** to update the list
-
-### Manual Setup (Optional, for Best Performance)
-
-For optimal performance, you can create a dedicated conda environment:
+1. 使用项目启动脚本：
 
 ```bash
-# 1. Create independent environment
-conda create -n testbed-image python=3.10 -y
-
-# 2. Activate environment
-conda activate testbed-image
-
-# 3. Install dependencies
-cd /path/to/Testbed
-pip install -r image_generation_service_requirements.txt
-
-# 4. (Optional) Start service manually
-python image_generation_service.py
+./quick_start.sh
 ```
 
-**Note**: If the dedicated environment exists, the system will automatically use it. Otherwise, it will use the current environment.
+2. 打开页面：`🖼️ 多模态系统` → `🎨 图像生成`
+3. 加载目标模型（首次可能触发下载）
+4. 配置参数并点击生成
+5. 结果保存在 `models/generated_images_service/`
 
-### Example Prompts
+### 推荐参数
 
-**Simple Objects**:
-- "a red apple on a white table"
-- "a blue bird flying in the sky"
+- **Steps**：20-100（默认建议 50）
+- **CFG Scale**：1-20（默认建议 7.5）
+- **分辨率**：512-1024（SDXL 建议 1024x1024）
+- **Seed**：`-1` 表示随机，可指定固定值复现结果
 
-**Complex Scenes**:
-- "a futuristic cityscape at night with neon lights and flying cars"
-- "a peaceful garden with cherry blossoms and a traditional Japanese bridge"
+### 提示词示例
 
-**Artistic Styles**:
-- "a watercolor painting of a sunset over the ocean"
-- "a digital art piece of a cyberpunk street scene"
+- `一只可爱的橘猫在窗边晒太阳，高细节，柔和光线`
+- `夜晚的未来城市，霓虹灯，赛博朋克风格`
+- `水彩风格的山间湖泊，清晨薄雾`
 
 ---
 
-## Technical Implementation
+## 服务架构与实现
 
-### Architecture
-
-**Components**:
-- **Text Encoder**: Converts text prompts into embeddings (e.g., CLIP text encoder)
-- **Diffusion Model**: The core generative model (e.g., Stable Diffusion UNet)
-- **VAE Decoder**: Converts latent representations to pixel images
-
-### Libraries
-
-- **Hugging Face `diffusers`**: Provides pre-trained diffusion models and inference pipelines
-- **PyTorch**: Deep learning framework for model execution
-- **Transformers**: Text encoding and model loading
-
-### Code Example
-
-The system uses the `DiffusionService` class for image generation:
+图像生成采用独立服务运行，减少与其他模块依赖冲突并提升稳定性。
 
 ```python
 from src.search_engine.diffusion_service import DiffusionService
 
-# Initialize service
 diffusion_service = DiffusionService(output_dir="models/generated_images")
-
-# Load model
 success, message = diffusion_service.load_model("sdxl-turbo")
 print(message)
 
-# Generate image
 result = diffusion_service.generate_image(
-    prompt="a cute cat playing with a ball, high quality, detailed",
-    negative_prompt="blurry, low quality, watermark",
+    prompt="一只可爱的橘猫在窗边晒太阳",
+    negative_prompt="模糊, 低清晰度, 水印",
     num_inference_steps=4,
-    guidance_scale=0.0,  # SDXL-Turbo doesn't need guidance
+    guidance_scale=0.0,
     width=512,
     height=512,
-    seed=-1,  # Random seed
+    seed=-1,
     num_images=1
 )
-
-if result['success']:
-    # Images are in result['images']
-    # Paths are in result['paths']
-    print(f"Generated {len(result['images'])} images")
-    print(f"Saved to: {result['paths']}")
-else:
-    print(f"Error: {result['message']}")
 ```
 
-**Service Features**:
-- Automatic model loading and caching
-- Memory optimization (attention slicing, VAE slicing)
-- Metadata embedding in PNG files
-- Generation history tracking
-- Support for multiple models
+---
 
-### Performance Considerations
+## 性能与稳定性建议
 
-- **GPU Memory**: Diffusion models require significant GPU memory (4GB+ for Stable Diffusion)
-- **Inference Time**: Generation typically takes 5-30 seconds depending on steps and hardware
-- **Model Size**: Pre-trained models are large (several GB), require initial download
+- 优先使用 GPU（建议显存 4GB 及以上）
+- 模型首次下载体积大，建议提前准备网络与缓存
+- 大图和高步数会显著增加推理时间
+- 生产使用建议增加请求队列与并发控制
 
 ---
 
-## Best Practices
+## 常见问题
 
-### Prompt Engineering
+### 1) 生成失败
 
-**Effective Prompts**:
-- **Be Specific**: "a red sports car" is better than "a car"
-- **Include Details**: Add style, mood, composition details
-- **Use Descriptive Language**: "serene", "dramatic", "vibrant" can influence results
+- 检查显存是否足够
+- 降低分辨率或步数
+- 确认模型已完整加载
+- 必要时切换到 CPU 模式验证链路
 
-**Common Patterns**:
-- **Subject + Style**: "a cat, digital art style"
-- **Subject + Mood**: "a forest, mysterious atmosphere"
-- **Subject + Composition**: "a mountain, wide angle view"
+### 2) 结果质量不理想
 
-### Parameter Tuning
+- 提高提示词具体度
+- 调整负向提示词
+- 提高步数并尝试不同随机种子
+- 更换更高质量模型
 
-- **Steps**: 
-  - Lower (20-30): Faster, may have artifacts
-  - Higher (50-100): Slower, better quality
-  - Recommended: 50 steps for balance
+### 3) 生成速度慢
 
-- **Guidance Scale**:
-  - Lower (1-5): More creative, less prompt adherence
-  - Higher (7-15): More prompt adherence, may be less creative
-  - Recommended: 7.5 for most cases
+- 使用更快模型（如 `sdxl-turbo`）
+- 降低分辨率与步数
+- 避免一次生成过多图片
 
 ---
 
-## Troubleshooting
+## 相关文档
 
-### Generation Failures
-
-**Problem**: Model fails to generate or produces errors.
-
-**Solutions**:
-- **Check GPU Memory**: Ensure sufficient VRAM (4GB+)
-- **Reduce Image Resolution**: Lower resolution requires less memory
-- **Reduce Steps**: Fewer steps use less memory and time
-- **Use CPU Mode**: Fallback to CPU if GPU unavailable (much slower)
-
-### Poor Quality Results
-
-**Problem**: Generated images are blurry, distorted, or don't match the prompt.
-
-**Solutions**:
-- **Increase Steps**: More denoising steps improve quality
-- **Improve Prompt**: Make prompt more specific and descriptive
-- **Adjust Guidance Scale**: Try higher values for better prompt adherence
-- **Try Different Seeds**: Random seed can significantly affect results
-
-### Slow Generation
-
-**Problem**: Image generation takes too long.
-
-**Solutions**:
-- **Use GPU**: GPU acceleration is essential for reasonable speed
-- **Reduce Steps**: Fewer steps = faster generation
-- **Lower Resolution**: Smaller images generate faster
-- **Optimize Model**: Use optimized model variants (e.g., `diffusers` optimized versions)
-
----
-
-## Related Resources
-
-- [Stable Diffusion Paper](https://arxiv.org/abs/2112.10752)
-- [Hugging Face Diffusers Documentation](https://huggingface.co/docs/diffusers)
-- [Prompt Engineering Guide](https://www.promptingguide.ai/techniques/imagegeneration)
+- [多模态系统总览]({{ site.baseurl }}/docs/multimodal/)
+- [图像检索]({{ site.baseurl }}/docs/multimodal/image-search)
+- [Diffusers 文档](https://huggingface.co/docs/diffusers)
