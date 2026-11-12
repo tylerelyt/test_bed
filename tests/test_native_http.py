@@ -2,6 +2,7 @@ import json
 import threading
 import unittest
 import tempfile
+import hashlib
 from http.server import ThreadingHTTPServer
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
@@ -28,6 +29,7 @@ class NativeHTTPTests(unittest.TestCase):
         directory=tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.records=RunStore(self.runtime,directory.name)
+        self.addCleanup(self.records.close)
         self.server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(self.runtime,self.records))
         threading.Thread(target=self.server.serve_forever,daemon=True).start()
         self.base='http://127.0.0.1:'+str(self.server.server_port)
@@ -60,6 +62,7 @@ class NativeHTTPTests(unittest.TestCase):
         with urlopen(self.base+output['url']) as response:
             self.assertEqual(response.read(),payload)
             self.assertIn('sample.bin',response.headers['Content-Disposition'])
+            self.assertEqual(response.headers['Content-Security-Policy'],'sandbox')
 
     def test_detached_run_task_restore_and_compare_over_http(self):
         def post(path,payload):
@@ -71,6 +74,8 @@ class NativeHTTPTests(unittest.TestCase):
             events=[json.loads(line) for line in response]
         self.assertEqual(events[-1]['status'],'completed')
         task=post('tasks',{'action':'save','run_id':first['run_id'],'name':'固定问答','expectation':'包含原输入'})
+        post('tasks',{'action':'review','run_id':first['run_id'],'passed':True,'reason':'核对原输入'})
+        post('tasks',{'action':'baseline','task_id':task['id'],'run_id':first['run_id']})
         restored=post('tasks',{'action':'restore','task_id':task['id']})
         self.assertEqual(restored['values'][str(self.source)],'基线')
         second=post('runs',{'session':'test','fn_id':self.fn,'values':{str(self.source):'变更'},'task_id':task['id']})
@@ -82,5 +87,31 @@ class NativeHTTPTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             post('tasks',{'action':'restore','task_id':{}})
         self.assertEqual(error.exception.code,400)
+
+    def test_archived_file_download_survives_runtime_and_transport_restart(self):
+        payload=b'persistent-artifact-bytes'
+        with urlopen(Request(self.base+'/api/native/upload',data=payload,headers={'X-File-Name':'archive.txt'})) as response:
+            upload=json.load(response)
+        data={'session':'test','fn_id':self.file_fn,'values':{str(self.upload._id):upload}}
+        with urlopen(Request(self.base+'/api/native/runs',data=json.dumps(data).encode())) as response:
+            started=json.load(response)
+        list(self.records.events(started['run_id']))
+        run=self.records.get('runs',started['run_id'])
+        artifact=run['artifacts'][0]
+        self.assertEqual(artifact['sha256'],hashlib.sha256(payload).hexdigest())
+        directory=self.records.directory
+        self.server.shutdown();self.server.server_close();self.records.close();self.runtime.close()
+        fresh=NativeRuntime(lambda:None)
+        self.addCleanup(fresh.close)
+        restarted=RunStore(fresh,directory)
+        self.addCleanup(restarted.close)
+        self.server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(fresh,restarted))
+        threading.Thread(target=self.server.serve_forever,daemon=True).start()
+        with urlopen(f'http://127.0.0.1:{self.server.server_port}'+artifact['url']) as response:
+            self.assertEqual(response.read(),payload)
+        self.assertIsNone(fresh.blocks)
+        _,path=restarted.artifact(artifact['id'])
+        path.write_bytes(b'tampered')
+        with self.assertRaises(ValueError):restarted.artifact(artifact['id'])
 
 if __name__=='__main__':unittest.main()

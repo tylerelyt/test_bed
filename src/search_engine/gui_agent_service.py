@@ -647,6 +647,8 @@ class SimplePromptAgent:
                 print("\n" + "=" * 20 + "思考过程" + "=" * 20 + "\n")
                 
                 for chunk in stream:
+                    from .workbench_telemetry import record_usage
+                    record_usage(chunk, 'configured')
                     if not chunk.choices:
                         continue
                     
@@ -693,6 +695,8 @@ class SimplePromptAgent:
                 response = self.client.chat.completions.create(**params)
                 
                 # 提取响应
+                from .workbench_telemetry import record_usage
+                record_usage(response, 'configured')
                 response_text = response.choices[0].message.content
                 
                 # 打印模型的完整响应

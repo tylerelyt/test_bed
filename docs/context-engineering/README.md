@@ -21,7 +21,11 @@
 
 ## 当前能力与边界
 
-本模块配置和验证原有上下文流程。平台定位不意味着已新增来源管理、Agent 绑定、权限治理或任意企业连接器。
+本模块继续提供原有上下文流程，并在上方“任务与运行记录 → 供应配置”维护版本化资源：资料、操作说明、工具定义、角色职责、已审阅经验和 Agent 笔记。配置按预算装配，原 MCP 服务支持按需发现、读取和经授权的笔记更新。
+
+固定任务可选用具体配置版本，关联实际业务输入和资源解析版本；任务集用于比较参数、规则结果与执行成本。具体操作见[上下文供应、任务验证与经验复用](../workbench-tasks/README.md)。
+
+资源权限用于区分只读资料与可写笔记，没有新增跨用户身份系统或任意企业连接器。外部 Agent 可直接读取 MCP 配置，不要求新增 Agent 绑定；工具定义用于说明已有能力，不执行任意代码。
 
 ## 按问题阅读
 
@@ -33,5 +37,6 @@
 - [src/search_engine/mcp_tab/context_pipeline.py](../../src/search_engine/mcp_tab/context_pipeline.py)
 - [src/search_engine/mcp_tab/smart_agent_demo.py](../../src/search_engine/mcp_tab/smart_agent_demo.py)
 - [src/search_engine/mcp/dynamic_mcp_server.py](../../src/search_engine/mcp/dynamic_mcp_server.py)
+- [src/search_engine/workbench_context.py](../../src/search_engine/workbench_context.py)
 
 [原有代码与图解参考](implementation/README.md)保留示例；当前操作步骤统一以上述说明为准。

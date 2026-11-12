@@ -31,6 +31,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
     return new Response(response.body, {status:response.status, headers:{
       'Content-Type': response.headers.get('Content-Type') || 'application/json',
       'Cache-Control':'no-store', 'X-Accel-Buffering':'no',
+      ...(response.headers.get('Content-Disposition')?{'Content-Disposition':response.headers.get('Content-Disposition')!}:{}),
+      ...(response.headers.get('Content-Security-Policy')?{'Content-Security-Policy':response.headers.get('Content-Security-Policy')!}:{}),
+      'X-Content-Type-Options':'nosniff',
     }});
   } catch {
     return Response.json({error:'Python 服务未连接。请先运行 python -m src.search_engine.workbench_api。'}, {status:503});

@@ -1,0 +1,212 @@
+{
+  "目标": "保留八模块的企业上下文供应后台，完整吸收参考项目可复用的工程优点，并按实际行为逐项验收",
+  "参考仓库": "https://github.com/anthropics/cwc-workshops",
+  "参考版本": "2c65d16c6de16f8f24117d539a712ea706b5dee7",
+  "约束": [
+    "不增加新的一级业务页面",
+    "不替换原 Python 业务函数",
+    "不将平台改成教学演示",
+    "不要求接入特定厂商的托管 Agent 服务"
+  ],
+  "验收项": [
+    {
+      "id": "A01",
+      "要求": "八模块、原事件和原参数继续可用",
+      "证据": "原回调验收与八模块浏览器测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tools/verify_console_migration.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A02",
+      "要求": "声明式版本化上下文配置，按需发现资源，区分资料、操作说明、工具和经验",
+      "证据": "配置版本、预算装配和 MCP 读取测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_context.py",
+        "tests/test_workbench_evaluations.py"
+      ]
+    },
+    {
+      "id": "A03",
+      "要求": "团队资料只读、Agent 笔记可写，经验可审阅并关联原始证据，写入具备版本冲突检测",
+      "证据": "权限、跨会话读取、版本与经验选用测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_context.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A04",
+      "要求": "服务端有界执行、排队、独立停止、事件续接、请求去重及重启后的真实状态",
+      "证据": "并发、停止、刷新续接与进程重启测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_runs.py",
+        "tests/test_workbench_evaluations.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A05",
+      "要求": "可选择对任务启用人工放行，放行前不执行，拒绝和取消保留记录",
+      "证据": "待放行、允许、拒绝和取消测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_evaluations.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A06",
+      "要求": "文件产物下载、结构检查和可追溯归档，服务重启后仍能下载已归档产物",
+      "证据": "实际文件字节、哈希和重启后下载测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_native_http.py",
+        "tests/test_native_runtime.py"
+      ]
+    },
+    {
+      "id": "A07",
+      "要求": "固定任务具有可运行的程序规则、业务验收和可选模型评分；完成状态与业务通过分别记录",
+      "证据": "包含、排除、JSON 结构、数值、人工评分和模型评分接口测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_evaluations.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A08",
+      "要求": "快速探针、任务集、参数变体和重复试验，汇总通过率、耗时、实际用量及有来源的成本",
+      "证据": "同一任务集的实际批量运行及结果汇总测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_evaluations.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A09",
+      "要求": "周期任务可配置、暂停、持久化和观察，错过的周期不重复补跑，操作版本变化会阻止执行",
+      "证据": "时钟驱动的调度、重启、去重和版本失效测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "tests/test_workbench_evaluations.py"
+      ]
+    },
+    {
+      "id": "A10",
+      "要求": "可检查会话内每步操作、结果、错误和产物，跨模块汇总使用原有模块边界",
+      "证据": "结构化事件时间线、任务集子运行及证据导出测试",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "console/components/run-evidence.tsx",
+        "tests/test_workbench_runs.py",
+        "console/tests/workbench.spec.ts"
+      ]
+    },
+    {
+      "id": "A11",
+      "要求": "页面状态有机器可读约定，CI 验证真实交互和异常分支，移动端可用",
+      "证据": "DOM 约定、Playwright 与 CI",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "console/lib/verification.ts",
+        "console/tests/workbench.spec.ts",
+        ".github/workflows/console.yml"
+      ]
+    },
+    {
+      "id": "A12",
+      "要求": "中文 README 说明完整链路、服务配置、数据边界及每项参考的采用方式",
+      "证据": "文档与本地链接核对、逐项完成审计",
+      "状态": "本地验收通过",
+      "对应文件": [
+        "README.md",
+        "console/README.md",
+        "docs/workbench-tasks/README.md"
+      ]
+    }
+  ],
+  "参考映射": {
+    "research-desk": [
+      "A02",
+      "A04",
+      "A06",
+      "A07",
+      "A09",
+      "A10"
+    ],
+    "production-ready-agent": [
+      "A03",
+      "A05",
+      "A10"
+    ],
+    "agents-that-remember": [
+      "A03"
+    ],
+    "agent-decomposition": [
+      "A01",
+      "A02",
+      "A08"
+    ],
+    "eval-driven-agent-development": [
+      "A06",
+      "A07",
+      "A08"
+    ],
+    "rightmodel": [
+      "A07",
+      "A08"
+    ],
+    "agent-battle": [
+      "A02",
+      "A08"
+    ],
+    "ship-your-first-managed-agent": [
+      "A03",
+      "A06",
+      "A10"
+    ],
+    "how-we-claude-code": [
+      "A11"
+    ],
+    "building-blocks": [
+      "A02",
+      "A03",
+      "A06",
+      "A08"
+    ]
+  },
+  "领域适配": "证券、并购、值班、游戏和幻灯片生成保留为参考仓库的业务案例；在本平台采用其配置、上下文、执行、评测、记忆、产物和可验证界面机制。托管 API 的专有接口通过现有本地 Python 与 MCP 能力适配。",
+  "本地验收": {
+    "状态": "十二项已逐项通过",
+    "日期": "2026-11-12",
+    "后端检查": 39,
+    "原环境回调检查": 41,
+    "浏览器交互组": 7,
+    "原模块控件": 862,
+    "原事件": 116,
+    "移动端标签页": 37,
+    "文档本地链接": 402,
+    "干净源码验证": [
+      "python unittest",
+      "npm ci（0 个已知漏洞）",
+      "Next.js 生产构建",
+      "Playwright 浏览器测试"
+    ],
+    "完整原环境验证": [
+      "原模块检索、详情、动态标签及输入校验",
+      "大于 3 MB 文件上传与原字节下载",
+      "图谱实际缩放比例增大",
+      "实际 HTTP MCP 跨会话读取与权限拒绝",
+      "原生检索回调的任务保存、两次重复评测及上下文装配"
+    ],
+    "范围说明": "未发起付费模型请求、训练或真实桌面动作。模型评分以本地 HTTP 协议测试验证接口与异常处理；业务质量须使用实际配置和任务另行验收。"
+  }
+}

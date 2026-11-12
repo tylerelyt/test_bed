@@ -27,6 +27,8 @@ def call_llm(messages, model="qwen-max"):
             messages=messages,
             temperature=0.3
         )
+        from ..workbench_telemetry import record_usage
+        record_usage(response)
         return response.choices[0].message.content
     except Exception as e:
         return f"LLM调用失败: {str(e)}"
@@ -930,4 +932,4 @@ Action: SEARCH_ENTITIES("...") 或 Action: EXPAND_ENTITY("...") 或 Action: FINI
             "ollama_url": self.ollama_url,
             "available_models": self.get_available_models(),
             "index_stats": index_stats
-        } 
+        }

@@ -1,9 +1,9 @@
 name: Next.js workbench
 on:
   push:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'requirements-console.txt', '.github/workflows/console.yml']
   pull_request:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'requirements-console.txt', '.github/workflows/console.yml']
 permissions:
   contents: read
 jobs:
@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install 'gradio==4.44.1' 'huggingface-hub<1' 'pydantic==2.11.10' 'fastapi==0.116.1' 'numpy<2'
+      - run: python -m pip install 'gradio==4.44.1' 'huggingface-hub<1' 'pydantic==2.11.10' 'fastapi==0.116.1' 'numpy<2' 'fastmcp==2.12.4' 'mcp==1.17.0'
       - run: python -m unittest discover -s tests -p 'test_*.py' -v
       - uses: actions/setup-node@v4
         with:
@@ -25,3 +25,14 @@ jobs:
         working-directory: console
       - run: npm run build
         working-directory: console
+      - run: npx playwright install --with-deps chromium
+        working-directory: console
+      - run: npm run test:e2e
+        working-directory: console
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: console-browser-evidence
+          path: |
+            console/playwright-report/
+            console/test-results/

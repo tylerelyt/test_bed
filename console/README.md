@@ -60,11 +60,43 @@ Next.js 的服务端 `WORKBENCH_API_URL` 默认指向 `http://127.0.0.1:8766`，
 
 会话标识保存在当前浏览器的 sessionStorage 中。服务重启后应重新载入页面，不能假定旧会话状态仍有效。
 
-按钮与提交操作由服务端任务执行，运行记录写入 `.workbench/native-runs-v1.sqlite3`。刷新页面会重新连接活动任务；服务重启仅保留已有记录并标记中断。任务预设、基线比较与经验的使用范围见[任务指南](../docs/workbench-tasks/README.md)。
+按钮与提交操作由服务端任务执行，运行记录写入 `.workbench/native-runs-v1.sqlite3`。同一模块串行执行，业务并发默认 3，停止操作独立；固定任务可选择人工放行。刷新页面会重新连接活动任务，服务重启保留记录并标记中断。任务、评测、上下文供应及经验的使用范围见[完整指南](../docs/workbench-tasks/README.md)。
 
 可用 `WORKBENCH_STATE_DIR` 设置记录目录。备份时应先停止执行服务，再复制数据库；不要同时启动多个执行服务共享同一目录。它保存本实例的业务输入输出，未提供跨用户隔离或分布式任务调度。
 
-文件通过浏览器、Next.js 与 Python 流式传输，并使用临时文件引用预览或下载。原模型目录和训练输出目录继续由业务模块管理，不通过演示数据库替换。原数据位置见[数据说明](../data/README.md)。
+上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。原模型目录和训练输出目录继续由业务模块管理。原数据位置见[数据说明](../data/README.md)。
+
+## 可选评分与成本配置
+
+评分服务使用常见的消息接口：请求含 `model`、`messages` 和 `temperature`，响应从 `choices[0].message.content` 读取 JSON。配置完整评分地址、模型和密钥，密钥只放在执行服务环境中：
+
+```bash
+export WORKBENCH_JUDGE_URL='https://your-provider.example/v1/chat/completions'
+export WORKBENCH_JUDGE_MODEL='your-model'
+export WORKBENCH_JUDGE_API_KEY='<服务端密钥>'
+```
+
+模型评分结构会验证通过结论、0—1 分数与依据。没有配置或结构错误时显示“无法判定”，不会给出通过结论。经验整理也可以使用该服务，调用须由操作员在界面明确选择。
+
+成本配置示例，数字仅演示格式，不代表任何模型实际价格：
+
+```bash
+export WORKBENCH_MODEL_PRICES='{"your-model":{"input_per_million":1,"output_per_million":2,"currency":"CNY","source":"已核对的定价来源与日期"}}'
+```
+
+配置键必须对应接口实际返回的模型标识。记录接口返回的输入、输出 token，再按配置估算；缺少用量、币种或来源时保留为未知。缓存、阶梯计费等特殊价格需要按实际计费另行核对，估算不等于账单。
+
+## 页面运行约定与浏览器检查
+
+页面通过 `data-verify-*` 暴露模块、状态、注册表与执行计数。`window.__verify.manifest()` 列出约定，`window.__verify.current()` 从当前 DOM 读取检查结果，区分 `PASS`、`FAIL` 和无法观察的 `BLOCKED`。
+
+```bash
+npm --prefix console run build
+npm --prefix console exec -- playwright install chromium
+npm --prefix console run test:e2e
+```
+
+测试使用独立的 8768/3102 端口和确定性回调，不加载模型、不控制桌面、不调用外部模型服务；Python 需有 Gradio、FastMCP 等基础依赖。可用 `WORKBENCH_TEST_PYTHON` 指定解释器，用 `WORKBENCH_CHROME` 指定本机 Chrome。CI 也运行这些真实浏览器交互，失败时保存轨迹和截图；完整原模块另用原回调与本机浏览器验收。
 
 ## 验证与排障
 

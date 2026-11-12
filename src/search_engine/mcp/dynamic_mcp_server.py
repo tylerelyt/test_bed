@@ -44,6 +44,8 @@ class DynamicMCPServer:
         self._register_prompts()
         self._register_tools()
         self._register_resources()
+        from src.search_engine.workbench_context import register_context_mcp
+        register_context_mcp(self.mcp)
         
         print(f"🚀 初始化动态MCP服务器: {server_name}")
         print(f"📁 历史文件: {self.history_file}")

@@ -6,16 +6,19 @@ import {Loader2,RefreshCw} from 'lucide-react';
 import {displayLabel,displayMarkdown} from '../lib/presentation';
 import {resultDocument} from '../lib/result-document';
 import RunHistory,{request,SavedTask} from './run-history';
+import {runStatus} from '../lib/workbench-api';
+import ServiceDiagnostics from './service-diagnostics';
 type Props=Record<string,unknown>;
 type Component={id:number;type:string;props:Props};
 type Node={id:number;children?:Node[]};
 type Dependency={id:number;targets:[number|null,string][];inputs:number[];outputs:number[];trigger_after:number|null;cancels:number[];backend_fn:boolean};
-type Layout={components:Component[];layout:Node;dependencies:Dependency[]};
+type Layout={runtime_id:string;components:Component[];layout:Node;dependencies:Dependency[]};
 type Delta=Record<string,{props?:Props;value?:unknown}>;
 const text=(v:unknown)=>v==null?'':typeof v==='string'?v:JSON.stringify(v);
 const fileUrl=(v:unknown):string=>typeof v==='string'?v:((v as {url?:string;path?:string})?.url||(v as {path?:string})?.path||'');
 export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
  const [layout,setLayout]=useState<Layout|null>(null),[values,setValues]=useState<Record<string,unknown>>({}),[overrides,setOverrides]=useState<Record<string,Props>>({}),[active,setActive]=useState<Record<string,number>>({}),[busy,setBusy]=useState(0),[error,setError]=useState(''),[status,setStatus]=useState('');
+ const runtimeId=useRef('');
  const session=useRef(''),current=useRef<Record<string,unknown>>({}),chain=useRef<Promise<void>>(Promise.resolve());
  const [loading,setLoading]=useState(false),[uploading,setUploading]=useState<number|null>(null);
  const [revision,setRevision]=useState(0),[savedTask,setSavedTask]=useState<SavedTask|null>(null);
@@ -24,7 +27,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
  async function connect(){setLoading(true);setError('');try{
   if(!session.current){session.current=sessionStorage.getItem('workbench-session')||crypto.randomUUID();sessionStorage.setItem('workbench-session',session.current)}
   const r=await fetch('/api/native/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:session.current})});const data=await r.json();if(!r.ok)throw Error(data.error||'模块初始化失败');
-  const initial=Object.fromEntries(data.components.map((c:Component)=>[String(c.id),c.props.value]));current.current=initial;setValues(initial);setOverrides({});setLayout(data);setStatus('工作台已就绪');
+  runtimeId.current=data.runtime_id;const initial=Object.fromEntries(data.components.map((c:Component)=>[String(c.id),c.props.value]));current.current=initial;setValues(initial);setOverrides({});setLayout(data);setStatus('工作台已就绪');
  }catch(e){setError((e as Error).message)}finally{setLoading(false)}}
  useEffect(()=>{void connect()},[]);
  const components=new Map(layout?.components.map(c=>[c.id,c])||[]);
@@ -47,29 +50,30 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
   let cursor=0,settled=false;
   try{for(let attempt=0;attempt<3&&!settled;attempt++){
    try{
+    const record=await request('runs/'+id);if(record.runtime_id!==runtimeId.current||record.current_runtime_id!==runtimeId.current){remember(id,true);setStatus('执行环境已变化，历史结果保留在运行记录中');return}
     const response=await fetch(`/api/native/runs/${id}/events?after=${cursor}`,{signal:controller.signal,cache:'no-store'});
     if(!response.ok){const result=await response.json();if(result.error==='记录不存在')remember(id,true);throw Error(result.error||'运行输出连接失败')}
     const reader=response.body!.getReader(),decoder=new TextDecoder();let buffer='';
-    const receive=(line:string)=>{if(!line.trim())return;const item=JSON.parse(line);cursor=item.seq??cursor;if(item.updates)apply(item.updates);if(item.type==='failed')setError(item.error);if(item.type==='settled'){settled=true;remember(id,true);setStatus(item.status==='completed'?'执行完成':item.status==='interrupted'?'服务重启，操作未自动重跑':'执行失败');if(item.error)setError(item.error)}};
+    const receive=(line:string)=>{if(!line.trim())return;const item=JSON.parse(line);cursor=item.seq??cursor;if(item.type==='started')setStatus('正在执行…');if(item.updates)apply(item.updates);if(item.type==='failed')setError(item.error);if(item.type==='settled'){settled=true;remember(id,true);setStatus(runStatus[item.status]||'运行已结束');if(item.error)setError(item.error)}};
     while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';lines.forEach(receive)}receive(buffer+decoder.decode());
     if(!settled)throw Error('运行输出连接中断');
    }catch(e){if(controller.signal.aborted)return;if(attempt===2)throw e;setStatus('正在重新连接运行输出…');await new Promise(resolve=>setTimeout(resolve,700))}
   }}catch(e){setStatus('输出连接中断，可在记录中重连');setError((e as Error).message+'。可在运行记录中重新连接，操作仍由服务端执行。')}finally{attached.current.delete(id);setBusy(n=>Math.max(0,n-1));setRevision(n=>n+1)}
  }
  async function run(dependency:Dependency,event?:unknown){
-  setBusy(n=>n+1);setError('');setStatus('正在执行…');
+  setBusy(n=>n+1);setError('');setStatus('正在执行…');let requestId:string|undefined;
   try{
    const input=Object.fromEntries(dependency.inputs.filter(id=>components.get(id)?.type!=='state').map(id=>[String(id),current.current[id]??null]));
    if(dependency.targets.some(t=>['click','submit'].includes(t[1]))){
-    const requestId=crypto.randomUUID().replaceAll('-','');remember(requestId);
-    const result=await request('runs',{session:session.current,fn_id:dependency.id,values:input,event,task_id:savedTask?.fn_id===dependency.id?savedTask.id:undefined,request_id:requestId});setRevision(n=>n+1);await followRun(result.run_id);return;
+    requestId=crypto.randomUUID().replaceAll('-','');remember(requestId);
+    const result=await request('runs',{session:session.current,fn_id:dependency.id,values:input,event,task_id:savedTask?.fn_id===dependency.id?savedTask.id:undefined,task_version:savedTask?.fn_id===dependency.id?(savedTask.version||1):undefined,request_id:requestId});setStatus(savedTask?.requires_review?'等待人工放行，请在运行记录中处理':'操作已入队，正在连接输出…');setRevision(n=>n+1);await followRun(result.run_id);return;
    }
    const r=await fetch('/api/native/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:session.current,fn_id:dependency.id,values:input,event})});
    if(!r.ok){const d=await r.json();throw Error(d.error||'请求失败')}
    const reader=r.body!.getReader(),decoder=new TextDecoder();let buffer='';
    const receive=(line:string)=>{if(!line.trim())return;const item=JSON.parse(line);if(item.type==='failed')throw Error(item.error);if(item.updates)apply(item.updates);if(item.type==='completed')setStatus('执行完成')};
    while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';lines.forEach(receive)}receive(buffer+decoder.decode());
-  }catch(e){setError((e as Error).message);setStatus('执行失败')}finally{setBusy(n=>n-1)}
+  }catch(e){const code=(e as Error&{status?:number}).status;if(requestId&&code&&code>=400&&code<500)remember(requestId,true);setError((e as Error).message);setStatus('执行失败')}finally{setBusy(n=>n-1)}
  }
  useEffect(()=>{if(layout){for(const d of layout.dependencies.filter(d=>d.targets.some(t=>t[1]==='load')))chain.current=chain.current.then(()=>run(d));chain.current=chain.current.then(()=>{const ids:string[]=JSON.parse(sessionStorage.getItem('workbench-active-runs')||'[]');ids.forEach(id=>void followRun(id))})}},[layout]);
  useEffect(()=>()=>{attached.current.forEach(controller=>controller.abort())},[]);
@@ -148,7 +152,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
   if(node.children?.length)return <div>{children()}</div>;
   return <p role="alert" className="inline-error">尚未支持的原控件：{c.type}（{label}）</p>;
  }
- return <section className="native-workbench"><div className="native-toolbar"><p>{status||'正在载入原工作台…'}</p><button className="text-button" disabled={loading} onClick={connect}>{loading?<Loader2 className="spin" size={15}/>:<RefreshCw size={15}/>}重新载入</button>{busy>0&&<span><Loader2 className="spin" size={15}/>执行中</span>}</div>{error&&<p role="alert" className="inline-error">{error}</p>}{layout&&<RunHistory module={moduleLabel} revision={revision} labels={Object.fromEntries([...components.values()].map(c=>[String(c.id),displayLabel(text(c.props.label||c.props.value))]))} onRestore={restoreTask} onReconnect={record=>{if(record.session!==session.current){setError('此运行来自其他会话。请在记录中查看结果；当前页面不会接管其会话状态。');return}remember(record.id);void followRun(record.id)}}/>}{loading&&<div className="empty-state"><Loader2 className="spin"/><p>首次载入正在初始化原模块与数据服务。</p></div>}{layout&&render(layout.layout)}</section>
+ return <section className="native-workbench" data-verify-unit="NativeWorkbench" data-verify-module={moduleIndex} data-verify-state={loading?'loading':busy>0?'running':layout?'ready':'unavailable'} data-verify-busy={busy} data-verify-components={layout?.components.length||0} data-verify-events={layout?.dependencies.length||0}><div className="native-toolbar"><p>{status||'正在载入原工作台…'}</p><button className="text-button" disabled={loading} onClick={connect}>{loading?<Loader2 className="spin" size={15}/>:<RefreshCw size={15}/>}重新载入</button>{busy>0&&<span><Loader2 className="spin" size={15}/>执行中</span>}{savedTask?.module===moduleLabel&&<span className="preset-badge">预设：{savedTask.name} · v{savedTask.version||1}<button className="text-button" onClick={()=>setSavedTask(null)}>退出任务预设</button></span>}</div>{error&&<p role="alert" className="inline-error">{error}</p>}{(error||moduleIndex===7)&&<ServiceDiagnostics/>}{layout&&<RunHistory activeTask={savedTask} onExitPreset={()=>setSavedTask(null)} actions={Object.fromEntries(layout.dependencies.map(d=>[String(d.id),displayLabel(text(components.get(d.targets[0]?.[0]??-1)?.props.value||components.get(d.targets[0]?.[0]??-1)?.props.label||'操作'))]))} module={moduleLabel} revision={revision} labels={Object.fromEntries([...components.values()].map(c=>[String(c.id),displayLabel(text(c.props.label||c.props.value))]))} onRestore={restoreTask} onReconnect={record=>{if(record.session!==session.current){setError('此运行来自其他会话。请在记录中查看结果；当前页面不会接管其会话状态。');return}remember(record.id);void followRun(record.id)}}/>}{loading&&<div className="empty-state"><Loader2 className="spin"/><p>首次载入正在初始化原模块与数据服务。</p></div>}{layout&&render(layout.layout)}</section>
 }
 function Media({value,kind}:{value:unknown;kind:string}){if(Array.isArray(value))return <>{value.map((v,i)=><Media key={i} value={v} kind={kind}/>)}</>;const url=fileUrl(value);if(!url)return null;return <div>{kind==='image'?<img src={url} alt={(value as {orig_name?:string})?.orig_name||'模块图片'} style={{maxWidth:'100%'}}/>:kind==='audio'?<audio controls src={url}/>:kind==='video'?<video controls src={url} style={{maxWidth:'100%'}}/>:<a href={url} download>下载 {(value as {orig_name?:string})?.orig_name||'文件'}</a>}</div>}
 function Html({value}:{value:string}){

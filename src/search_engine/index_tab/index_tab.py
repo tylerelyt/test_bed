@@ -745,6 +745,13 @@ def build_index_tab(search_engine):
         }}
       }};
       const network = new vis.Network(container, data, options);
+      const reportView = () => {{
+        container.dataset.verifyUnit = "KnowledgeGraph";
+        const scale = String(network.getScale());
+        if (container.dataset.verifyGraphScale !== scale) container.dataset.verifyGraphScale = scale;
+      }};
+      reportView();
+      network.on("afterDrawing", reportView);
       network.once("stabilizationIterationsDone", function() {{
         network.setOptions({{ physics: false }});
       }});

@@ -209,6 +209,8 @@ def create_smart_agent_demo():
                     response_format={"type": "json_object"}
                 )
                 
+                from ..workbench_telemetry import record_usage
+                record_usage(response)
                 llm_response = response.choices[0].message.content.strip()
                 selection_result = json.loads(llm_response)
                 selected_tool_names = selection_result.get("selected_tools", [])
@@ -426,6 +428,8 @@ def create_smart_agent_demo():
                     response_format={"type": "json_object"}
                 )
                 
+                from ..workbench_telemetry import record_usage
+                record_usage(response)
                 llm_response = response.choices[0].message.content.strip()
                 
                 # 解析LLM响应

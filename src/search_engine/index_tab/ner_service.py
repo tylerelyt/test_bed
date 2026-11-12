@@ -171,6 +171,8 @@ class NERService:
                 stream=False
             )
             
+            from ..workbench_telemetry import record_usage
+            record_usage(completion, 'configured')
             return completion.choices[0].message.content
             
         except Exception as e:

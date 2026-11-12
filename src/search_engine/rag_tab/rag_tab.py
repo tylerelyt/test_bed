@@ -187,6 +187,13 @@ def build_retrieval_graph_html(
         edges: {{ selectionWidth: 2.2 }},
         nodes: {{ borderWidth: 2, borderWidthSelected: 3 }}
       }});
+      const reportView = () => {{
+        el.dataset.verifyUnit = "KnowledgeGraph";
+        const scale = String(network.getScale());
+        if (el.dataset.verifyGraphScale !== scale) el.dataset.verifyGraphScale = scale;
+      }};
+      reportView();
+      network.on("afterDrawing", reportView);
       network.once("stabilizationIterationsDone", function() {{ network.setOptions({{ physics: false }}); }});
     }};
     start();
@@ -683,4 +690,4 @@ ReAct步数: {len(result.get('agent_steps', []))}
     # 页面加载时获取统计信息
     stats_display.value = get_rag_stats()
     
-    return gr.Column() 
+    return gr.Column()

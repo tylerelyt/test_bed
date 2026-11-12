@@ -245,6 +245,8 @@ console/.env*
 
 .venv-full/
 console/public/vendor/
+console/playwright-report/
+console/test-results/
 
 # Local background service PID and logs
 logs/console/

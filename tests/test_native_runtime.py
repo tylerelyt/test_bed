@@ -1,5 +1,6 @@
 import unittest
 import base64
+import tempfile
 from pathlib import Path
 import gradio as gr
 from src.search_engine.native_runtime import NativeRuntime
@@ -83,5 +84,18 @@ class NativeRuntimeTests(unittest.TestCase):
         thread.join(2)
         self.assertFalse(thread.is_alive())
         self.assertEqual(runtime.session('a')['values'][str(out._id)],'stopped')
+
+    def test_json_path_is_not_promoted_to_a_downloadable_server_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private=Path(directory)/'private.txt';private.write_text('not-a-file-output')
+            with gr.Blocks() as app:
+                result=gr.JSON()
+                gr.Button('JSON').click(lambda:{'path':str(private)},[],result)
+            runtime=NativeRuntime(lambda:app)
+            self.addCleanup(runtime.close)
+            layout=runtime.layout('paths')
+            returned=runtime.execute('paths',layout['dependencies'][0]['id'],{})
+            self.assertEqual(returned['updates'][str(result._id)]['value']['path'],str(private))
+            self.assertNotIn(str(private),runtime.asset_tokens)
 
 if __name__=='__main__':unittest.main()

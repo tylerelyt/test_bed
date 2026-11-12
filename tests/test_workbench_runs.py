@@ -39,6 +39,7 @@ class RunStoreTests(unittest.TestCase):
         self.directory=tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.store=RunStore(self.runtime,self.directory.name)
+        self.addCleanup(self.store.close)
 
     def run_work(self,text='原问题'):
         self.release.set()
@@ -49,6 +50,8 @@ class RunStoreTests(unittest.TestCase):
     def test_persistence_redaction_baseline_and_explicit_memory(self):
         first=self.run_work()
         task=self.store.save_task(first['id'],'固定任务','答案应包含问题')
+        self.store.evaluations.review(first['id'],True,'核对结果包含原问题')
+        self.store.baseline(task['id'],first['id'])
         second=self.run_work('变更问题')
         comparison=self.store.compare(task['id'],second['id'])
         self.assertEqual(comparison['inputs'][0]['after'],'变更问题')
@@ -66,6 +69,20 @@ class RunStoreTests(unittest.TestCase):
         list(self.store.events(failed))
         with self.assertRaises(ValueError):
             self.store.baseline(task['id'],failed)
+
+    def test_task_version_is_checked_before_execution(self):
+        run = self.run_work()
+        task = self.store.save_task(run['id'], '版本任务', '核对输入版本')
+        changed = self.store.update_task(task['id'], [], expected_version=1)
+        calls = self.calls
+        with self.assertRaisesRegex(ValueError, '已有新版本'):
+            self.store.start('a', self.ids['work'], {}, task_id=task['id'], expected_task_version=1)
+        self.assertEqual(self.calls, calls)
+        result = self.store.start('a', self.ids['work'], {}, task_id=task['id'], expected_task_version=changed['version'])
+        list(self.store.events(result['run_id']))
+        stored = self.store.get('runs', result['run_id'])
+        self.assertEqual(stored['task_version'], 2)
+        self.assertEqual(stored['runtime_id'], self.runtime.instance_id)
 
     def test_resume_events_after_disconnect_does_not_reexecute(self):
         request_id='a'*32

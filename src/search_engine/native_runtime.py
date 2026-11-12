@@ -7,6 +7,7 @@ import copy
 import json
 import math
 import os
+from .workbench_secrets import private_field, public_value
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 import threading
 import uuid
@@ -24,12 +25,17 @@ class NativeRuntime:
         self.assets = {}
         self.uploads = tempfile.TemporaryDirectory(prefix='test-bed-native-')
         self.asset_tokens = {}
+        self.credential_values = set()
+        self.allowed_output_files = set()
+        self.instance_id = uuid.uuid4().hex
 
     def close(self):
         self.uploads.cleanup()
         self.sessions.clear()
         self.assets.clear()
         self.asset_tokens.clear()
+        self.credential_values.clear()
+        self.allowed_output_files.clear()
 
     def initialize(self):
         with self.lock:
@@ -51,7 +57,7 @@ class NativeRuntime:
         if isinstance(value, dict):
             result = {key: self.export(v) for key, v in value.items()}
             path = value.get('path')
-            if isinstance(path, str) and Path(path).is_file():
+            if isinstance(path, str) and (path in self.allowed_output_files or path in self.asset_tokens) and Path(path).is_file():
                 token = self.asset_tokens.setdefault(path, uuid.uuid4().hex)
                 self.assets[token] = Path(path)
                 result['url'] = '/api/native/assets/' + token
@@ -71,14 +77,30 @@ class NativeRuntime:
         with self.lock:
             if session_id not in self.sessions:
                 config = blocks.config
+                for component in config['components']:
+                    if component['type'] in ('file', 'image', 'audio', 'video', 'gallery'):
+                        self.allow_files(component.get('props', {}).get('value'))
                 self.sessions[session_id] = {'state': SessionState(blocks),
                     'values': {str(c['id']): self.export(c.get('props', {}).get('value')) for c in config['components'] if c['type'] != 'state'},
                     'props': {}, 'lock': threading.RLock(), 'cancelled': set()}
             return self.sessions[session_id]
 
+    def allow_files(self, value):
+        if hasattr(value, 'model_dump'):
+            value = value.model_dump()
+        if isinstance(value, dict):
+            if isinstance(value.get('path'), str) and Path(value['path']).is_file():
+                self.allowed_output_files.add(value['path'])
+            for item in value.values():
+                self.allow_files(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                self.allow_files(item)
+
     def layout(self, session_id):
         session = self.session(session_id)
         config = self.blocks.config
+        secrets = self.capture_credentials(session)
         components = []
         for component in config['components']:
             item = copy.deepcopy(component)
@@ -87,10 +109,36 @@ class NativeRuntime:
                 item['props'] = {}
             else:
                 item['props'].update(session['props'].get(cid, {}))
-                item['props']['value'] = session['values'].get(cid)
+                private = private_field(item['props'])
+                item['props']['value'] = None if private else public_value(self.export(session['values'].get(cid)), secrets)
             components.append(item)
         return self.export({'components': components, 'layout': config['layout'],
-                            'dependencies': config['dependencies'], 'session': session_id})
+                            'dependencies': config['dependencies'], 'session': session_id, 'runtime_id': self.instance_id})
+
+    def capture_credentials(self, session):
+        with self.lock:
+            self.credential_values.update(value for component in self.blocks.config['components']
+                if private_field({**component['props'], **session['props'].get(str(component['id']), {})})
+                and isinstance(value := session['values'].get(str(component['id'])), str) and value)
+            return tuple(self.credential_values)
+
+    def public(self, value, session):
+        secrets = self.capture_credentials(session)
+        result = self.export(value)
+        components = {str(component['id']): component for component in self.blocks.config['components']}
+        for cid, entry in result.get('updates', {}).items():
+            if not isinstance(entry, dict):
+                continue
+            props = {**components.get(cid, {}).get('props', {}), **session['props'].get(cid, {})}
+            if 'value' in entry:
+                entry['value'] = None if private_field(props) else public_value(entry['value'], secrets)
+            if 'props' in entry:
+                for key in ('value', 'choices', 'samples', 'info'):
+                    if key in entry['props']:
+                        entry['props'][key] = None if key == 'value' and private_field(props) else public_value(entry['props'][key], secrets)
+        if 'error' in result:
+            result['error'] = public_value(result['error'], secrets)
+        return result
 
     def store_upload(self, name, stream, size):
         folder = Path(self.uploads.name) / uuid.uuid4().hex
@@ -145,7 +193,7 @@ class NativeRuntime:
             session['cancelled'].add(cancelled)
         def send(item):
             if emit:
-                emit(self.export(item))
+                emit(self.public(item, session))
         async def run():
             import gradio as gr
             updates = {}
@@ -181,6 +229,8 @@ class NativeRuntime:
                         if getattr(component, 'stateful', False):
                             continue
                         cid = str(component._id)
+                        if component.get_block_name() in ('file', 'image', 'audio', 'video', 'gallery'):
+                            self.allow_files(output)
                         if isinstance(output, dict) and output.get('__type__') == 'update':
                             props = {k: v for k, v in output.items() if k != '__type__'}
                             session['props'].setdefault(cid, {}).update(props)
@@ -216,7 +266,7 @@ class NativeRuntime:
             await invoke(fn_id, event)
             result = {'type': 'completed', 'updates': updates, 'trace': trace}
             send(result)
-            return self.export(result)
+            return self.public(result, session)
         with self.lock:
             fn_lock = self.fn_locks.setdefault(fn_id, threading.RLock())
         with fn_lock:

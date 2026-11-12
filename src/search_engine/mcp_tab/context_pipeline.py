@@ -498,6 +498,8 @@ class ContextEngineeringPipeline:
                     timeout=30  # 30秒超时
                 )
                 
+                from ..workbench_telemetry import record_usage
+                record_usage(response)
                 state.llm_response = response.choices[0].message.content.strip()
                 
                 # 成功获取响应

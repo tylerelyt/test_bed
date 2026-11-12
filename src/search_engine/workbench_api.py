@@ -6,10 +6,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, unquote, quote, parse_qs
 from .native_runtime import runtime
 from .workbench_runs import RunStore
+from .workbench_control import WorkbenchControls
 
 
 def make_handler(executor=runtime, records=None):
-    records = records or RunStore(executor)
+    records = records or RunStore(executor, background=executor is runtime)
+    controls = WorkbenchControls(records)
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
 
@@ -19,12 +21,24 @@ def make_handler(executor=runtime, records=None):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', 'sandbox')
             self.end_headers()
             self.wfile.write(body)
 
         def do_GET(self):
             path = urlparse(self.path).path
-            if path.startswith('/api/native/runs'):
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                result = controls.get(path, query)
+                if result is not None:
+                    return self.send_json(result)
+                if path.startswith('/api/native/artifacts/'):
+                    artifact, source = records.artifact(path.rsplit('/', 1)[-1])
+                    return self.send_file(source, artifact['name'], attachment=True)
+            except (ValueError, TypeError, KeyError) as exc:
+                return self.send_json({'error': str(exc)}, 400)
+            if path == '/api/native/runs' or path.startswith('/api/native/runs/'):
                 try:
                     parts = path.split('/')[4:]
                     query = parse_qs(urlparse(self.path).query)
@@ -33,7 +47,12 @@ def make_handler(executor=runtime, records=None):
                     run_id = parts[0]
                     record = records.get('runs', run_id)
                     if len(parts) == 1:
-                        return self.send_json(record)
+                        return self.send_json({**record, 'current_runtime_id': executor.instance_id})
+                    if parts[1:] == ['trace']:
+                        after = int(query.get('after', ['0'])[0])
+                        with records.db() as db:
+                            rows = db.execute('SELECT seq,body FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT 201', (run_id, after)).fetchall()
+                        return self.send_json({'events': [{**json.loads(body), 'seq': seq} for seq, body in rows[:200]], 'has_more': len(rows) > 200})
                     if parts[1:] == ['events']:
                         after = int(query.get('after', ['0'])[0])
                         if after < 0:
@@ -61,20 +80,24 @@ def make_handler(executor=runtime, records=None):
                 asset = executor.assets.get(path.rsplit('/', 1)[-1])
                 if not asset or not asset.is_file():
                     return self.send_json({'error': '文件已过期，请重新运行'}, 404)
-                self.send_response(200)
-                self.send_header('Content-Type', mimetypes.guess_type(asset.name)[0] or 'application/octet-stream')
-                self.send_header('Content-Length', str(asset.stat().st_size))
-                self.send_header('Content-Disposition', "inline; filename*=UTF-8''" + quote(asset.name))
-                self.send_header('Cache-Control', 'no-store')
-                self.end_headers()
-                try:
-                    with asset.open('rb') as source:
-                        while chunk := source.read(1024 * 1024):
-                            self.wfile.write(chunk)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass
-                return
+                return self.send_file(asset, asset.name)
             self.send_json({'error': '接口不存在'}, 404)
+
+        def send_file(self, asset, name, attachment=False):
+            self.send_response(200)
+            self.send_header('Content-Type', mimetypes.guess_type(name)[0] or 'application/octet-stream')
+            self.send_header('Content-Length', str(asset.stat().st_size))
+            self.send_header('Content-Disposition', ("attachment" if attachment else "inline") + "; filename*=UTF-8''" + quote(name))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', 'sandbox')
+            self.end_headers()
+            try:
+                with asset.open('rb') as source:
+                    while chunk := source.read(1024 * 1024):
+                        self.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
         def do_POST(self):
             if self.headers.get('Origin'):
@@ -99,6 +122,9 @@ def make_handler(executor=runtime, records=None):
                 data = json.loads(self.rfile.read(size))
                 if not isinstance(data, dict):
                     raise ValueError('请求必须是 JSON 对象')
+                result = controls.post(path, data)
+                if result is not None:
+                    return self.send_json(result)
                 if path == '/api/native/tasks':
                     action = data.get('action')
                     if action == 'save':
@@ -131,8 +157,8 @@ def make_handler(executor=runtime, records=None):
                     raise ValueError('操作不存在')
                 if path == '/api/native/runs':
                     return self.send_json(records.start(session_id, fn_id, data.get('values', {}),
-                                                        data.get('event'), data.get('task_id'), data.get('request_id')), 202)
-            except (ValueError, TypeError) as exc:
+                                                        data.get('event'), data.get('task_id'), data.get('request_id'), expected_task_version=data.get('task_version')), 202)
+            except (ValueError, TypeError, KeyError) as exc:
                 return self.send_json({'error': str(exc)}, 400)
             self.send_response(200)
             self.send_header('Content-Type', 'application/x-ndjson; charset=utf-8')
@@ -142,7 +168,7 @@ def make_handler(executor=runtime, records=None):
             self.close_connection = True
             def emit(item):
                 try:
-                    self.wfile.write((json.dumps(executor.export(item), ensure_ascii=False, allow_nan=False) + '\n').encode())
+                    self.wfile.write((json.dumps(executor.public(item, executor.session(session_id)), ensure_ascii=False, allow_nan=False) + '\n').encode())
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError):
                     pass
