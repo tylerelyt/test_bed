@@ -478,7 +478,7 @@ def create_smart_agent_demo():
             return f"❌ 阶段1执行异常: {str(e)}"
     
     def execute_stage_2_context_assembly(user_intent: str) -> str:
-        """执行阶段2: 上下文装配（符合CONTEXT_ENGINEERING_GUIDE.md）
+        """执行阶段2: 上下文装配（符合docs/context-engineering/implementation/README.md）
         
         核心流程：
         1. 从阶段1获取已选择的模板
@@ -558,7 +558,7 @@ def create_smart_agent_demo():
             return f"❌ 阶段2执行异常: {str(e)}"
     
     def execute_stage_3_llm_inference(user_intent: str) -> str:
-        """执行阶段3: LLM推理（符合CONTEXT_ENGINEERING_GUIDE.md）
+        """执行阶段3: LLM推理（符合docs/context-engineering/implementation/README.md）
         
         核心流程：
         1. 使用阶段2装配好的完整上下文
@@ -637,7 +637,7 @@ def create_smart_agent_demo():
             return f"❌ 阶段3执行异常: {str(e)}"
     
     def execute_stage_4_context_update(user_intent: str) -> str:
-        """执行阶段4: 上下文更新（符合CONTEXT_ENGINEERING_GUIDE.md）
+        """执行阶段4: 上下文更新（符合docs/context-engineering/implementation/README.md）
         
         核心流程：
         1. 解析阶段3的TAO输出

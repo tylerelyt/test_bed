@@ -5,15 +5,15 @@
 """
 import os
 from typing import Any, Dict, Generator, List, Optional
-from llamafactory.chat import ChatModel
 
 
-class InferenceModel(ChatModel):
+class InferenceModel:
     """推理模型管理器（借鉴 LLaMA-Factory 的 WebChatModel）"""
     
     def __init__(self):
         self.engine: Optional[Any] = None
         self._loaded = False
+        self._chat_model = None
     
     @property
     def loaded(self) -> bool:
@@ -64,7 +64,9 @@ class InferenceModel(ChatModel):
             args.update(kwargs)
             
             # 调用父类初始化（这会加载模型到内存）
-            super().__init__(args)
+            from llamafactory.chat import ChatModel
+            self._chat_model = ChatModel(args)
+            self.engine = self._chat_model.engine
             self._loaded = True
             
             model_info = f"基础模型: {base_model}"
@@ -86,6 +88,7 @@ class InferenceModel(ChatModel):
         try:
             yield "⏳ 正在卸载模型..."
             self.engine = None
+            self._chat_model = None
             self._loaded = False
             
             # 清理GPU内存
@@ -127,7 +130,7 @@ class InferenceModel(ChatModel):
             messages = [{"role": "user", "content": prompt}]
             
             # 调用父类的 stream_chat 方法（这是 LLaMA-Factory 的核心）
-            for new_text in self.stream_chat(
+            for new_text in self._chat_model.stream_chat(
                 messages,
                 system=system or "",
                 tools="",

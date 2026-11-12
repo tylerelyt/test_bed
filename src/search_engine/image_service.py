@@ -9,6 +9,7 @@ import os
 import json
 import hashlib
 import time
+import threading
 import shutil
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Any
@@ -40,7 +41,7 @@ class ImageService:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = None
         self.processor = None
-        self._init_clip_model()
+        self._model_lock = threading.Lock()
         
         # 图片索引和嵌入
         self.image_index: Dict[str, Dict] = {}
@@ -50,6 +51,11 @@ class ImageService:
         # 加载现有索引
         self._load_index()
     
+    def _ensure_clip_model(self):
+        with self._model_lock:
+            if self.model is None or self.processor is None:
+                self._init_clip_model()
+
     def _init_clip_model(self):
         """初始化CLIP模型"""
         try:
@@ -114,6 +120,7 @@ class ImageService:
     def _encode_image(self, image_path: str) -> np.ndarray:
         """对图片进行CLIP编码"""
         try:
+            self._ensure_clip_model()
             # 加载和预处理图片
             image = Image.open(image_path).convert('RGB')
             inputs = self.processor(images=image, return_tensors="pt").to(self.device)
@@ -132,6 +139,7 @@ class ImageService:
     def _encode_text(self, text: str) -> np.ndarray:
         """对文本进行CLIP编码"""
         try:
+            self._ensure_clip_model()
             # 预处理文本
             inputs = self.processor(text=text, return_tensors="pt").to(self.device)
             

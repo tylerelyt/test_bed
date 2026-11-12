@@ -1,36 +1,38 @@
-# 📚 文档导航（中文）
+# 使用指南与技术资料
 
-仓库文档已统一为中文语境，在线文档站点为主入口：
+[项目 README](../README.md) · [运行与开发](../console/README.md)
 
-- 文档首页：<https://tylerelyt.github.io/test_bed/>
+先按任务选择模块，再查看具体实现。安装和启动统一维护在项目根 README，模块操作统一维护在下表入口，避免多个版本的说明相互冲突。
 
-## 快速入口
+## 按任务阅读
 
-### 核心模块
+| 要完成的工作 | 从这里开始 |
+| --- | --- |
+| 准备文档、检查索引、验证召回与排序 | [索引、检索与排序](search-recommendation/README.md) |
+| 核对回答使用的文档或图谱事实 | [RAG 与 OAG](rag/README.md) |
+| 配置模板并检查工具、资源和历史装配 | [上下文工程与 MCP](context-engineering/README.md) |
+| 图片入库、跨模态检索或图像生成 | [多模态系统](multimodal/README.md) |
+| 根据截图规划并执行桌面任务 | [桌面智能体](gui-agent/README.md) |
+| 准备训练数据、采集偏好、训练与评估 | [训练与反馈](llmops/README.md) |
+| 区分工作台服务与可选的独立模型 API | [模型服务](model-serving/README.md) |
+| 了解数据存放和检查工具 | [数据说明](../data/README.md) · [验证工具](../tools/README.md) |
 
-- 🔍 **[搜索推荐系统](https://tylerelyt.github.io/test_bed/docs/search-recommendation/)**：倒排索引、CTR 模型、A/B 测试
-- 🤖 **[LLMOps 训练管道](https://tylerelyt.github.io/test_bed/docs/llmops)**：CPT/SFT/DPO 与在线反馈
-- 💬 **[RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag)**：检索增强与上下文编排
-- 🖼️ **[多模态系统](https://tylerelyt.github.io/test_bed/docs/multimodal/)**：图像检索与图像生成
-- 🖱️ **[GUI 自动化代理](https://tylerelyt.github.io/test_bed/docs/gui-agent)**：桌面自动化与 VLM 推理
+## 文档分工
 
-### 基础设施
+- **根 README**：定位、安装、服务配置、能力边界与常见问题。
+- **模块 README**：当前入口、输入输出、操作顺序与结果核对，是操作主稿。
+- **专题讲义**：说明具体机制、当前代码路径、验证方法与局限，并链接真实源码。
+- **实现参考**：保留原代码与图解，折叠显示；旧接口、示例指标和架构设想不作为当前实现或验收结论。
 
-- 🛠️ **[模型服务](https://tylerelyt.github.io/test_bed/docs/model-serving)**：REST API 与部署模式
+正文、导航与阅读示例使用中文；代码、命令、API 字段、模型名和路径保留原标识。不再维护 Pages 站点与发布流程。
 
-## 仓库内历史文档说明
+## 判断一项能力是否可用
 
-`docs/` 目录中的部分 Markdown 文件为历史版本，保留用于兼容与参考；如需最新内容，请以在线文档站点为准。
+1. 找到页面实际绑定的实现，而不是只看讲义中的代码片段。
+2. 核对依赖、数据、模型和调用参数。
+3. 观察真实输出、错误与最终状态。
+4. 把代码已实现、接口已调用、任务已完成、效果已验证分别记录。
 
-### 文件映射
+当前需要特别区分的边界包括：模拟指令数据与真实模型生成、同模型双温度 A/B 与生产流量实验、接口成功与桌面任务成功。各模块 README 已说明具体含义。
 
-| 历史文件 | 在线位置 |
-|------------|--------------|
-| `SEARCH_GUIDE.md` | [搜索推荐系统](https://tylerelyt.github.io/test_bed/docs/search-recommendation/) |
-| `LLMOPS_GUIDE.md` | [LLMOps 训练管道](https://tylerelyt.github.io/test_bed/docs/llmops) |
-| `RAG_GUIDE.md` | [RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag) |
-| `CONTEXT_ENGINEERING_GUIDE.md` | [RAG 与上下文工程](https://tylerelyt.github.io/test_bed/docs/rag) |
-| `IMAGE_SEARCH_GUIDE.md` | [多模态系统](https://tylerelyt.github.io/test_bed/docs/multimodal/) |
-| `GUI_AGENT_GUIDE.md` | [GUI 自动化代理](https://tylerelyt.github.io/test_bed/docs/gui-agent) |
-| `MODEL_SERVING_GUIDE.md` | [模型服务](https://tylerelyt.github.io/test_bed/docs/model-serving) |
-
+延伸阅读见[学习路径与资料](learning-resources/README.md)。

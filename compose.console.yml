@@ -1,0 +1,6 @@
+# Compatible Gremlin server for local development; production can use JANUSGRAPH_URL.
+services:
+  gremlin:
+    image: tinkerpop/gremlin-server:3.7.3
+    ports:
+      - '127.0.0.1:8182:8182'

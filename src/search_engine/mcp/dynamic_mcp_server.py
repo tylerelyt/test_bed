@@ -516,10 +516,10 @@ ${{local:tao_example}}
         
         await self.mcp.run_http_async(host=host, port=port)
 
-async def main():
-    """主函数"""
+def main():
+    """Initialize synchronous stores before starting the MCP event loop."""
     server = DynamicMCPServer()
-    await server.start_server()
+    asyncio.run(server.start_server())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -1193,7 +1193,11 @@ def build_llmops_content():
         return gr.update(choices=models, value=models[0] if models else None)
     
     # 推理模型加载/卸载事件（借鉴 LLaMA-Factory WebUI）
-    infer_refresh.click(refresh_inference_models, outputs=[infer_model, ab_model])
+    def refresh_inference_model_pair():
+        update = refresh_inference_models()
+        return update, dict(update)
+
+    infer_refresh.click(refresh_inference_model_pair, outputs=[infer_model, ab_model])
     load_model_btn.click(load_infer_model, inputs=[infer_model], outputs=[infer_status])
     unload_model_btn.click(unload_infer_model, outputs=[infer_status])
     

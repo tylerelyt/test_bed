@@ -1,7 +1,7 @@
 """
 上下文工程管道实现
 
-基于 CONTEXT_ENGINEERING_GUIDE.md 的核心流程（占位符替换模式）：
+基于 docs/context-engineering/implementation/README.md 的核心流程（占位符替换模式）：
 1. 拉取全部Prompt模板 → list_prompts()
 2. LLM智能选择模板 → 根据用户意图+模板列表
 3. 获取模板内容 → 模板包含固定分区（人设、Few-shot）和占位符
@@ -398,7 +398,7 @@ class ContextEngineeringPipeline:
     
     async def _stage2_placeholder_resolution(self, state: PipelineState):
         """
-        阶段2：占位符替换（符合CONTEXT_ENGINEERING_GUIDE.md）
+        阶段2：占位符替换（符合docs/context-engineering/implementation/README.md）
         
         核心流程：
         1. 从MCP Server获取包含占位符的模板内容

@@ -85,26 +85,8 @@ class SearchUI:
 
     def setup_ui(self):
         with gr.Blocks(title="搜索引擎测试床 - 服务架构版本") as self.interface:
-            gr.Markdown("""
-            # 🔬 搜索引擎测试床 - 服务架构版本
-            
-            ## 🏗️ 系统架构
-            - **数据服务 (DataService)**: CTR事件收集、样本状态管理
-            - **索引服务 (IndexService)**: 索引构建、文档管理、检索功能
-            - **模型服务 (ModelService)**: 模型训练、配置管理、模型文件
-            - **RAG服务 (RAGService)**: 直连LLM / 检索增强 / OAG图谱游走推理
-            - **上下文工程服务 (MCPService)**: 符号主义专家系统 + 连接主义LLM消费 (v2.0)
-            - **多模态服务 (ImageService)**: 图片检索(CLIP)、图像生成(Stable Diffusion)
-            
-            ## 📊 服务状态
-            - 数据服务: ✅ 运行中
-            - 索引服务: ✅ 运行中
-            - 模型服务: ✅ 运行中
-            - RAG服务: ✅ 运行中
-            - 上下文工程服务: ✅ 运行中 (v2.0完整架构)
-            - 图片服务: ✅ 运行中 (基于CLIP模型)
-            """)
-            
+            gr.Markdown("为 Agent 准备、配置和验证企业上下文。")
+
             with gr.Tabs():
                 with gr.Tab("🏗️ 第一部分：离线索引构建"):
                     build_index_tab(self.index_service)

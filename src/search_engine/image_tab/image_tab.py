@@ -1955,13 +1955,13 @@ def search_images_by_image(image_service, query_image, top_k=10):
     """图搜图功能"""
     try:
         if query_image is None:
-            return [], "❌ 请选择要搜索的图片"
+            return [], "❌ 请选择要搜索的图片", []
         
         # 执行图搜图
         results = image_service.search_by_image(query_image.name, top_k=top_k)
         
         if not results:
-            return [], "🔍 没有找到相似的图片"
+            return [], "🔍 没有找到相似的图片", []
         
         # 格式化结果
         formatted_results = []
@@ -1992,14 +1992,14 @@ def search_images_by_image(image_service, query_image, top_k=10):
 def search_images_by_text(image_service, query_text, top_k=10):
     """文搜图功能"""
     try:
-        if not query_text.strip():
-            return [], "❌ 请输入搜索文本"
+        if not (query_text or '').strip():
+            return [], "❌ 请输入搜索文本", []
         
         # 执行文搜图
         results = image_service.search_by_text(query_text, top_k=top_k)
         
         if not results:
-            return [], "🔍 没有找到匹配的图片"
+            return [], "🔍 没有找到匹配的图片", []
         
         # 格式化结果
         formatted_results = []

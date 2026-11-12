@@ -234,4 +234,17 @@ events.out.tfevents.*
 # Large tokenizer files
 merges.txt
 vocab.json
-tokenizer.json 
+tokenizer.json
+# Next.js console and local experiment state
+console/node_modules/
+console/.next/
+console/*.tsbuildinfo
+console/.env*
+!console/.env.example
+.workbench/
+
+.venv-full/
+console/public/vendor/
+
+# Local background service PID and logs
+logs/console/

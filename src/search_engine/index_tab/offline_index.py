@@ -135,7 +135,7 @@ class InvertedIndex:
                 scores[doc_id] = score
         
         # 排序并返回结果
-        sorted_results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        sorted_results = sorted(scores.items(), key=lambda x: (-x[1], str(x[0])))
         
         # 生成摘要
         results = []
