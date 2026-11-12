@@ -15,6 +15,7 @@
 | 根据截图规划并执行桌面任务 | [桌面智能体](gui-agent/README.md) |
 | 准备训练数据、采集偏好、训练与评估 | [训练与反馈](llmops/README.md) |
 | 区分工作台服务与可选的独立模型 API | [模型服务](model-serving/README.md) |
+| 保存固定任务、比较基线并复用经验 | [任务与运行记录](workbench-tasks/README.md) |
 | 了解数据存放和检查工具 | [数据说明](../data/README.md) · [验证工具](../tools/README.md) |
 
 ## 文档分工

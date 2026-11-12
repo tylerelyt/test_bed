@@ -22,7 +22,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
       return new Response(upload.body,{status:upload.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
     }
     const body = request.method === 'GET' ? undefined : await request.text();
-    const limit = ['native/execute','native/event'].includes(path.join('/')) ? 32_000_000 : 2_000_000;
+    const limit = ['native/execute','native/event','native/runs'].includes(path.join('/')) ? 32_000_000 : 2_000_000;
     if (body && Buffer.byteLength(body) > limit) return Response.json({error:'请求体超过当前接口大小限制'}, {status:413});
     const response = await fetch(`${base}/api/${path.map(encodeURIComponent).join('/')}${request.nextUrl.search}`, {
       method: request.method, headers: {'Content-Type':'application/json'}, body,

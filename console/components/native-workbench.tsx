@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import {Loader2,RefreshCw} from 'lucide-react';
 import {displayLabel,displayMarkdown} from '../lib/presentation';
 import {resultDocument} from '../lib/result-document';
+import RunHistory,{request,SavedTask} from './run-history';
 type Props=Record<string,unknown>;
 type Component={id:number;type:string;props:Props};
 type Node={id:number;children?:Node[]};
@@ -17,6 +18,9 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
  const [layout,setLayout]=useState<Layout|null>(null),[values,setValues]=useState<Record<string,unknown>>({}),[overrides,setOverrides]=useState<Record<string,Props>>({}),[active,setActive]=useState<Record<string,number>>({}),[busy,setBusy]=useState(0),[error,setError]=useState(''),[status,setStatus]=useState('');
  const session=useRef(''),current=useRef<Record<string,unknown>>({}),chain=useRef<Promise<void>>(Promise.resolve());
  const [loading,setLoading]=useState(false),[uploading,setUploading]=useState<number|null>(null);
+ const [revision,setRevision]=useState(0),[savedTask,setSavedTask]=useState<SavedTask|null>(null);
+ const attached=useRef(new Map<string,AbortController>());
+ function remember(id:string,remove=false){const ids:string[]=JSON.parse(sessionStorage.getItem('workbench-active-runs')||'[]');sessionStorage.setItem('workbench-active-runs',JSON.stringify(remove?ids.filter(v=>v!==id):Array.from(new Set([...ids,id]))))}
  async function connect(){setLoading(true);setError('');try{
   if(!session.current){session.current=sessionStorage.getItem('workbench-session')||crypto.randomUUID();sessionStorage.setItem('workbench-session',session.current)}
   const r=await fetch('/api/native/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:session.current})});const data=await r.json();if(!r.ok)throw Error(data.error||'模块初始化失败');
@@ -30,16 +34,36 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
  const rootTabIds=new Set(rootTabNodes.map(n=>n.id));
  const firstMarkdown=(node:Node):number|undefined=>components.get(node.id)?.type==='markdown'?node.id:node.children?.map(firstMarkdown).find(id=>id!==undefined);
  const introIds=new Set(rootTabNodes.map(firstMarkdown));
+ const moduleLabel=text(components.get(rootTabNodes[moduleIndex]?.id)?.props.label);
  const apply=useCallback((delta:Delta)=>{
   const next={...current.current};
-  for(const [id,entry]of Object.entries(delta)){if('value'in entry)next[id]=entry.value;if(entry.props&&'value'in entry.props)next[id]=entry.props.value;}
+  for(const [id,entry]of Object.entries(delta)){if(!entry||typeof entry!=='object')continue;if('value'in entry)next[id]=entry.value;if(entry.props&&'value'in entry.props)next[id]=entry.props.value;}
   current.current=next;setValues(next);
   setOverrides(old=>{const merged={...old};for(const[id,entry]of Object.entries(delta))if(entry.props)merged[id]={...merged[id],...entry.props};return merged});
  },[]);
+ async function followRun(id:string){
+  if(attached.current.has(id))return;
+  const controller=new AbortController();attached.current.set(id,controller);setBusy(n=>n+1);
+  let cursor=0,settled=false;
+  try{for(let attempt=0;attempt<3&&!settled;attempt++){
+   try{
+    const response=await fetch(`/api/native/runs/${id}/events?after=${cursor}`,{signal:controller.signal,cache:'no-store'});
+    if(!response.ok){const result=await response.json();if(result.error==='记录不存在')remember(id,true);throw Error(result.error||'运行输出连接失败')}
+    const reader=response.body!.getReader(),decoder=new TextDecoder();let buffer='';
+    const receive=(line:string)=>{if(!line.trim())return;const item=JSON.parse(line);cursor=item.seq??cursor;if(item.updates)apply(item.updates);if(item.type==='failed')setError(item.error);if(item.type==='settled'){settled=true;remember(id,true);setStatus(item.status==='completed'?'执行完成':item.status==='interrupted'?'服务重启，操作未自动重跑':'执行失败');if(item.error)setError(item.error)}};
+    while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';lines.forEach(receive)}receive(buffer+decoder.decode());
+    if(!settled)throw Error('运行输出连接中断');
+   }catch(e){if(controller.signal.aborted)return;if(attempt===2)throw e;setStatus('正在重新连接运行输出…');await new Promise(resolve=>setTimeout(resolve,700))}
+  }}catch(e){setStatus('输出连接中断，可在记录中重连');setError((e as Error).message+'。可在运行记录中重新连接，操作仍由服务端执行。')}finally{attached.current.delete(id);setBusy(n=>Math.max(0,n-1));setRevision(n=>n+1)}
+ }
  async function run(dependency:Dependency,event?:unknown){
   setBusy(n=>n+1);setError('');setStatus('正在执行…');
   try{
    const input=Object.fromEntries(dependency.inputs.filter(id=>components.get(id)?.type!=='state').map(id=>[String(id),current.current[id]??null]));
+   if(dependency.targets.some(t=>['click','submit'].includes(t[1]))){
+    const requestId=crypto.randomUUID().replaceAll('-','');remember(requestId);
+    const result=await request('runs',{session:session.current,fn_id:dependency.id,values:input,event,task_id:savedTask?.fn_id===dependency.id?savedTask.id:undefined,request_id:requestId});setRevision(n=>n+1);await followRun(result.run_id);return;
+   }
    const r=await fetch('/api/native/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:session.current,fn_id:dependency.id,values:input,event})});
    if(!r.ok){const d=await r.json();throw Error(d.error||'请求失败')}
    const reader=r.body!.getReader(),decoder=new TextDecoder();let buffer='';
@@ -47,7 +71,16 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
    while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop()||'';lines.forEach(receive)}receive(buffer+decoder.decode());
   }catch(e){setError((e as Error).message);setStatus('执行失败')}finally{setBusy(n=>n-1)}
  }
- useEffect(()=>{if(layout){for(const d of layout.dependencies.filter(d=>d.targets.some(t=>t[1]==='load')))chain.current=chain.current.then(()=>run(d));}},[layout]);
+ useEffect(()=>{if(layout){for(const d of layout.dependencies.filter(d=>d.targets.some(t=>t[1]==='load')))chain.current=chain.current.then(()=>run(d));chain.current=chain.current.then(()=>{const ids:string[]=JSON.parse(sessionStorage.getItem('workbench-active-runs')||'[]');ids.forEach(id=>void followRun(id))})}},[layout]);
+ useEffect(()=>()=>{attached.current.forEach(controller=>controller.abort())},[]);
+ function restoreTask(task:SavedTask,restored:Record<string,unknown>,missing:string[]){
+  const next={...current.current,...restored};missing.forEach(id=>{next[id]=null});current.current=next;setValues(next);setSavedTask(task);
+  const target=layout?.dependencies.find(d=>d.id===task.fn_id)?.targets[0]?.[0];
+  const trail=(node:Node):number[]|null=>node.id===target?[node.id]:(node.children||[]).map(child=>{const found=trail(child);return found?[node.id,...found]:null}).find(Boolean)||null;
+  const path=layout?trail(layout.layout):null;
+  if(path){const tabs:Record<string,number>={};for(let i=0;i<path.length-1;i++)if(components.get(path[i])?.type==='tabs')tabs[path[i]]=path[i+1];setActive(old=>({...old,...tabs}));setOverrides(old=>{const next={...old};for(const[id,tab]of Object.entries(tabs))next[id]={...next[id],selected:components.get(tab)?.props.id??components.get(tab)?.props.label};return next})}
+  setStatus('任务参数已恢复；核对后点击原操作按钮执行');
+ }
  function trigger(id:number,kind:string,event?:unknown){
   const dependencies=layout?.dependencies.filter(d=>d.targets.some(t=>t[0]===id&&t[1]===kind))||[];
   for(const dependency of dependencies){
@@ -115,7 +148,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
   if(node.children?.length)return <div>{children()}</div>;
   return <p role="alert" className="inline-error">尚未支持的原控件：{c.type}（{label}）</p>;
  }
- return <section className="native-workbench"><div className="native-toolbar"><p>{status||'正在载入原工作台…'}</p><button className="text-button" disabled={loading} onClick={connect}>{loading?<Loader2 className="spin" size={15}/>:<RefreshCw size={15}/>}重新载入</button>{busy>0&&<span><Loader2 className="spin" size={15}/>执行中</span>}</div>{error&&<p role="alert" className="inline-error">{error}</p>}{loading&&<div className="empty-state"><Loader2 className="spin"/><p>首次载入正在初始化原模块与数据服务。</p></div>}{layout&&render(layout.layout)}</section>
+ return <section className="native-workbench"><div className="native-toolbar"><p>{status||'正在载入原工作台…'}</p><button className="text-button" disabled={loading} onClick={connect}>{loading?<Loader2 className="spin" size={15}/>:<RefreshCw size={15}/>}重新载入</button>{busy>0&&<span><Loader2 className="spin" size={15}/>执行中</span>}</div>{error&&<p role="alert" className="inline-error">{error}</p>}{layout&&<RunHistory module={moduleLabel} revision={revision} labels={Object.fromEntries([...components.values()].map(c=>[String(c.id),displayLabel(text(c.props.label||c.props.value))]))} onRestore={restoreTask} onReconnect={record=>{if(record.session!==session.current){setError('此运行来自其他会话。请在记录中查看结果；当前页面不会接管其会话状态。');return}remember(record.id);void followRun(record.id)}}/>}{loading&&<div className="empty-state"><Loader2 className="spin"/><p>首次载入正在初始化原模块与数据服务。</p></div>}{layout&&render(layout.layout)}</section>
 }
 function Media({value,kind}:{value:unknown;kind:string}){if(Array.isArray(value))return <>{value.map((v,i)=><Media key={i} value={v} kind={kind}/>)}</>;const url=fileUrl(value);if(!url)return null;return <div>{kind==='image'?<img src={url} alt={(value as {orig_name?:string})?.orig_name||'模块图片'} style={{maxWidth:'100%'}}/>:kind==='audio'?<audio controls src={url}/>:kind==='video'?<video controls src={url} style={{maxWidth:'100%'}}/>:<a href={url} download>下载 {(value as {orig_name?:string})?.orig_name||'文件'}</a>}</div>}
 function Html({value}:{value:string}){

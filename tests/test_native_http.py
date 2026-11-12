@@ -1,12 +1,14 @@
 import json
 import threading
 import unittest
+import tempfile
 from http.server import ThreadingHTTPServer
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 import gradio as gr
 from src.search_engine.native_runtime import NativeRuntime
 from src.search_engine.workbench_api import make_handler
+from src.search_engine.workbench_runs import RunStore
 
 class NativeHTTPTests(unittest.TestCase):
     def setUp(self):
@@ -23,7 +25,10 @@ class NativeHTTPTests(unittest.TestCase):
         self.source=source._id
         self.fn=next(d['id'] for d in self.layout['dependencies'] if d['api_name']=='actual')
         self.file_fn=next(d['id'] for d in self.layout['dependencies'] if d['api_name']=='file')
-        self.server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(self.runtime))
+        directory=tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.records=RunStore(self.runtime,directory.name)
+        self.server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(self.runtime,self.records))
         threading.Thread(target=self.server.serve_forever,daemon=True).start()
         self.base='http://127.0.0.1:'+str(self.server.server_port)
     def tearDown(self):self.server.shutdown();self.server.server_close()
@@ -55,5 +60,27 @@ class NativeHTTPTests(unittest.TestCase):
         with urlopen(self.base+output['url']) as response:
             self.assertEqual(response.read(),payload)
             self.assertIn('sample.bin',response.headers['Content-Disposition'])
+
+    def test_detached_run_task_restore_and_compare_over_http(self):
+        def post(path,payload):
+            with urlopen(Request(self.base+'/api/native/'+path,data=json.dumps(payload).encode())) as response:
+                return json.load(response)
+        first=post('runs',{'session':'test','fn_id':self.fn,'values':{str(self.source):'基线'}})
+        # Starting a run does not require keeping the POST connection open.
+        with urlopen(self.base+'/api/native/runs/'+first['run_id']+'/events') as response:
+            events=[json.loads(line) for line in response]
+        self.assertEqual(events[-1]['status'],'completed')
+        task=post('tasks',{'action':'save','run_id':first['run_id'],'name':'固定问答','expectation':'包含原输入'})
+        restored=post('tasks',{'action':'restore','task_id':task['id']})
+        self.assertEqual(restored['values'][str(self.source)],'基线')
+        second=post('runs',{'session':'test','fn_id':self.fn,'values':{str(self.source):'变更'},'task_id':task['id']})
+        with urlopen(self.base+'/api/native/runs/'+second['run_id']+'/events?after=0') as response:
+            events=[json.loads(line) for line in response]
+        comparison=post('tasks',{'action':'compare','task_id':task['id'],'run_id':second['run_id']})
+        self.assertEqual(comparison['inputs'][0]['after'],'变更')
+        self.assertEqual(len(comparison['outputs']),1)
+        with self.assertRaises(HTTPError) as error:
+            post('tasks',{'action':'restore','task_id':{}})
+        self.assertEqual(error.exception.code,400)
 
 if __name__=='__main__':unittest.main()
