@@ -351,10 +351,11 @@ class ModelGraderTests(unittest.TestCase):
     def test_real_http_protocol_and_invalid_model_scores(self):
         score = {'passed': True, 'score': .9, 'reason': '输出包含可核对来源'}
         received = []
+        content_override = []
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 received.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
-                body = json.dumps({'choices': [{'message': {'content': json.dumps(score)}}]}).encode()
+                body = json.dumps({'choices': [{'message': {'content': content_override[0] if content_override else json.dumps(score)}}]}).encode()
                 self.send_response(200); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -363,4 +364,10 @@ class ModelGraderTests(unittest.TestCase):
             self.assertTrue(model_grade('材料', '核对来源')['passed'])
             score['score'] = 2
             with self.assertRaises(ValueError): model_grade('材料', '核对来源')
+            for malformed in (None, [], 42, {}, ''):
+                content_override[:] = [malformed]
+                result = grade({'status': 'completed', 'outputs': {'answer': '材料'}},
+                               {'id': 'model-fixture', 'rules': [{'op': 'model', 'criteria': '核对来源'}]})
+                self.assertEqual(result['verdict'], 'blocked')
+                self.assertIn('有效文本', result['checks'][0]['reason'])
         self.assertEqual(received[0]['model'], 'local-fixture')

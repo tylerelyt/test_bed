@@ -75,7 +75,13 @@ def judge_json(system, material):
         headers['Authorization'] = 'Bearer ' + key
     with urlopen(Request(endpoint, data=json.dumps(payload).encode(), headers=headers), timeout=45) as response:
         data = json.load(response)
-    content = data['choices'][0]['message']['content'].strip()
+    try:
+        content = data['choices'][0]['message']['content']
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError('评分服务响应结构无效') from exc
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError('评分服务没有返回有效文本')
+    content = content.strip()
     if content.startswith('```'):
         content = '\n'.join(content.splitlines()[1:-1])
     return json.loads(content)
