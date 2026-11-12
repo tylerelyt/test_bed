@@ -319,14 +319,29 @@ test("人工放行前不执行，放行后执行同一任务", async ({ page }) 
   await page
     .getByRole("button", { name: "保存任务新版本", exact: true })
     .click();
+  let releaseRestore!: () => void;
+  const restoring = new Promise<void>(resolve => { releaseRestore = resolve; });
+  await page.route("**/api/native/tasks", async route => {
+    if (route.request().postDataJSON()?.action !== "restore") return route.continue();
+    const response = await route.fetch();
+    await restoring;
+    await route.fulfill({ response });
+  });
   await page.getByRole("button", { name: "恢复任务参数", exact: true }).click();
+  await expect(page.getByRole("button", { name: "执行检索", exact: true })).toBeDisabled();
+  releaseRestore();
+  await expect(page.locator(".preset-badge")).toContainText("v2");
+  await expect(page.getByRole("button", { name: "执行检索", exact: true })).toBeEnabled();
   await expect(page.locator("#saved-task")).toHaveValue(taskId);
   const response = page.waitForResponse(
     (r) =>
       r.url().endsWith("/api/native/runs") && r.request().method() === "POST",
   );
   await page.getByRole("button", { name: "执行检索", exact: true }).click();
-  const queued = await (await response).json();
+  const submitted = await response;
+  expect(submitted.request().postDataJSON().task_id).toBe(taskId);
+  expect(submitted.request().postDataJSON().task_version).toBe(2);
+  const queued = await submitted.json();
   await page.getByRole("tab", { name: "运行证据", exact: true }).click();
   await expect(
     page.locator('#recorded-run option[value="' + queued.run_id + '"]').first(),

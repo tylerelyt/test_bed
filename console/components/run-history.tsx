@@ -60,11 +60,11 @@ export default function RunHistory({
   actions,
   onRestore,
   onReconnect,
-  activeTask,onExitPreset,
+  activeTask,onExitPreset,onPresetPending,
 }: {
   module: string;
   revision: number;
-  activeTask:SavedTask|null;onExitPreset:()=>void;
+  activeTask:SavedTask|null;onExitPreset:()=>void;onPresetPending:(pending:boolean)=>void;
   labels: Record<string, string>;
   actions: Record<string, string>;
   onRestore: (
@@ -184,6 +184,20 @@ export default function RunHistory({
     setComparison(null);
     setView("runs");
     setRun(id ? await request("runs/" + id) : null);
+  }
+  async function restoreSelectedTask() {
+    onPresetPending(true);
+    try {
+      await act(async () => {
+        const result = await request("tasks", { action: "restore", task_id: taskId });
+        onRestore(result.task, result.values, result.protected || result.missing);
+        setMessage(result.missing.length
+          ? "参数已恢复；需补填密钥或文件。核对业务状态后点击原操作按钮。"
+          : "参数已恢复，核对后点击原操作按钮执行。");
+      });
+    } finally {
+      onPresetPending(false);
+    }
   }
   function changes(items: Comparison["inputs"]) {
     return items.length ? (
@@ -318,24 +332,7 @@ export default function RunHistory({
                         <button
                           className="secondary"
                           disabled={pending}
-                          onClick={() =>
-                            void act(async () => {
-                              const result = await request("tasks", {
-                                action: "restore",
-                                task_id: taskId,
-                              });
-                              onRestore(
-                                result.task,
-                                result.values,
-                                result.protected || result.missing,
-                              );
-                              setMessage(
-                                result.missing.length
-                                  ? "参数已恢复；需补填密钥或文件。核对业务状态后点击原操作按钮。"
-                                  : "参数已恢复，核对后点击原操作按钮执行。",
-                              );
-                            })
-                          }
+                          onClick={() => void restoreSelectedTask()}
                         >
                           恢复任务参数
                         </button>
