@@ -248,3 +248,7 @@ console/public/vendor/
 
 # Local background service PID and logs
 logs/console/
+
+# Frontend source must not inherit the Python lib/ exclusion.
+!console/lib/
+!console/lib/**
