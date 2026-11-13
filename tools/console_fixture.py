@@ -51,6 +51,7 @@ def main():
                             output = gr.JSON(label='模块状态')
                             gr.Button('查看状态').click(lambda: {'source': 'deterministic-ci-fixture', 'ready': True}, [], output)
         executor = NativeRuntime(lambda: blocks)
+        Path(folder,'database-url.txt').write_text('sqlite:///'+str(Path(folder)/'platform.sqlite3'))
         records = RunStore(executor, folder, background=True)
         import hashlib,json
         records.access.path.write_text(json.dumps({'version':1,'principals':[

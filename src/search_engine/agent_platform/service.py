@@ -6,6 +6,7 @@ from .runs import Runs
 from .models import ModelSupply
 from .jobs import Jobs
 from .environment import capabilities
+from .business import BusinessOperations
 
 
 class AgentPlatform:
@@ -17,6 +18,7 @@ class AgentPlatform:
         self.runs = Runs(self.session, self.runtime, access, background)
         self.context = context
         self.models = ModelSupply(self.session, directory)
+        self.business = BusinessOperations(self.session,context,self.models)
         self.jobs = Jobs(self.session, directory, access, context, self.models, self.catalog)
         if background:
             self.jobs.start_worker()

@@ -463,7 +463,7 @@ class ContextEngineeringPipeline:
         4. 失败时重试，最终失败则抛出异常
         """
         import os
-        from openai import OpenAI
+        from ..business_execution import OpenAI
         import time
         
         # 重试配置

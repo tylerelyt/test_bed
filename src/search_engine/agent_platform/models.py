@@ -79,3 +79,17 @@ class ModelSupply:
             if artifact.format != 'weights':
                 raise ValueError('训练需要完整基础模型；LoRA 产物请先合并导出')
             return public(dataset), public(artifact)
+
+    def native_dataset(self,name,rows,descriptor):
+        """Freeze native LLaMA-Factory data without changing CPT/DPO column semantics."""
+        require_business()
+        name=text(name,'数据集名称')
+        if not isinstance(rows,list) or not rows or len(rows)>100000:
+            raise ValueError('原训练数据须为非空 JSON 数组，最多十万条')
+        raw=json.dumps(rows,ensure_ascii=False,sort_keys=True).encode()
+        fields=owned();folder=self.directory/'datasets'/fields['id'];folder.mkdir(parents=True,mode=0o700)
+        save_json(folder/'data.json',rows)
+        save_json(folder/'dataset_info.json',{'workbench':{**descriptor,'file_name':'data.json'}})
+        with self.session.begin() as db:
+            item=Dataset(**fields,name=name,count=len(rows),digest=hashlib.sha256(raw).hexdigest(),path=str(folder/'data.json'))
+            db.add(item);db.flush();return public(item)

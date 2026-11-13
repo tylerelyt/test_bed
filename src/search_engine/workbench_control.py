@@ -33,9 +33,7 @@ class WorkbenchControls:
                 version = query.get('version', [None])[0]
                 return self.context.get(table, path[len(prefix):], int(version) if version else None)
         if path == '/api/native/evaluations':
-            with self.records.db() as db:
-                tasks = [item for row in db.execute('SELECT body FROM tasks ORDER BY rowid DESC')
-                         if visible(item := json.loads(row[0]))][:200]
+            tasks = [item for item in self.records.all_records('tasks') if visible(item)][:200]
             return {'tasks': tasks}
         if path.startswith('/api/native/evaluations/'):
             return self.records.evaluations.summary(path.rsplit('/', 1)[-1])

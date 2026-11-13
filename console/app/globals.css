@@ -296,3 +296,5 @@ section[aria-label="模型供应流程"] { display:grid; gap:22px; }
 .agent-result { display:grid; gap:14px; min-width:0; }
 .agent-result pre { white-space:pre-wrap; overflow-wrap:anywhere; padding:18px; background:var(--surface); border:1px solid var(--line); border-radius:6px; font:inherit; line-height:1.8; }
 @media(max-width:800px) { .agent-grid { grid-template-columns:minmax(0,1fr); } .agent-card { padding:18px; } .agent-row { align-items:flex-start; flex-wrap:wrap; } }
+
+.sidebar { overflow-y:auto; }

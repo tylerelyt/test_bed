@@ -17,7 +17,7 @@ from datetime import datetime
 def call_llm(messages, model="qwen-max"):
     """调用 LLM"""
     try:
-        from openai import OpenAI
+        from ..business_execution import OpenAI
         client = OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",

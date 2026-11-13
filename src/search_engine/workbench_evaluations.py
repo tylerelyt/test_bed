@@ -244,8 +244,7 @@ class Evaluations:
                     raise ValueError('任务含未恢复的密钥或文件，请配置服务端密钥引用；批量评测不保存明文密钥或临时文件')
                 prepared[task['id']] = restore['values']
             expected = (1 if mode == 'probe' else len(tasks)) * len(suite['variants']) * (1 if mode == 'probe' else suite['repeats'])
-            with self.store.db() as db:
-                pending = db.execute("SELECT COUNT(*) FROM runs WHERE json_extract(body, '$.status') IN ('queued','running','awaiting_review')").fetchone()[0]
+            pending = self.store.pending_count()
             if pending + expected > 200:
                 raise ValueError('队列容量不足以容纳完整任务集，请稍后再运行')
             plans, cells = [], []
@@ -401,9 +400,8 @@ class Evaluations:
 
     def tick(self, now=None):
         now = time.time() if now is None else now
-        with self.store.lock, self.store.db() as db:
-            due = [json.loads(row[0]) for row in db.execute('SELECT body FROM schedules')
-                   if json.loads(row[0]).get('enabled') and json.loads(row[0])['next_at'] <= now]
+        with self.store.lock:
+            due = [item for item in self.store.all_records('schedules') if item.get('enabled') and item['next_at']<=now]
             claimed = []
             for item in due:
                 if item.get('last_batch'):
@@ -417,19 +415,19 @@ class Evaluations:
                         previous = None
                     if previous is None or any(row['status'] == 'interrupted' for row in previous['rows']):
                         item.update(enabled=False, error='上次周期验证中断或记录缺失，请核对后重新启用')
-                        db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                        self.store.system_put('schedules',item)
                         continue
                     if previous.get('status') == 'submission_failed' or (previous.get('terminal') and not previous['complete']):
                         item.update(enabled=False, error='上次周期验证提交失败，请核对后重新启用')
-                        db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                        self.store.system_put('schedules',item)
                         continue
                     if not previous['complete']:
                         item.update(next_at=now + item['interval_minutes'] * 60, coalesced_at=now,
                                     coalesced_reason='上次周期验证仍在执行，本周期已合并')
-                        db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                        self.store.system_put('schedules',item)
                         continue
                 item.update(next_at=now + item['interval_minutes'] * 60, last_at=now, last_batch=uuid.uuid4().hex)
-                db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                self.store.system_put('schedules',item)
                 claimed.append(item)
         for item in claimed:
             claims = item.get('_execution_identity')
@@ -443,8 +441,7 @@ class Evaluations:
             except (ValueError, AccessDenied) as exc:
                 item.update(enabled=False, error=str(exc))
                 # This system bookkeeping must not depend on the revoked identity.
-                with self.store.db() as db:
-                    db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                self.store.system_put('schedules',item)
 
         return due
 

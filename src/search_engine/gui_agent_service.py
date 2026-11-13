@@ -515,7 +515,7 @@ class SimplePromptAgent:
     def _init_client(self):
         """初始化 OpenAI 客户端"""
         try:
-            from openai import OpenAI
+            from .business_execution import OpenAI
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             print(f"✅ OpenAI 客户端初始化成功 - 模型: {self.model}")
         except ImportError:

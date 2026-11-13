@@ -8,6 +8,8 @@ import json
 import subprocess
 import tempfile
 import shutil
+import signal
+import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -23,6 +25,8 @@ class LLaMAFactoryTrainer:
             'output_dir': None
         }
         self.config_file = None  # 临时配置文件路径
+        self.managed = None
+        self.log_stream = None
     
     def _build_train_args(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """构建训练参数，转换为 LLaMA-Factory 需要的格式
@@ -150,7 +154,7 @@ class LLaMAFactoryTrainer:
         
         # 查找 llamafactory-cli 命令
         # 优先使用系统 PATH，如果找不到则尝试 Python 环境的 bin 目录
-        llamafactory_cmd = shutil.which('llamafactory-cli')
+        llamafactory_cmd = os.environ.get('WORKBENCH_TRAIN_PYTHON') or shutil.which('llamafactory-cli')
         if not llamafactory_cmd:
             # 尝试从 Python 环境的 bin 目录查找
             import sys
@@ -164,6 +168,8 @@ class LLaMAFactoryTrainer:
         
         # 构建训练参数
         train_args = self._build_train_args(config)
+        from ..business_training import prepare_training
+        self.managed = prepare_training(config,train_args)
         
         # 确保输出目录存在
         output_dir = train_args.get('output_dir')
@@ -177,6 +183,8 @@ class LLaMAFactoryTrainer:
         # 保存配置到临时文件
         try:
             config_file = self._save_config_to_file(train_args)
+            if self.managed:
+                config_file=str(self.managed["folder"]/"train-config.json")
             print(f"📄 配置文件已生成: {config_file}")
         except Exception as e:
             if log_callback:
@@ -197,15 +205,21 @@ class LLaMAFactoryTrainer:
             print(f"🚀 启动训练进程: {llamafactory_cmd} train {config_file}")
             # 不捕获 stdout/stderr，让它直接输出到终端
             # 这样用户可以实时看到训练进度
+            if self.managed:self.log_stream=(self.managed["folder"]/"process.log").open("ab")
             self.current_process = subprocess.Popen(
-                [llamafactory_cmd, 'train', config_file],
+                [os.environ.get('WORKBENCH_TRAIN_PYTHON') or __import__('sys').executable, '-c', 'from llamafactory.cli import main; main()', 'train', config_file],
                 env=env,
+                start_new_session=True,
+                stdout=self.log_stream, stderr=subprocess.STDOUT,
                 # 注释掉管道，让输出直接显示
                 # stdout=subprocess.PIPE,
                 # stderr=subprocess.PIPE,
                 text=True
             )
             
+            if self.managed:
+                self.managed['scope']['run']['training']['pid']=self.current_process.pid
+                self.managed['scope']['records'].put('runs',self.managed['scope']['run'])
             # 更新状态
             self.training_status = {
                 'running': True,
@@ -222,7 +236,7 @@ class LLaMAFactoryTrainer:
             import traceback
             traceback.print_exc()
             # 清理临时配置文件
-            if self.config_file and os.path.exists(self.config_file):
+            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -341,7 +355,11 @@ class LLaMAFactoryTrainer:
         # 非阻塞检查进程状态
         return_code = self.current_process.poll()
         
-        if return_code is not None:
+        if return_code is not None and self.training_status['running']:
+            from ..business_training import training_finished
+            training_finished(self.managed,return_code)
+            self.managed=None
+            if self.log_stream:self.log_stream.close();self.log_stream=None
             # 进程已结束，读取输出
             try:
                 stdout, stderr = self.current_process.communicate(timeout=1)
@@ -356,7 +374,7 @@ class LLaMAFactoryTrainer:
             self.training_status['running'] = False
             
             # 清理临时配置文件
-            if self.config_file and os.path.exists(self.config_file):
+            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -373,22 +391,26 @@ class LLaMAFactoryTrainer:
         
         try:
             # 优雅地终止进程
-            self.current_process.terminate()
+            os.killpg(self.current_process.pid,signal.SIGTERM)
             
             # 等待进程结束（最多 5 秒）
             try:
                 self.current_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 # 如果进程没有响应，强制杀死
-                self.current_process.kill()
+                os.killpg(self.current_process.pid,signal.SIGKILL)
                 self.current_process.wait()
             
+            from ..business_training import training_finished
+            training_finished(self.managed,-15)
+            self.managed=None
+            if self.log_stream:self.log_stream.close();self.log_stream=None
             # 更新状态
             self.training_status['running'] = False
             self.current_process = None
             
             # 清理临时配置文件
-            if self.config_file and os.path.exists(self.config_file):
+            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -415,12 +437,22 @@ class LLaMAFactoryTrainer:
         return False
 
 
-# 全局训练器实例
-_trainer_instance = None
+# One native training process per project; stop callbacks resolve the same owner.
+_trainers = {}
+_trainer_lock = threading.RLock()
 
 def get_trainer() -> LLaMAFactoryTrainer:
-    """获取训练器实例（单例模式）"""
-    global _trainer_instance
-    if _trainer_instance is None:
-        _trainer_instance = LLaMAFactoryTrainer()
-    return _trainer_instance
+    from ..workbench_access import identity
+    with _trainer_lock:
+        return _trainers.setdefault(identity().project,LLaMAFactoryTrainer())
+
+def stop_all_trainers():
+    with _trainer_lock:
+        for trainer in _trainers.values():
+            if trainer.training_status['running']:trainer.stop_training()
+
+def stop_training_for_run(run_id):
+    with _trainer_lock:
+        for trainer in _trainers.values():
+            if trainer.managed and trainer.managed['scope']['run']['id']==run_id:
+                trainer.stop_training()

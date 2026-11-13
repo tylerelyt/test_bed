@@ -117,8 +117,8 @@ export default function Page() {
               <span>{title}</span>
             </button>
           ))}
-          <details className="legacy-navigation" open={selected >= 0}>
-            <summary>现有业务工具</summary>
+          <details className="legacy-navigation" open>
+            <summary>业务处理与验证</summary>
             {modules.map(({ title, icon: Icon }, i) => (
               <button
                 key={title}

@@ -2,6 +2,7 @@
 import argparse
 import json
 import mimetypes
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, unquote, quote, parse_qs
 from .native_runtime import runtime
@@ -38,7 +39,7 @@ def make_handler(executor=runtime, records=None):
             if path in ('/api/health', '/api/native/access'):
                 if path == '/api/health':
                     return self.send_json({'status': 'ready', 'modules_initialized': executor.blocks is not None,
-                        'engine': 'original-python-callbacks', 'separate_gradio_server': False})
+                        'engine': 'original-python-callbacks', 'execution_pid':os.getpid(), 'separate_gradio_server': False})
                 try:
                     who = records.access.authenticate(self.headers.get('Authorization'))
                     return self.send_json({'authenticated': True, 'identity': who.public()})
@@ -78,8 +79,7 @@ def make_handler(executor=runtime, records=None):
                         return self.send_json({**record, 'current_runtime_id': executor.instance_id})
                     if parts[1:] == ['trace']:
                         after = int(query.get('after', ['0'])[0])
-                        with records.db() as db:
-                            rows = db.execute('SELECT seq,body FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT 201', (run_id, after)).fetchall()
+                        rows = records.trace(run_id,after,201)
                         return self.send_json({'events': [{**json.loads(body), 'seq': seq} for seq, body in rows[:200]], 'has_more': len(rows) > 200})
                     if parts[1:] == ['events']:
                         after = int(query.get('after', ['0'])[0])
@@ -103,7 +103,7 @@ def make_handler(executor=runtime, records=None):
                 return self.send_json({'error': '接口不存在'}, 404)
             if path == '/api/health':
                 return self.send_json({'status': 'ready', 'modules_initialized': executor.blocks is not None,
-                    'engine': 'original-python-callbacks', 'separate_gradio_server': False})
+                    'engine': 'original-python-callbacks', 'execution_pid':os.getpid(), 'separate_gradio_server': False})
             if path.startswith('/api/native/assets/'):
                 asset = executor.assets.get(path.rsplit('/', 1)[-1])
                 if not asset or not asset.is_file():
@@ -198,7 +198,7 @@ def make_handler(executor=runtime, records=None):
                     raise ValueError('操作不存在')
                 started = records.start(session_id, fn_id, data.get('values', {}),
                                         data.get('event'), data.get('task_id'), data.get('request_id'),
-                                        expected_task_version=data.get('task_version'))
+                                        expected_task_version=data.get('task_version'),metadata={'supply':data.get('supply',{})})
                 if path == '/api/native/runs':
                     return self.send_json(started, 202)
             except (ValueError, TypeError, KeyError) as exc:

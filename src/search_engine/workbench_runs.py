@@ -62,27 +62,36 @@ class RunStore:
                 self.code['git_commit'] = commit.stdout.strip()
         except (OSError, subprocess.TimeoutExpired):
             pass
-        with self.db() as db:
-            db.executescript('''
-                CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS events (run_id TEXT, seq INTEGER, body TEXT NOT NULL,
-                    PRIMARY KEY(run_id, seq));
-                CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS suites (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-            ''')
-            for table in ('runs', 'tasks', 'notes', 'suites', 'batches', 'schedules'):
-                db.execute(f"CREATE INDEX IF NOT EXISTS {table}_by_module ON {table}(json_extract(body, '$.module'))")
-            for row in db.execute('SELECT id, body FROM runs').fetchall():
-                run = json.loads(row[1])
+        self.repository = None
+        if os.environ.get('WORKBENCH_DATABASE_URL') or (self.directory/'database-url.txt').exists():
+            from .agent_platform.business_records import BusinessRecords
+            self.repository = BusinessRecords(self.directory)
+            for run in self.repository.all('runs'):
                 if run['status'] in ACTIVE:
-                    run.update(status='interrupted', finished_at=time.time(),
-                               error='执行服务已重启；操作未自动重跑，请核对实际业务状态。')
-                    db.execute('UPDATE runs SET body=? WHERE id=?', (encoded(run), row[0]))
-        self.path.chmod(0o600)
+                    run.update(status='interrupted',finished_at=time.time(),error='执行进程已重启；未自动重跑，请核对实际业务状态')
+                    self.repository.put('runs',run,authorize=False)
+        else:
+            with self.db() as db:
+                db.executescript('''
+                    CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS events (run_id TEXT, seq INTEGER, body TEXT NOT NULL,
+                        PRIMARY KEY(run_id, seq));
+                    CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS suites (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                ''')
+                for table in ('runs', 'tasks', 'notes', 'suites', 'batches', 'schedules'):
+                    db.execute(f"CREATE INDEX IF NOT EXISTS {table}_by_module ON {table}(json_extract(body, '$.module'))")
+                for row in db.execute('SELECT id, body FROM runs').fetchall():
+                    run = json.loads(row[1])
+                    if run['status'] in ACTIVE:
+                        run.update(status='interrupted', finished_at=time.time(),
+                                   error='执行服务已重启；操作未自动重跑，请核对实际业务状态。')
+                        db.execute('UPDATE runs SET body=? WHERE id=?', (encoded(run), row[0]))
+            self.path.chmod(0o600)
         self.access = AccessPolicy(self.directory)
         from .workbench_evaluations import Evaluations
         from .workbench_context import ContextStore
@@ -94,6 +103,7 @@ class RunStore:
         self.evaluations.stop.set()
         self.pool.shutdown(wait=True)
         self.controls.shutdown(wait=True)
+        if self.repository: self.repository.engine.dispose()
 
     def enqueue(self, fn_id, work, control=False, context=None):
         context = copy_context() if context is None else context
@@ -117,6 +127,7 @@ class RunStore:
 
     @contextmanager
     def db(self):
+        if self.repository: raise RuntimeError("业务记录已迁入统一数据库，请使用仓储接口")
         connection = sqlite3.connect(self.path, timeout=30)
         try:
             with connection:
@@ -129,6 +140,10 @@ class RunStore:
             raise ValueError('记录类型无效')
         if not isinstance(item_id, str) or not item_id or len(item_id) > 120:
             raise ValueError('记录标识无效')
+        if self.repository:
+            item=self.repository.get(table,item_id)
+            if item is None: raise ValueError('记录不存在')
+            return check(item)
         with self.db() as db:
             row = db.execute(f'SELECT body FROM {table} WHERE id=?', (item_id,)).fetchone()
         if not row:
@@ -136,6 +151,7 @@ class RunStore:
         return check(json.loads(row[0]))
 
     def put(self, table, item):
+        if self.repository: return self.repository.put(table,item)
         if table not in TABLES:
             raise ValueError('记录类型无效')
         with self.db() as db:
@@ -151,11 +167,40 @@ class RunStore:
             db.execute(f'INSERT OR REPLACE INTO {table} VALUES (?, ?)', (item['id'], encoded(item)))
 
     def listing(self, table, module):
+        if self.repository: return self.repository.all(table,identity().project,module,100)
         if table not in TABLES:
             raise ValueError('记录类型无效')
         with self.db() as db:
             rows = db.execute(f"SELECT body FROM {table} WHERE json_extract(body, '$.module')=? AND COALESCE(json_extract(body, '$.project'),'local')=? ORDER BY rowid DESC LIMIT 100", (module, identity().project)).fetchall()
         return [json.loads(row[0]) for row in rows]
+
+    def all_records(self, table):
+        if table not in TABLES: raise ValueError('记录类型无效')
+        if self.repository: return self.repository.all(table)
+        with self.db() as db:
+            return [json.loads(row[0]) for row in db.execute('SELECT body FROM '+table+' ORDER BY rowid DESC')]
+
+    def system_put(self, table, item):
+        if self.repository: return self.repository.put(table,item,authorize=False)
+        with self.db() as db: db.execute('UPDATE '+table+' SET body=? WHERE id=?',(encoded(item),item['id']))
+
+    def pending_count(self):
+        if self.repository: return self.repository.pending()
+        return sum(r['status'] in ACTIVE for r in self.all_records('runs'))
+
+    def trace(self, run_id, after=0, limit=None):
+        if self.repository: return self.repository.trace(run_id,after,limit)
+        with self.db() as db:
+            rows=db.execute('SELECT seq,body FROM events WHERE run_id=? AND seq>? ORDER BY seq',(run_id,after)).fetchall()
+        return rows[:limit] if limit else rows
+
+    def append_event(self, run, body):
+        if self.repository: return self.repository.event(run,body)
+        with self.db() as db:
+            seq=db.execute('SELECT COALESCE(MAX(seq),0)+1 FROM events WHERE run_id=?',(run['id'],)).fetchone()[0]
+            db.execute('INSERT INTO events VALUES (?,?,?)',(run['id'],seq,encoded(body)))
+            db.execute('UPDATE runs SET body=? WHERE id=?',(encoded(run),run['id']))
+        return seq
 
     def catalog(self, module):
         runs = self.listing('runs', module)
@@ -273,12 +318,13 @@ class RunStore:
         return {'module': module, 'action': str(label), 'fn_id': fn_id, 'schema': schema,
                 'input_ids': dependency['inputs']}
 
-    def sanitizer(self, session, submitted):
+    def sanitizer(self, session, submitted, extra_secrets=()):
         components = self.executor.blocks.config['components']
         sensitive = {str(c['id']) for c in components if c['props'].get('type') == 'password' or
                      SECRET.search(str(c['props'].get('label', '')))}
         values = {**self.executor.session(session)['values'], **submitted}
         secrets = [str(v) for k, v in values.items() if k in sensitive and isinstance(v, str) and v]
+        secrets.extend(extra_secrets)
         secrets.extend(value for name, value in os.environ.items() if value and
                        (SECRET.search(name) or re.search(r'(?:^|_)TOKEN$', name)))
         def clean(value, key=''):
@@ -321,7 +367,22 @@ class RunStore:
                         raise ValueError('任务所需的服务端密钥引用尚未配置：' + variable)
                     inputs[cid] = value
         user_inputs = clean(self.executor.export(inputs))
-        binding = task.get('context_binding') if task else None
+        supply=(metadata or {}).get('supply',{})
+        binding = task.get('context_binding') if task else supply.get('context_binding')
+        if binding and binding.get('component_id') not in self.context_inputs(fn_id):
+            raise ValueError('上下文目标字段不属于本次操作')
+        model_service=None
+        model_id=task.get('model_id') if task else supply.get('model_id')
+        if model_id:
+            from .agent_platform.database import connect,ModelService
+            from .agent_platform.common import get,public
+            engine,factory=connect(self.directory)
+            try:
+                with factory() as db:model_service=public(get(db,ModelService,model_id))
+            finally:engine.dispose()
+            if model_service['has_credential']:
+                credential=(self.directory/'model-credentials'/(model_service['id']+'.txt')).read_text().strip()
+                clean=self.sanitizer(session,submitted,[credential])
         assembled = None
         original_text = None
         if binding:
@@ -340,7 +401,7 @@ class RunStore:
                'started_at': time.time(), 'finished_at': None, 'inputs': snapshot,
                'event': clean(event), 'outputs': {}, 'task_id': task_id, 'task_version': task.get('version', 1) if task else None,
                'runtime_id': self.executor.instance_id, 'user_inputs': user_inputs,
-               'context_binding': binding, 'secret_env': task.get('secret_env', {}) if task else {},
+               'context_binding': binding, 'model_service': model_service, 'secret_env': task.get('secret_env', {}) if task else {},
                'metadata': clean(metadata or {}), 'usage': [], 'artifacts': [], 'reviews': [],
                'code': self.code, 'project': identity().project, 'actor': identity().public(),
                '_execution_identity': identity().claim(),
@@ -354,16 +415,13 @@ class RunStore:
         run, descriptor, control, task, clean, inputs, binding, assembled, original_text = (
             plan[key] for key in ('run', 'descriptor', 'control', 'task', 'clean', 'inputs', 'binding', 'assembled', 'original_text'))
         with self.lock:
-            with self.db() as db:
-                existing = db.execute('SELECT body FROM runs WHERE id=?', (run['id'],)).fetchone()
+            try: existing=self.get('runs',run['id'])
+            except ValueError: existing=None
             if existing:
-                existing = json.loads(existing[0])
-                check(existing)
                 if existing.get('actor', {}).get('id', identity().id) != identity().id or existing['session'] != session or existing['fn_id'] != fn_id:
                     raise ValueError('运行请求标识已被其他操作使用')
                 return {'run_id': existing['id'], 'config_version': existing['config_version']}
-            with self.db() as db:
-                pending = db.execute("SELECT COUNT(*) FROM runs WHERE json_extract(body, '$.status') IN ('queued','running','awaiting_review')").fetchone()[0]
+            pending = self.pending_count()
             if pending >= 200 and not control:
                 raise ValueError('运行队列已满，请等待或取消未执行任务')
             lease = self.executor.pin(session, inputs)
@@ -409,11 +467,7 @@ class RunStore:
                     if run['id'] in self.cancel_requests:
                         run['cancel_requested'] = True
                     run['outputs'].update(safe.get('updates', {}))
-                    with self.db() as db:
-                        seq = db.execute('SELECT COALESCE(MAX(seq), 0)+1 FROM events WHERE run_id=?',
-                                         (run['id'],)).fetchone()[0]
-                        db.execute('INSERT INTO events VALUES (?, ?, ?)', (run['id'], seq, encoded(safe)))
-                        db.execute('UPDATE runs SET body=? WHERE id=?', (encoded(run), run['id']))
+                    seq = self.append_event(run, safe)
                     self.live[run['id']][seq] = live
                     # The database holds the complete trace; retain only recent live previews.
                     for old_seq in list(self.live[run['id']])[:-8]:
@@ -421,9 +475,16 @@ class RunStore:
                     self.condition.notify_all()
             try:
                 # Live events use the original values, while durable evidence is redacted.
-                with observe_usage() as usage:
+                from .business_execution import execution_scope
+                with execution_scope(run,self.directory,self), observe_usage() as usage:
                     self.executor.execute(session, fn_id, execution_values, event, emit=emit)
                     run['usage'] = clean(usage)
+                training=run.get('training')
+                if training and run['id'] not in self.cancel_requests:
+                    if training.get('return_code') not in (None,0):
+                        raise RuntimeError('原生训练失败，退出代码 '+str(training['return_code'])+'；请查看统一作业日志')
+                    if training.get('artifact_error'):
+                        raise RuntimeError('训练产物登记失败：'+training['artifact_error'])
                 run['callback_finished_at'] = time.time()
                 run['status'] = 'stopped' if run['id'] in self.cancel_requests else 'completed'
                 if task:
@@ -442,8 +503,7 @@ class RunStore:
                 with self.condition:
                     self.put('runs', run)
                     # Only previews need temporary URLs; durable records never contain them.
-                    with self.db() as db:
-                        ended = {row[0] for row in db.execute("SELECT id FROM runs WHERE json_extract(body, '$.status') NOT IN ('queued','running','awaiting_review')")}
+                    ended = {r['id'] for r in self.all_records('runs') if r['status'] not in ACTIVE}
                     finished = [key for key in self.live if key in ended]
                     for key in finished[:-20]:
                         del self.live[key]
@@ -467,6 +527,9 @@ class RunStore:
                     raise ValueError('本次运行已结束')
                 if run['status'] == 'running':
                     self.cancel_requests.add(run_id)
+                    import sys
+                    trainer=sys.modules.get('src.search_engine.training_tab.llamafactory_trainer')
+                    if trainer:trainer.stop_training_for_run(run_id)
                     self.executor.session(run['session'])['cancelled'].add(run['fn_id'])
                     run['cancel_requested'] = True
                 else:
@@ -494,9 +557,7 @@ class RunStore:
         self.get('runs', run_id)
         while True:
             with self.condition:
-                with self.db() as db:
-                    rows = db.execute('SELECT seq, body FROM events WHERE run_id=? AND seq>? ORDER BY seq',
-                                      (run_id, after)).fetchall()
+                rows = self.trace(run_id,after)
                 run = self.get('runs', run_id)
                 if not rows and run['status'] in ACTIVE:
                     self.condition.wait(10)
@@ -517,6 +578,7 @@ class RunStore:
             raise ValueError('请填写任务验收要点（2000 字以内）')
         task = {k: run[k] for k in ('module', 'action', 'fn_id', 'schema', 'inputs', 'event', 'config_version')}
         task['inputs'] = run.get('user_inputs', run['inputs'])
+        if run.get('model_service'):task['model_id']=run['model_service']['id']
         from .workbench_evaluations import validate_rules
         if not isinstance(requires_review, bool):
             raise ValueError('放行设置无效')

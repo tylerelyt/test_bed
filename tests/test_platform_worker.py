@@ -14,7 +14,7 @@ class WorkerProcessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)
             (directory/'database-url.txt').write_text('sqlite:///'+str(directory/'platform.sqlite3'))
-            env = {**os.environ, 'WORKBENCH_STATE_DIR':folder}
+            env = {**os.environ, 'WORKBENCH_STATE_DIR':folder, 'WORKBENCH_BUSINESS_PORT':'0'}
             env.pop('WORKBENCH_DATABASE_URL', None)
             marker = directory/'agent-worker.json'
             with (directory/'worker.log').open('wb') as log:

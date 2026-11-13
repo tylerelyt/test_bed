@@ -21,8 +21,10 @@ def main():
     platform = AgentPlatform(directory, ContextStore(directory), AccessPolicy(directory), background=False)
     platform.runs.recover()
     platform.jobs.start_worker()
+    from .agent_platform.business_runtime import BusinessRuntime
+    business = BusinessRuntime(directory)
     marker = directory / 'agent-worker.json'
-    private_write(marker, json.dumps({'pid': os.getpid()}))
+    private_write(marker, json.dumps({'pid': os.getpid(), 'business_port':business.server.server_port}))
     for signum in (signal.SIGTERM, signal.SIGINT):
         def stop(*_):
             # Signal handlers must not acquire Event/Condition locks: a signal
@@ -33,6 +35,7 @@ def main():
     try:
         platform.runs.loop()
     finally:
+        business.close()
         platform.close()
         marker.unlink(missing_ok=True)
         lock.close()

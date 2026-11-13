@@ -13,7 +13,7 @@ import re
 
 # 尝试导入 OpenAI 客户端
 try:
-    from openai import OpenAI
+    from ..business_execution import OpenAI
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False

@@ -191,7 +191,7 @@ def create_smart_agent_demo():
             # 调用LLM进行工具选择
             try:
                 import openai
-                from openai import OpenAI
+                from ..business_execution import OpenAI
                 
                 client = OpenAI(
                     api_key=os.getenv("DASHSCOPE_API_KEY"),
@@ -410,7 +410,7 @@ def create_smart_agent_demo():
             # 调用LLM进行模板选择
             try:
                 import openai
-                from openai import OpenAI
+                from ..business_execution import OpenAI
                 
                 client = OpenAI(
                     api_key=os.getenv("DASHSCOPE_API_KEY"),

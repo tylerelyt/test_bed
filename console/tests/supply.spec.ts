@@ -3,10 +3,7 @@ import { test, expect } from "@playwright/test";
 test("主导航、文件导入、固定训练数据与真实环境状态", async ({ page }) => {
   const suffix = Date.now().toString();
   await page.goto("/");
-  await expect(page.locator(".legacy-navigation")).not.toHaveAttribute(
-    "open",
-    "",
-  );
+  await expect(page.locator(".legacy-navigation")).toHaveAttribute("open", "");
   await page.getByRole("button", { name: "上下文供应", exact: true }).click();
   await page.getByText("从文件导入资料", { exact: true }).click();
   await page.getByLabel("资料文件", { exact: true }).setInputFiles({
@@ -71,7 +68,11 @@ test("主导航、文件导入、固定训练数据与真实环境状态", async
     await page.setViewportSize({ width, height: 900 });
     for (const name of ["上下文供应", "模型供应", "作业管理", "运行环境"]) {
       await page.getByRole("button", { name, exact: true }).click();
-      await expect.poll(()=>page.evaluate(()=>(window as any).__verify.current().verdict)).toBe('PASS');
+      await expect
+        .poll(() =>
+          page.evaluate(() => (window as any).__verify.current().verdict),
+        )
+        .toBe("PASS");
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth + 1,

@@ -10,6 +10,7 @@ type Job = {
   error: string;
   result: Record<string, unknown>;
   log?: string;
+  module?: string;
 };
 const states: Record<string, string> = {
   queued: "排队中",
@@ -20,18 +21,23 @@ const states: Record<string, string> = {
   completed: "已完成",
   failed: "失败",
   interrupted: "已中断，请核对",
+  stopped: "已停止",
+  awaiting_review: "待人工放行",
+  rejected: "未放行",
 };
 const kinds: Record<string, string> = {
   import: "资料导入",
   train: "模型训练",
   merge: "合并导出",
   deploy: "模型部署",
+  business: "业务操作",
 };
 export default function SupplyJobs({ kind }: { kind?: string }) {
   const [jobs, setJobs] = useState<Job[]>([]),
     [loaded, setLoaded] = useState(false),
     [selected, setSelected] = useState<Job | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
   useEffect(() => {
     let live = true;
     async function refresh() {
@@ -90,13 +96,14 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
       <h2>供应作业</h2>
       <p className="run-help">
         资料导入、训练和模型部署共用本机作业队列；岗位 Agent
-        由独立的执行队列处理。
+        由独立的执行队列处理。检索、图谱、多模态、训练与评测运行也在这里统一查看。
       </p>
       {error && (
         <p role="alert" className="inline-error">
           {error}
         </p>
       )}
+      {notice && <p role="status">{notice}</p>}
       {!jobs.length && <p>暂无作业。</p>}
       {jobs.map((job) => (
         <div
@@ -107,7 +114,8 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
           <div>
             <strong>{job.name}</strong>
             <p>
-              {kinds[job.kind]} · {states[job.status] || job.status}
+              {job.module || kinds[job.kind]} ·{" "}
+              {states[job.status] || job.status}
             </p>
             {job.error && <p>{job.error}</p>}
           </div>
@@ -122,6 +130,25 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
             {selected.name} · {states[selected.status]}
           </h3>
           <p>作业编号：{selected.id}</p>
+          {selected.kind === "business" && selected.status === "completed" && (
+            <button
+              className="secondary"
+              onClick={() =>
+                void api("business-runs/" + selected.id.slice(9) + "/publish", {
+                  name: selected.name + " · 运行结果",
+                  kind: "knowledge",
+                })
+                  .then(() =>
+                    setNotice(
+                      "已发布到上下文资源库，请在上下文供应中刷新并组合配置。",
+                    ),
+                  )
+                  .catch((e) => setError(e.message))
+              }
+            >
+              发布输出为上下文资源
+            </button>
+          )}
           {selected.error && <p role="alert">{selected.error}</p>}
           <pre>{JSON.stringify(selected.result, null, 2)}</pre>
           <h4>原生进程日志（最近 32 KB）</h4>

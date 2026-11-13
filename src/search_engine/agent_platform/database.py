@@ -122,6 +122,25 @@ class Job(Owned, Base):
     finished_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class BusinessRecord(Base):
+    __tablename__ = 'business_records'
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(24))
+    id: Mapped[str] = mapped_column(String(120))
+    project: Mapped[str] = mapped_column(String(80), index=True)
+    module: Mapped[str] = mapped_column(String(200), default='', index=True)
+    status: Mapped[str] = mapped_column(String(32), default='', index=True)
+    body: Mapped[dict] = mapped_column(JSON)
+    __table_args__ = (UniqueConstraint('kind', 'id'),)
+
+
+class BusinessEvent(Base):
+    __tablename__ = 'business_events'
+    run_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+
+
 def connect(directory, url=None):
     directory = Path(directory)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)

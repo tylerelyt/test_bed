@@ -2,6 +2,9 @@
 import argparse
 import mimetypes
 import threading
+import os
+from pathlib import Path
+from types import SimpleNamespace
 from contextlib import asynccontextmanager
 from http.server import ThreadingHTTPServer
 
@@ -15,9 +18,22 @@ from .agent_platform.service import AgentPlatform
 from .workbench_access import AccessDenied, require_business, require_operator
 
 
-def create_app(executor=None, records=None, database_url=None, embedded_worker=False):
+def create_app(executor=None, records=None, database_url=None, embedded_worker=False, external_worker=False):
     @asynccontextmanager
     async def lifespan(app):
+        if external_worker:
+            from .workbench_access import AccessPolicy
+            from .workbench_context import ContextStore
+            directory=Path(os.environ.get('WORKBENCH_STATE_DIR') or Path(__file__).resolve().parents[2]/'.workbench')
+            active_records=SimpleNamespace(directory=directory,access=AccessPolicy(directory),context=ContextStore(directory))
+            platform=AgentPlatform(directory,active_records.context,active_records.access,database_url,background=False)
+            app.state.records,app.state.platform=active_records,platform
+            async with httpx.AsyncClient(timeout=None) as client:
+                app.state.client=client
+                app.state.legacy='http://127.0.0.1:'+os.environ.get('WORKBENCH_BUSINESS_PORT','8767')
+                yield
+            platform.close()
+            return
         from .native_runtime import runtime
         from .workbench_api import make_handler
         from .workbench_runs import RunStore
@@ -127,15 +143,40 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
 
     @app.get('/api/platform/jobs')
     def jobs():
-        return app.state.platform.jobs.listing()
+        return sorted(app.state.platform.jobs.listing()+app.state.platform.business.listing(),key=lambda x:x.get('created_at',0),reverse=True)
+
+    def business_log(run_id):
+        path=app.state.platform.directory/'business-processes'/run_id/'process.log'
+        if not path.is_file():return '业务事件与输出保存在统一数据库；详细回放见模块运行记录。'
+        with path.open('rb') as stream:
+            stream.seek(max(0,path.stat().st_size-32000))
+            return stream.read(32000).decode('utf-8',errors='replace')
 
     @app.get('/api/platform/jobs/{job_id}')
-    def job_detail(job_id: str):
+    async def job_detail(job_id: str, request: Request):
+        if job_id.startswith('business:'):
+            response=await app.state.client.get(app.state.legacy+'/api/native/runs/'+job_id[9:],
+                headers={'Authorization':request.headers.get('authorization','')})
+            if response.status_code!=200:return JSONResponse(response.json(),status_code=response.status_code)
+            run=response.json()
+            return {'id':job_id,'name':run['action'],'kind':'business','status':run['status'],
+                'error':run.get('error',''),'result':{'outputs':run.get('outputs',{}),'artifacts':run.get('artifacts',[]),
+                'context':run.get('context'),'model_service':run.get('model_service'),'training':run.get('training')},
+                'log':business_log(run['id'])}
         return app.state.platform.jobs.detail(job_id)
 
     @app.post('/api/platform/jobs/{job_id}/cancel')
-    def job_cancel(job_id: str, data: dict):
+    async def job_cancel(job_id: str, data: dict, request: Request):
+        if job_id.startswith('business:'):
+            response=await app.state.client.post(app.state.legacy+'/api/native/runs/control',
+                headers={'Authorization':request.headers.get('authorization','')},json={'run_id':job_id[9:],'action':'cancel'})
+            if response.status_code!=200:return JSONResponse(response.json(),status_code=response.status_code)
+            return await job_detail(job_id,request)
         return app.state.platform.jobs.cancel(job_id)
+
+    @app.post('/api/platform/business-runs/{run_id}/publish')
+    def publish_business(run_id: str, data: dict):
+        return app.state.platform.business.publish(run_id,data.get('name'),data.get('kind','knowledge'))
 
     @app.post('/api/platform/positions')
     def position(data: dict):
@@ -185,7 +226,10 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
         upstream = app.state.client.build_request(request.method, app.state.legacy + request.url.path +
                    ('?' + request.url.query if request.url.query else ''), headers=headers,
                    content=request.stream() if request.method != 'GET' else None)
-        response = await app.state.client.send(upstream, stream=True)
+        try:
+            response = await app.state.client.send(upstream, stream=True)
+        except httpx.RequestError:
+            return JSONResponse({'error':'业务执行进程未连接，请检查 platform_worker 日志'},status_code=503)
         return StreamingResponse(response.aiter_raw(), status_code=response.status_code,
             headers={key:value for key,value in response.headers.items() if key.lower() not in ('connection', 'transfer-encoding', 'server', 'date')},
             background=BackgroundTask(response.aclose))
@@ -197,7 +241,7 @@ def main():
     parser = argparse.ArgumentParser(description='岗位 Agent 平台与原模块兼容服务')
     parser.add_argument('--port', type=int, default=8766)
     args = parser.parse_args()
-    uvicorn.run(create_app(), host='127.0.0.1', port=args.port)
+    uvicorn.run(create_app(external_worker=True), host='127.0.0.1', port=args.port)
 
 
 if __name__ == '__main__':
