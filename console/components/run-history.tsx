@@ -58,11 +58,13 @@ export default function RunHistory({
   revision,
   labels,
   actions,
+  fnIds,
   onRestore,
   onReconnect,
   activeTask,onExitPreset,onPresetPending,
 }: {
   module: string;
+  fnIds?: number[];
   revision: number;
   activeTask:SavedTask|null;onExitPreset:()=>void;onPresetPending:(pending:boolean)=>void;
   labels: Record<string, string>;
@@ -101,9 +103,24 @@ export default function RunHistory({
   );
   const currentTask = data.tasks.find((task) => task.id === taskId);
   const selectedRef = useRef("");
+  const fnKey = fnIds?.join(",");
+  function scoped(catalog: Catalog): Catalog {
+    if (!fnIds) return catalog;
+    const runs = catalog.runs.filter((run) => fnIds.includes(run.fn_id));
+    const tasks = catalog.tasks.filter((task) => fnIds.includes(task.fn_id));
+    const taskIds = new Set(tasks.map((task) => task.id));
+    const runIds = new Set(runs.map((run) => run.id));
+    const suites = catalog.suites.filter((suite) => suite.task_ids.length > 0 && suite.task_ids.every((id) => taskIds.has(id)));
+    const suiteIds = new Set(suites.map((suite) => suite.id));
+    return { runs, tasks, suites,
+      notes: catalog.notes.filter((note) => runIds.has(note.source_run) || note.source_runs?.some((id) => runIds.has(id))),
+      batches: catalog.batches.filter((batch) => suiteIds.has(batch.suite_id)),
+      schedules: catalog.schedules.filter((schedule) => suiteIds.has(schedule.suite_id)),
+    };
+  }
   async function refresh() {
     const catalog = await request("runs?module=" + encodeURIComponent(module));
-    setData(catalog);
+    setData(scoped(catalog));
   }
   async function act(work: () => Promise<void>) {
     setPending(true);
@@ -133,14 +150,14 @@ export default function RunHistory({
     setMessage("");
     setError("");
     setView("runs");
-  }, [module]);
+  }, [module, fnKey]);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const load = () =>
       request("runs?module=" + encodeURIComponent(module))
         .then((value) => {
-          if (!cancelled) setData(value);
+          if (!cancelled) setData(scoped(value));
         })
         .catch((e) => {
           if (!cancelled) setError(e.message);
@@ -151,7 +168,7 @@ export default function RunHistory({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [open, module, revision]);
+  }, [open, module, revision, fnKey]);
   useEffect(() => {
     if (!open || !selected) return;
     let cancelled = false;
@@ -257,7 +274,7 @@ export default function RunHistory({
       data-verify-view={view}
     >
       <summary>
-        任务与运行记录 <span>上下文配置 · 执行证据 · 任务验证</span>
+        任务与运行记录 <span>操作参数 · 运行证据 · 任务验证</span>
       </summary>
       {open && (
         <div className="run-history-body">
@@ -297,6 +314,7 @@ export default function RunHistory({
             ) : view === "evaluations" ? (
               <EvaluationSuites
                 module={module}
+                fnIds={fnIds}
                 suites={data.suites}
                 batches={data.batches}
                 schedules={data.schedules}

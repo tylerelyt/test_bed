@@ -25,6 +25,39 @@ class UnifiedEvaluations(old_evaluations.EvaluationTests):
         self.store=RunStore(self.runtime,self.store.directory);self.addCleanup(self.store.close);self.eval=self.store.evaluations
 
 class BusinessSupplyTests(unittest.TestCase):
+    def test_job_api_only_manages_submitted_supply_jobs_and_preserves_callback_history(self):
+        from fastapi.testclient import TestClient
+        from src.search_engine.platform_api import create_app
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'database-url.txt').write_text('sqlite:///'+str(root/'platform.sqlite3'))
+            with gr.Blocks() as blocks:
+                with gr.Tab('检索'):
+                    output=gr.JSON()
+                    gr.Button('查看状态').click(lambda:{'ready':True},[],output)
+            runtime=NativeRuntime(lambda:blocks);store=RunStore(runtime,root)
+            try:
+                runtime.layout('session');fn=next(iter(blocks.fns))
+                run=store.start('session',fn,{})
+                list(store.events(run['run_id']))
+                token=(root/'bootstrap-access.txt').read_text().strip()
+                with TestClient(create_app(runtime,store)) as client:
+                    client.headers['Authorization']='Bearer '+token
+                    self.assertEqual(client.get('/api/platform/jobs').json(),[])
+                    job=client.post('/api/platform/context-supply/import',json={
+                        'name':'真实导入作业','request_id':__import__('uuid').uuid4().hex,
+                        'filename':'policy.md','content_base64':'YQ=='}).json()
+                    rows=client.get('/api/platform/jobs').json()
+                    self.assertEqual([row['id'] for row in rows],[job['id']])
+                    self.assertEqual(rows[0]['kind'],'import')
+                    pseudo='/api/platform/jobs/business:'+run['run_id']
+                    self.assertEqual(client.get(pseudo).status_code,400)
+                    self.assertEqual(client.post(pseudo+'/cancel',json={}).status_code,400)
+                    self.assertEqual(client.get('/api/native/runs/'+run['run_id']).json()['status'],'completed')
+                    self.assertEqual(client.post('/api/platform/jobs/'+job['id']+'/cancel',json={}).json()['status'],'cancelled')
+                self.assertEqual(store.get('runs',run['run_id'])['outputs'][str(output._id)]['value'],{'ready':True})
+            finally:store.close();runtime.close()
+
     def test_legacy_callback_cannot_override_model_or_be_published_as_knowledge(self):
         from fastapi.testclient import TestClient
         from src.search_engine.platform_api import create_app

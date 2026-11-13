@@ -42,7 +42,7 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
     })
   ).json();
   expect(bundle.id).toBeTruthy();
-  await page.getByRole("tab", { name: "模型服务", exact: true }).click();
+  await page.getByRole("button", { name: "模型供应", exact: true }).click();
   await page
     .getByLabel("服务名称", { exact: true })
     .fill("本地协议测试" + suffix);
@@ -58,6 +58,7 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
   await expect(
     page.getByLabel("服务密钥（可选）", { exact: true }),
   ).toHaveValue("");
+  await page.getByRole("button", { name: "岗位 Agent", exact: true }).click();
   await page.getByRole("tab", { name: "发布与运行", exact: true }).click();
   await page
     .getByLabel("预配的上下文", { exact: true })
@@ -92,7 +93,7 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
     page.locator(".agent-row").filter({ hasText: "采购助理" + suffix }),
   ).toContainText("已有采用版本");
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const name of ["岗位与 Agent", "上下文配置", "模型服务", "发布与运行"]) {
+  for (const name of ["岗位与 Agent", "发布与运行", "桌面 Agent"]) {
     await page.getByRole("tab", { name, exact: true }).click();
     expect(
       await page.evaluate(

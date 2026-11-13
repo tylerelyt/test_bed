@@ -192,35 +192,14 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
 
     @app.get('/api/platform/jobs')
     def jobs():
-        return sorted(app.state.platform.jobs.listing()+app.state.platform.business.listing(),key=lambda x:x.get('created_at',0),reverse=True)
-
-    def business_log(run_id):
-        path=app.state.platform.directory/'business-processes'/run_id/'process.log'
-        if not path.is_file():return '业务事件与输出保存在统一数据库；详细回放见模块运行记录。'
-        with path.open('rb') as stream:
-            stream.seek(max(0,path.stat().st_size-32000))
-            return stream.read(32000).decode('utf-8',errors='replace')
+        return app.state.platform.jobs.listing()
 
     @app.get('/api/platform/jobs/{job_id}')
-    async def job_detail(job_id: str, request: Request):
-        if job_id.startswith('business:'):
-            response=await app.state.client.get(app.state.legacy+'/api/native/runs/'+job_id[9:],
-                headers={'Authorization':request.headers.get('authorization','')})
-            if response.status_code!=200:return JSONResponse(response.json(),status_code=response.status_code)
-            run=response.json()
-            return {'id':job_id,'name':run['action'],'kind':'business','status':run['status'],
-                'error':run.get('error',''),'result':{'outputs':run.get('outputs',{}),'artifacts':run.get('artifacts',[]),
-                'context':run.get('context'),'model_service':run.get('model_service'),'training':run.get('training')},
-                'log':business_log(run['id'])}
+    def job_detail(job_id: str):
         return app.state.platform.jobs.detail(job_id)
 
     @app.post('/api/platform/jobs/{job_id}/cancel')
-    async def job_cancel(job_id: str, data: dict, request: Request):
-        if job_id.startswith('business:'):
-            response=await app.state.client.post(app.state.legacy+'/api/native/runs/control',
-                headers={'Authorization':request.headers.get('authorization','')},json={'run_id':job_id[9:],'action':'cancel'})
-            if response.status_code!=200:return JSONResponse(response.json(),status_code=response.status_code)
-            return await job_detail(job_id,request)
+    def job_cancel(job_id: str, data: dict):
         return app.state.platform.jobs.cancel(job_id)
 
     @app.post('/api/platform/business-runs/{run_id}/publish')

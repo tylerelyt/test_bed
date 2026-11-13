@@ -67,6 +67,7 @@ type SuiteComparison = {
 };
 export default function EvaluationSuites({
   module,
+  fnIds,
   suites,
   batches,
   schedules,
@@ -75,6 +76,7 @@ export default function EvaluationSuites({
   onRun,
 }: {
   module: string;
+  fnIds?: number[];
   suites: Suite[];
   batches: { id: string; suite_id: string; created_at: number }[];
   schedules: Schedule[];
@@ -106,9 +108,9 @@ export default function EvaluationSuites({
     [comparison, setComparison] = useState<SuiteComparison | null>(null);
   useEffect(() => {
     void request("evaluations")
-      .then((data) => setTasks(data.tasks))
+      .then((data) => setTasks(fnIds ? data.tasks.filter((task: SavedTask) => fnIds.includes(task.fn_id)) : data.tasks))
       .catch((e) => setError(e.message));
-  }, [module, suites.length]);
+  }, [module, suites.length, fnIds?.join(",")]);
   useEffect(() => {
     setSuiteId("");
     setBatchId("");

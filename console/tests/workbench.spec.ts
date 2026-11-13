@@ -2,6 +2,7 @@ import { test, expect, Page } from "@playwright/test";
 
 async function open(page: Page) {
   await page.goto("/");
+  await page.getByRole("button", {name:"上下文供应",exact:true}).click();
   await page.getByRole("button", {name:"离线索引构建",exact:true}).click();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),
@@ -87,22 +88,24 @@ test("控制台同源保护及服务端身份不受浏览器凭证覆盖", async
   expect((await request.post('/api/native/upload',{data:''})).status()).toBe(400);
 });
 
-test("八模块机器可读约定与移动端", async ({ page }) => {
+test("业务能力归入供应入口，机器可读约定与移动端", async ({ page }) => {
   await open(page);
   const names = [
-    "离线索引构建",
-    "在线召回排序",
-    "RAG",
-    "OAG 图谱推理",
-    "上下文工程",
-    "多模态系统",
-    "数据回收训练",
-    "系统监控",
+    ["上下文供应", "离线索引构建"],
+    ["上下文供应", "在线召回排序"],
+    ["上下文供应", "RAG"],
+    ["上下文供应", "OAG 图谱推理"],
+    ["上下文供应", "上下文工程"],
+    ["上下文供应", "图片资料"],
+    ["模型供应", "训练与评测"],
+    ["运行环境", "系统监控"],
   ];
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 950 });
-    for (const name of names) {
+    for (const [domain, name] of names) {
+      await page.getByRole("button", {name:domain,exact:true}).click();
       await page.getByRole("button", { name, exact: true }).click();
+      await expect(page.locator('[data-verify-unit="NativeWorkbench"]')).toHaveAttribute("data-verify-state", "ready");
       const result = await page.evaluate(() =>
         (window as any).__verify.current(),
       );

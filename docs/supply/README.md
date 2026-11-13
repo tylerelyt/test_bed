@@ -4,7 +4,7 @@
 
 [本轮验收记录](validation/README.md)。
 
-平台现在有三个关联的交付物：有版本的上下文配置、可以调用的模型服务、固定了 Harness 与这两项依赖的 Agent 发布包。原八个业务模块保留在“业务处理与验证”；业务服务和供应服务通过明确的资料、索引、数据集和模型产物连接，详见[实际接入范围](business/README.md)。共用数据库与 worker 本身不代表业务接入完成。
+平台现在有三个关联的交付物：有版本的上下文配置、可以调用的模型服务、固定了 Harness 与这两项依赖的 Agent 发布包。索引、检索、RAG/OAG、MCP 和图片资料在上下文供应，训练评测及图像生成在模型供应；不再另设“业务处理与验证”入口。业务服务通过明确的资料、索引、数据集和模型产物连接，详见[实际接入范围](business/README.md)。共用数据库与 worker 本身不代表业务接入完成。
 
 ## 上下文供应
 
@@ -62,6 +62,8 @@ export WORKBENCH_INFER_PYTHON=/srv/envs/inference/bin/python
 训练/导出协议按现有 LLaMA-Factory 0.9.1 接入；推理使用 vLLM OpenAI 服务入口。升级原生组件后须重新验证适配与模型组合，不能仅凭包名判断兼容。接口依据：[LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory)、[vLLM 在线服务](https://docs.vllm.ai/en/latest/serving/online_serving/)。
 
 ## 作业与进程
+
+“作业管理”只列出供应服务明确提交的资料导入、训练、合并和部署作业。查看状态、检索查询、页面回调和验证结果不会成为供应作业；这些操作的历史在对应能力内查看。岗位任务及其原生会话在“岗位 Agent → 发布与运行”查看。
 
 一个 `platform_worker` 进程持有本机文件锁，分别处理岗位运行队列与供应作业队列。岗位一次运行一个 Pi；供应作业最多两个并发，长训练不阻塞 API 或岗位队列。部署持续占用一个供应作业槽，不代表自动 GPU 调度；同机资源不足时应停止推理再训练。
 

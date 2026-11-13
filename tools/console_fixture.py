@@ -34,6 +34,13 @@ def main():
                                 record_usage(SimpleNamespace(model='fixture', usage={'prompt_tokens': 10, 'completion_tokens': 5}), 'fixture')
                                 return {'answer': text, 'documents': ['doc1'], 'algorithm': algorithm, 'score': .8}, str(report)
                             gr.Button('执行检索').click(search, [query, rank], [output, artifact], api_name='search')
+                        elif index == 5:
+                            with gr.Tabs():
+                                for label in ('图片上传','图搜图','文搜图','图片管理','图像生成','GUI-Agent'):
+                                    with gr.Tab(label):
+                                        gr.Markdown('当前能力：'+label)
+                                        output=gr.JSON(label=label+'结果')
+                                        gr.Button('查看'+label+'状态').click(lambda:{'ready':True},[],output)
                         elif index == 2:
                             text = gr.Textbox(label='问题', value='刷新验证')
                             output = gr.Textbox(label='回答')

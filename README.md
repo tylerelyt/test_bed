@@ -11,25 +11,25 @@ Agent 由 Harness 和模型组成，平台另外管理它引用的上下文。�
 ## 平台入口
 
 - **岗位 Agent**：岗位职责、Agent、固定组合的候选版本、原生 Pi 试运行与人工采用。
-- **上下文供应**：文件导入、资源版本、供应配置和实际装配；控制台、MCP 和岗位发布共用一份记录。
-- **模型供应**：训练数据校验、模型产物登记、LLaMA-Factory 训练与合并、vLLM 部署，以及外部模型服务接入。
-- **作业管理**：排队、执行、停止、原生进程日志与结果；部署实际就绪后才登记为模型服务。
-- **运行环境**：数据库、独立执行进程、Pi、解析和训练推理环境的实际安装状态。
+- **上下文供应**：文档与索引、召回排序、RAG/OAG、MCP 上下文装配、图片资料，以及资源版本和岗位供应配置。
+- **模型供应**：数据集、CPT/SFT/DPO、偏好与评测、CTR 和表示学习、CLIP、图像生成，以及模型产物、服务登记与部署。
+- **作业管理**：只管理实际提交的导入、训练、合并和部署作业，查看状态、停止、日志与结果；检索和验证历史留在相应能力内。
+- **运行环境**：数据库、独立执行进程、Pi、训练推理环境的安装状态，以及原系统监控能力。
 
-[供应流程与运维说明](docs/supply/README.md)。八个模块默认展开在“业务处理与验证”，共用统一运行、评测和产物记录，继续复用原函数和交互：
+[供应流程与运维说明](docs/supply/README.md)。原功能已按职责放回各供应入口，继续复用原数据、函数和交互；侧栏不再另设“业务处理与验证”。
 
-## 业务处理与验证
+## 能力所在位置
 
-| 工作台入口 | 主要工作 | 使用说明 |
+| 所在位置 | 主要工作 | 使用说明 |
 | --- | --- | --- |
-| 离线索引构建 | 查看文档与倒排索引，浏览图谱、审阅三元组 | [索引与检索](docs/search-recommendation/README.md) |
-| 在线召回排序 | TF-IDF 召回、CTR 重排、结果详情与点击反馈 | [检索与排序](docs/search-recommendation/README.md) |
-| RAG | 用文档检索结果组织回答，核对上下文与实际提示词 | [文档问答](docs/rag/README.md) |
-| OAG 图谱推理 | 通过实体关系、图谱游走和逐步事实组织回答 | [图谱推理](docs/rag/README.md#图谱推理) |
-| 上下文工程 | MCP 模板选择、占位符替换、推理与历史更新 | [上下文与 MCP](docs/context-engineering/README.md) |
-| 多模态系统 | 图片检索、图像生成与桌面任务 | [多模态](docs/multimodal/README.md) · [桌面智能体](docs/gui-agent/README.md) |
-| 数据回收训练 | CPT/SFT/DPO、偏好采集、CTR 评估与表示学习实验 | [训练与反馈](docs/llmops/README.md) |
-| 系统监控 | 查看数据、索引、质量、性能与模型状态 | [验证工具](tools/README.md) |
+| 上下文供应 → 离线索引构建 | 查看文档与倒排索引，浏览图谱、审阅三元组 | [索引与检索](docs/search-recommendation/README.md) |
+| 上下文供应 → 在线召回排序 | TF-IDF 召回、CTR 重排、结果详情与点击反馈 | [检索与排序](docs/search-recommendation/README.md) |
+| 上下文供应 → RAG / OAG 图谱推理 | 核对文档、图谱事实、回答依据与实际提示词 | [RAG 与 OAG](docs/rag/README.md) |
+| 上下文供应 → 上下文工程 | MCP 模板选择、占位符替换、推理与历史更新 | [上下文与 MCP](docs/context-engineering/README.md) |
+| 上下文供应 → 图片资料 | 图片入库、图搜图、文搜图及图片管理 | [多模态](docs/multimodal/README.md) |
+| 模型供应 → 训练与评测 / 图像生成 | CPT/SFT/DPO、偏好采集、CTR、表示学习、CLIP 和图像模型验证 | [训练与反馈](docs/llmops/README.md) |
+| 岗位 Agent → 桌面 Agent | GUI Agent 与 OSWorld 桌面任务 | [桌面智能体](docs/gui-agent/README.md) |
+| 运行环境 → 系统监控 | 查看数据、索引、质量、性能与模型状态 | [验证工具](tools/README.md) |
 
 ## 快速开始
 

@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("主导航、文件导入、固定训练数据与真实环境状态", async ({ page }) => {
   const suffix = Date.now().toString();
   await page.goto("/");
-  await expect(page.locator(".legacy-navigation")).toHaveAttribute("open", "");
+  await expect(page.getByText("业务处理与验证", {exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "上下文供应", exact: true }).click();
   await page.getByText("从文件导入资料", { exact: true }).click();
   await page.getByLabel("资料文件", { exact: true }).setInputFiles({

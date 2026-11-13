@@ -10,7 +10,7 @@ type Job = {
   error: string;
   result: Record<string, unknown>;
   log?: string;
-  module?: string;
+  created_at: number;
 };
 const states: Record<string, string> = {
   queued: "排队中",
@@ -21,16 +21,12 @@ const states: Record<string, string> = {
   completed: "已完成",
   failed: "失败",
   interrupted: "已中断，请核对",
-  stopped: "已停止",
-  awaiting_review: "待人工放行",
-  rejected: "未放行",
 };
 const kinds: Record<string, string> = {
   import: "资料导入",
   train: "模型训练",
   merge: "合并导出",
   deploy: "模型部署",
-  business: "业务操作",
 };
 export default function SupplyJobs({ kind }: { kind?: string }) {
   const [jobs, setJobs] = useState<Job[]>([]),
@@ -92,17 +88,16 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
       data-verify-unit="SupplyJobs"
       data-verify-state={loaded ? "ready" : "loading"}
     >
-      <h2>供应作业</h2>
+      <h2>{kind === "import" ? "资料导入作业" : kind === "model" ? "模型作业" : "供应作业"}</h2>
       <p className="run-help">
-        资料导入、训练和模型部署共用本机作业队列；岗位 Agent
-        由独立的执行队列处理。检索、图谱、多模态、训练与评测运行也在这里统一查看。
+        查看已提交的资料导入、模型训练、合并和部署作业。岗位任务在“岗位 Agent”查看，检索和验证记录在对应能力中查看。
       </p>
       {error && (
         <p role="alert" className="inline-error">
           {error}
         </p>
       )}
-      {!jobs.length && <p>暂无作业。</p>}
+      {loaded && !jobs.length && <p>暂无供应作业。请先在上下文供应提交资料导入，或在模型供应提交模型作业。</p>}
       {jobs.map((job) => (
         <div
           className="agent-row"
@@ -112,9 +107,10 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
           <div>
             <strong>{job.name}</strong>
             <p>
-              {job.module || kinds[job.kind]} ·{" "}
+              {kinds[job.kind]} ·{" "}
               {states[job.status] || job.status}
             </p>
+            <small>提交于 {new Date(job.created_at * 1000).toLocaleString("zh-CN")}</small>
             {job.error && <p>{job.error}</p>}
           </div>
           <button className="secondary" onClick={() => void inspect(job.id)}>

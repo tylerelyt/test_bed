@@ -6,9 +6,11 @@
 
 ## 运行机制
 
-默认入口为岗位 Agent；上下文供应、模型供应、作业与环境有独立主导航，原八模块默认展开在“业务处理与验证”。FastAPI 通过岗位、上下文、模型与发布服务管理数据；独立的 `platform_worker` 进程启动原生 Pi，并处理资料导入和模型作业，详见[岗位 Agent 指南](../docs/position-agents/README.md)。
+默认入口为岗位 Agent；侧栏仅有岗位 Agent、上下文供应、模型供应、作业管理和运行环境五个入口。原索引、检索、RAG/OAG、MCP 和图片资料归上下文供应，训练评测及图像生成归模型供应，桌面 Agent 归岗位 Agent，系统监控归运行环境。FastAPI 通过对应业务服务管理数据；独立的 `platform_worker` 进程启动原生 Pi，并处理资料导入和模型作业，详见[岗位 Agent 指南](../docs/position-agents/README.md)。
 
 原八模块的浏览器通过 Next.js 的同源接口连接 Python 执行服务。React 渲染原布局和控件，Python 运行原函数，并复用原参数转换、会话状态、动态更新与流式返回。原函数产生的 HTML 结果在隔离文档中显示。
+
+作业接口只读取 `platform_jobs`，不拼接旧回调记录，也不把按钮点击或状态查询冒充作业。旧运行、固定任务和评测历史保留在对应能力的运行记录中；岗位任务由岗位 Agent 页面管理。
 
 参照 research-desk，控制台由服务端持有连接凭证，打开页面直接进入原模块。Next.js 默认读取仓库 `.workbench/bootstrap-access.txt`；可通过服务端 `WORKBENCH_TOKEN_FILE`（绝对路径）或 `WORKBENCH_CONSOLE_TOKEN` 指定，后者优先。浏览器不输入或保存凭证，也不能通过 Cookie 或 Authorization 请求头切换服务端身份。
 

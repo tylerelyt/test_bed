@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import ContextSupply from "./context-supply";
 import ModelSupply from "./model-supply";
+import NativeWorkbench from "./native-workbench";
 import { downloadJSON } from "../lib/workbench-api";
 
 type Position = { id: string; name: string; duties: string };
@@ -233,9 +234,8 @@ export default function PositionAgents({
         >
           {[
             ["agents", "岗位与 Agent"],
-            ["context", "上下文配置"],
-            ["models", "模型服务"],
             ["runs", "发布与运行"],
+            ["desktop", "桌面 Agent"],
           ].map(([id, label]) => (
             <button
               role="tab"
@@ -265,6 +265,7 @@ export default function PositionAgents({
         </p>
       )}
       {loading && <p>正在载入岗位配置…</p>}
+      {view === "desktop" && <NativeWorkbench moduleIndex={5} tabLabels={["GUI-Agent"]} description="配置桌面执行环境与视觉模型，验证 GUI Agent 的桌面任务。" />}
       {view === "context" && (
         <div className="agent-card">
           <ContextSupply />

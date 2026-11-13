@@ -3,22 +3,19 @@ import { useEffect, useState } from "react";
 import { installVerification } from "../lib/verification";
 import {
   Database,
-  Search,
   Workflow,
   Network,
   Blocks,
-  Image,
   ChartNoAxesCombined,
   Activity,
   PanelLeftClose,
   BookOpen,
   ArrowRight,
 } from "lucide-react";
-import NativeWorkbench from "../components/native-workbench";
 import PositionAgents from "../components/position-agents";
-import ContextSupply from "../components/context-supply";
 import SupplyJobs from "../components/supply-jobs";
-import PlatformEnvironment from "../components/platform-environment";
+import SupplyWorkspace from "../components/supply-workspace";
+import { previousModuleLocation } from "../lib/supply-capabilities";
 const platformModules = [
   {
     id: -1,
@@ -51,45 +48,26 @@ const platformModules = [
     icon: Network,
   },
 ];
-const modules = [
-  {
-    title: "离线索引构建",
-    description: "文档、倒排索引与知识图谱",
-    icon: Database,
-  },
-  { title: "在线召回排序", description: "召回、排序与点击反馈", icon: Search },
-  { title: "RAG", description: "检索增强与回答依据", icon: Workflow },
-  { title: "OAG 图谱推理", description: "实体、关系与多步游走", icon: Network },
-  { title: "上下文工程", description: "MCP 工具与上下文装配", icon: Blocks },
-  {
-    title: "多模态系统",
-    description: "图片检索、生成与 GUI Agent",
-    icon: Image,
-  },
-  {
-    title: "数据回收训练",
-    description: "模型训练、评估与优化",
-    icon: ChartNoAxesCombined,
-  },
-  { title: "系统监控", description: "运行状态与样本指标", icon: Activity },
-];
 export default function Page() {
   const [selected, setSelected] = useState(-1),
     [rail, setRail] = useState(true);
   useEffect(installVerification, []);
   useEffect(() => {
     const saved = sessionStorage.getItem("workbench-selected-module");
-    if (saved !== null && Number(saved) >= -5 && Number(saved) < 8)
-      setSelected(Number(saved));
+    if (saved === null) return;
+    const old = previousModuleLocation[Number(saved)];
+    if (old) {
+      const id = old.domain === "context" ? -2 : old.domain === "models" ? -3 : -5;
+      sessionStorage.setItem("workbench-capability-" + old.domain, old.capability);
+      sessionStorage.setItem("workbench-selected-module", String(id));
+      setSelected(id);
+    } else if (platformModules.some((item) => item.id === Number(saved))) setSelected(Number(saved));
   }, []);
   function selectModule(index: number) {
     setSelected(index);
     sessionStorage.setItem("workbench-selected-module", String(index));
   }
-  const currentModule =
-    selected < 0
-      ? platformModules.find((x) => x.id === selected)!
-      : modules[selected];
+  const currentModule = platformModules.find((x) => x.id === selected)!;
   return (
     <div className={`shell ${rail ? "" : "compact"}`}>
       <aside className="sidebar">
@@ -117,23 +95,6 @@ export default function Page() {
               <span>{title}</span>
             </button>
           ))}
-          <details className="legacy-navigation" open>
-            <summary>业务处理与验证</summary>
-            <div className="legacy-links">
-            {modules.map(({ title, icon: Icon }, i) => (
-              <button
-                key={title}
-                data-module-index={i}
-                aria-pressed={i === selected}
-                className={i === selected ? "active" : ""}
-                onClick={() => selectModule(i)}
-              >
-                <Icon size={18} />
-                <span>{title}</span>
-              </button>
-            ))}
-            </div>
-          </details>
         </nav>
         <div className="sidebar-note">
           <span className="eyebrow">面向业务任务</span>
@@ -170,7 +131,7 @@ export default function Page() {
         </header>
         <div
           className="page-content"
-          data-platform-module={selected < 0 ? selected : undefined}
+          data-platform-module={selected}
         >
           <div className="page-heading">
             <div>
@@ -182,18 +143,14 @@ export default function Page() {
           {selected === -1 ? (
             <PositionAgents />
           ) : selected === -2 ? (
-            <div className="agent-card">
-              <ContextSupply />
-            </div>
+            <SupplyWorkspace key="context" domain="context" />
           ) : selected === -3 ? (
-            <PositionAgents key="model-supply" initialView="models" hideTabs />
+            <SupplyWorkspace key="models" domain="models" />
           ) : selected === -4 ? (
             <SupplyJobs />
           ) : selected === -5 ? (
-            <PlatformEnvironment />
-          ) : (
-            <NativeWorkbench moduleIndex={selected} />
-          )}
+            <SupplyWorkspace key="environment" domain="environment" />
+          ) : null}
         </div>
         <footer>
           TEST BED <span>岗位 Agent · 上下文 · 模型</span>

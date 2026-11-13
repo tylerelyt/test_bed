@@ -2,7 +2,7 @@
 
 [项目说明](../../README.md) · [文档导航](../README.md)
 
-工作台入口：**多模态系统 / GUI-Agent。**
+工作台入口：**岗位 Agent → 桌面 Agent → GUI-Agent。**
 
 ## 输入与输出
 
