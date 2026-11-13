@@ -118,7 +118,6 @@ export async function request(path: string, body?: unknown) {
         },
   );
   const result = await response.json();
-  if(response.status===401&&typeof window!=='undefined')window.dispatchEvent(new Event('workbench-auth-required'));
   if (!response.ok) throw Object.assign(Error(result.error || "操作失败"),{status:response.status});
   return result;
 }

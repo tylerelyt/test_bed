@@ -8,6 +8,8 @@
 
 浏览器通过 Next.js 的同源接口连接 Python 执行服务。React 渲染原布局和控件，Python 运行原函数，并复用原参数转换、会话状态、动态更新与流式返回。原函数产生的 HTML 结果在隔离文档中显示。
 
+参照 research-desk，控制台由服务端持有连接凭证，打开页面直接进入原模块。Next.js 默认读取仓库 `.workbench/bootstrap-access.txt`；可通过服务端 `WORKBENCH_TOKEN_FILE`（绝对路径）或 `WORKBENCH_CONSOLE_TOKEN` 指定，后者优先。浏览器不输入或保存凭证，也不能通过 Cookie 或 Authorization 请求头切换服务端身份。
+
 Gradio Python 包仍是兼容依赖，但没有单独的 Gradio Web 服务。旧 `quick_start.sh` 用于历史兼容，不是当前默认入口。
 
 ## 统一启动脚本
@@ -62,7 +64,7 @@ Next.js 的服务端 `WORKBENCH_API_URL` 默认指向 `http://127.0.0.1:8766`，
 
 按钮与提交操作由服务端任务执行，运行记录写入 `.workbench/native-runs-v1.sqlite3`。同一模块串行执行，业务并发默认 3，停止操作独立；固定任务可选择人工放行。刷新页面会重新连接活动任务，服务重启保留记录并标记中断。任务、评测、上下文供应及经验的使用范围见[完整指南](../docs/workbench-tasks/README.md)。
 
-可用 `WORKBENCH_STATE_DIR` 设置记录目录。备份时应先停止执行服务，再复制数据库；不要同时启动多个执行服务共享同一目录。上下文和台账按项目授权，历史进一步按身份与会话隔离；原业务数据和计算资源仍是共享环境，未提供分布式任务调度。见[身份与项目权限](../docs/workbench-access/README.md)。
+可用 `WORKBENCH_STATE_DIR` 设置记录目录；Python 与 Next.js 共用该配置时使用绝对路径。备份时应先停止执行服务，再复制数据库；不要同时启动多个执行服务共享同一目录。控制台使用其服务端配置的项目身份，历史进一步按会话隔离；原业务数据和计算资源仍是共享环境，未提供分布式任务调度。Agent 的独立接入范围见[服务端凭证与 Agent 授权](../docs/workbench-access/README.md)。
 
 上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。原模型目录和训练输出目录继续由业务模块管理。原数据位置见[数据说明](../data/README.md)。
 

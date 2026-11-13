@@ -58,7 +58,7 @@ docker compose -f compose.console.yml up -d gremlin
 ./start_console.sh
 ```
 
-打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**。首次启动生成的本机操作员凭证保存在 `.workbench/bootstrap-access.txt`。登录后，获准访问原业务的身份会初始化原模块与数据。详见[身份与项目权限](docs/workbench-access/README.md)。前台运行时按 `Ctrl+C` 结束本次启动的进程。
+打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**，直接进入工作台并初始化原模块与数据。参照 research-desk 的单操作员控制台，连接后端的凭证由 Next.js 服务端持有，默认读取自动生成的本机私有文件，无需在浏览器输入。详见[服务端凭证与 Agent 授权](docs/workbench-access/README.md)。前台运行时按 `Ctrl+C` 结束本次启动的进程。
 
 需要关闭终端后继续运行时：
 
@@ -108,6 +108,7 @@ npm --prefix console run build
 | `JANUSGRAPH_URL` / `GREMLIN_SERVER_URL` | 图服务地址，前者优先 |
 | `WORKBENCH_PYTHON` | 指定已有业务环境的 Python；默认优先使用 `.venv-full/bin/python` |
 | `WORKBENCH_API_URL` | Next.js 服务端连接的 Python 地址，默认 `http://127.0.0.1:8766` |
+| `WORKBENCH_TOKEN_FILE` / `WORKBENCH_CONSOLE_TOKEN` | 可选的控制台服务端凭证文件或环境变量；默认读取 `.workbench/bootstrap-access.txt`，环境变量优先；均不发送至浏览器 |
 | `WORKBENCH_ACCESS_FILE` | 私有身份配置；默认自动初始化 `.workbench/access.json`，无有效凭证不能访问业务接口 |
 | `WORKBENCH_STATE_DIR` | 运行记录、任务与经验的保存目录，默认仓库下 `.workbench/` |
 | `WORKBENCH_CONCURRENCY` | 业务任务并发上限，默认 3，可设为 1—8；同模块串行，停止独立 |

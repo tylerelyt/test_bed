@@ -1,20 +1,39 @@
 import { NextRequest } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 async function proxy(request: NextRequest, context: { params: Promise<{path: string[]}> }) {
   const { path } = await context.params;
-  // Only this server chooses the backend; credentials never enter browser storage.
+  // Like research-desk, the console server owns the credential. The browser
+  // cannot select a different backend identity through a header or cookie.
   const base = process.env.WORKBENCH_API_URL || 'http://127.0.0.1:8766';
-  const credential=request.headers.get('authorization')||(request.cookies.get('workbench_access')?.value?'Bearer '+request.cookies.get('workbench_access')!.value:'');
-  const identityHeaders:Record<string,string>=credential?{Authorization:credential}:{};
   if (request.method !== 'GET') {
     const origin = request.headers.get('origin');
-    if (origin && new URL(origin).host !== request.headers.get('host')) return Response.json({error:'请求来源不匹配'}, {status:403});
+    if (origin) {
+      try {
+        if (new URL(origin).host !== request.headers.get('host')) return Response.json({error:'请求来源不匹配'}, {status:403});
+      } catch {
+        return Response.json({error:'请求来源无效'}, {status:403});
+      }
+    }
+    if (path.join('/') !== 'native/upload' && !request.headers.get('content-type')?.includes('application/json'))
+      return Response.json({error:'此操作需要 JSON 请求'}, {status:415});
   }
+  let credential: string;
+  try {
+    const state = process.env.WORKBENCH_STATE_DIR || resolve(process.cwd(), '../.workbench');
+    credential = process.env.WORKBENCH_CONSOLE_TOKEN?.trim() ||
+      (await readFile(/* turbopackIgnore: true */ process.env.WORKBENCH_TOKEN_FILE || join(state, 'bootstrap-access.txt'), 'utf8')).trim();
+    if (!credential || /[\r\n]/.test(credential)) throw Error('invalid server credential');
+  } catch {
+    return Response.json({error:'服务端访问配置未就绪，请检查工作台启动配置。'}, {status:503});
+  }
+  const identityHeaders = {Authorization:'Bearer ' + credential};
   try {
     if (path.join('/') === 'native/upload') {
-      const size=Number(request.headers.get('X-File-Size'));
-      if (!Number.isSafeInteger(size)||size<0) return Response.json({error:'文件长度无效'},{status:400});
+      const sizeHeader=request.headers.get('X-File-Size'),size=Number(sizeHeader);
+      if (sizeHeader===null||!Number.isSafeInteger(size)||size<0) return Response.json({error:'文件长度无效'},{status:400});
       const init: RequestInit & {duplex:'half'} = {
         method:'POST', headers:{...identityHeaders,'Content-Type':'application/octet-stream',
           'Content-Length':String(size), 'X-File-Name':request.headers.get('X-File-Name')||'upload'},

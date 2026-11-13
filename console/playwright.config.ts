@@ -27,7 +27,10 @@ export default defineConfig({
       url: "http://127.0.0.1:3102",
       timeout: 90000,
       reuseExistingServer: false,
-      env: { WORKBENCH_API_URL: "http://127.0.0.1:8768" },
+      env: {
+        WORKBENCH_API_URL: "http://127.0.0.1:8768",
+        WORKBENCH_CONSOLE_TOKEN: "fixture-operator-token-not-for-real-use",
+      },
     },
   ],
 });
