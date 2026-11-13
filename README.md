@@ -1,14 +1,24 @@
-# Test Bed：企业上下文工程工作台
+# Test Bed：岗位 Agent 供应平台
 
-面向 FDE（前线部署工程师）的企业上下文供应后台，用于准备、配置和验证 Agent 所需的文档、索引、知识图谱、提示词、工具与反馈数据。
+面向 FDE（前线部署工程师）的企业后台，统一供应岗位 Agent 所需的上下文和模型。每个岗位设置自己的 Agent，提前选好资料、规则、工具定义及模型，再使用现成 Harness 执行任务；测试床是其中的验证功能。
 
-平台以岗位 Agent 为管理对象，预先组合岗位职责、上下文和模型服务，再通过现成 Harness 执行。当前首版接入 **Pi 1.5.2**，支持候选版本试运行、人工采用、运行记录和原生会话保存；测试床是验证能力，项目沿用 Test Bed 名称。
+Agent 由 Harness 和模型组成，平台另外管理它引用的上下文。当前接入 **Pi 1.5.2**，支持固定组合的候选版本、试运行、人工采用、运行记录和原生会话保存。
 
-工作台通过 Next.js 界面调用原 Python 业务函数，把检索、图谱推理、上下文装配、多模态和训练实验放在同一入口。围绕具体任务检查三件事：**材料从哪里来、模型实际获得了什么、结果能否由依据和执行记录验证。**
+后台采用 Next.js 界面、FastAPI 业务接口和独立执行进程；原检索、图谱、多模态和训练实验作为兼容工具保留。围绕具体任务检查三件事：**材料从哪里来、模型实际获得了什么、结果能否由依据和执行记录验证。**
 
-[岗位 Agent 使用](docs/position-agents/README.md) · [架构与实施范围](docs/architecture/README.md) · [快速开始](#快速开始) · [八个模块](#八个模块) · [上下文供应与任务验证](docs/workbench-tasks/README.md) · [使用指南](docs/README.md) · [运行与开发](console/README.md)
+[岗位 Agent 使用](docs/position-agents/README.md) · [架构与实施范围](docs/architecture/README.md) · [快速开始](#快速开始) · [平台入口](#平台入口) · [上下文供应与任务验证](docs/workbench-tasks/README.md) · [使用指南](docs/README.md) · [运行与开发](console/README.md)
 
-## 八个模块
+## 平台入口
+
+- **岗位 Agent**：岗位职责、Agent、固定组合的候选版本、原生 Pi 试运行与人工采用。
+- **上下文供应**：文件导入、资源版本、供应配置和实际装配；控制台、MCP 和岗位发布共用一份记录。
+- **模型供应**：训练数据校验、模型产物登记、LLaMA-Factory 训练与合并、vLLM 部署，以及外部模型服务接入。
+- **作业管理**：排队、执行、停止、原生进程日志与结果；部署实际就绪后才登记为模型服务。
+- **运行环境**：数据库、独立执行进程、Pi、解析和训练推理环境的实际安装状态。
+
+[供应流程与运维说明](docs/supply/README.md)。原八个模块收在“现有业务工具”，继续保留原回调与验收能力：
+
+## 现有业务工具
 
 | 工作台入口 | 主要工作 | 使用说明 |
 | --- | --- | --- |
@@ -25,19 +35,21 @@
 
 ### 1. 安装环境
 
-需要 Python 3.11、Node.js 22.19+、npm；岗位 Agent 使用现成的模型服务。原图谱功能另需 JanusGraph/Gremlin 图服务。完整依赖包含多个机器学习框架；模型权重在实际加载时按需获取。
+需要 Python 3.11、Node.js 22.19+、npm；岗位 Agent 使用现成的模型服务。原图谱功能另需 JanusGraph/Gremlin 图服务。核心后台不依赖 Torch、Gradio 或图服务启动；原业务工具和实际训练另有完整依赖。
 
 ```bash
 git clone https://github.com/tylerelyt/test_bed.git
 cd test_bed
 python3.11 -m venv .venv-full
 source .venv-full/bin/activate
-python -m pip install -r requirements-platform.txt
+python -m pip install -r requirements-core.txt
+# 使用原八模块时，再安装完整兼容依赖：
+# python -m pip install -r requirements-platform.txt
 npm --prefix console ci
 npm --prefix runtimes/pi ci --ignore-scripts
 ```
 
-### 2. 准备数据库与原图服务
+### 2. 准备数据库
 
 安装 PostgreSQL 17 后，运行以下命令初始化项目自己的数据目录；必要时用 `WORKBENCH_POSTGRES_BIN` 指定 PostgreSQL 的 bin 目录：
 
@@ -45,7 +57,7 @@ npm --prefix runtimes/pi ci --ignore-scripts
 python tools/start_platform_db.py
 ```
 
-数据库仅监听本机 55432，数据和私有连接配置保存在 `.workbench/`；不注册开机服务。开发和 CI 未配置 PostgreSQL 时可使用 SQLite，页面不会把它标成 PostgreSQL。
+数据库仅监听本机 55432，数据和私有连接配置保存在 `.workbench/`；不注册开机服务。未配置 PostgreSQL 时，启动脚本建立统一 SQLite 开发库，页面如实标明存储类型。旧上下文 SQLite 首次启动自动迁入所选数据库并保留原文件与备份；后续控制台、MCP 和执行进程统一读写新库。
 
 图服务仅用于原图谱等功能，不影响岗位 Agent 配置：
 
@@ -78,29 +90,27 @@ npm --prefix console run build
 ./start_console.sh --background
 ```
 
-后台日志：`logs/console/launcher.log`；启动器 PID：`logs/console/launcher.pid`。后台运行不包含开机自启，图服务仍须先就绪。
+后台日志：`logs/console/launcher.log`；启动器 PID：`logs/console/launcher.pid`。后台运行不包含开机自启；图服务只在使用原图谱功能时准备。不要在运行中的生产前端上覆盖构建目录，更新前先停止本项目启动器。
 
 ## 第一次验证什么
 
-1. 在“离线索引构建”核对文档列表与索引统计。
-2. 用文档中有答案的问题，在“在线召回排序”检查命中、详情与点击反馈。
-3. 配置模型后，分别在 RAG、OAG 中核对文档依据与关系事实。
-4. 在“上下文工程”检查模板、装配后的输入和历史更新。
-5. 按任务需要再进入图片、桌面或训练模块，保留输入、参数与实际结果。
-
-不使用模型 API，也可以先验证文档、索引、排序和部分状态查询。在线问答需要对应密钥；本地推理、生成与训练需要相应模型及计算环境。
+1. 在“运行环境”确认数据库、Pi 和后台执行进程就绪。
+2. 在“上下文供应”导入一份企业资料，等待导入完成，刷新资源库并组合供应配置。
+3. 在“模型供应”登记已有兼容模型服务；自有模型按[模型供应步骤](docs/supply/README.md#模型供应)准备数据、训练、合并和部署。
+4. 创建岗位与 Agent，在“发布与运行”选上下文和模型生成候选版本，输入真实岗位任务。
+5. 核对实际依据和结果后采用版本；更新资料或模型后重新生成并验证候选版本。
 
 ## 当前能力与边界
 
 - **页面与业务执行**：八个模块已迁到 Next.js，沿用原数据和函数。Gradio Python 包用于原组件参数与状态兼容，新工作台不需要另启 Gradio 站点。
 - **身份与项目范围**：独立的操作员和 Agent 凭证；上下文、运行记录及历史按项目授权，Agent 仅能读取获准配置。原共享业务模块需要单独授权，见[权限说明](docs/workbench-access/README.md)。
-- **上下文供应**：版本化组合资料、操作说明、工具定义、角色职责、经验和笔记，按预算装配，通过原 MCP 服务供 Agent 按需读取。固定任务也可选用具体配置版本，保留实际输入与资源来源。
+- **上下文供应**：版本化组合资料、操作说明、工具定义、角色职责、经验和笔记，按预算装配，通过 MCP 服务供 Agent 按需读取。固定任务也可选用具体配置版本，保留实际输入与资源来源。
 - **任务验证**：固定任务、自动规则、可选模型评分与人工验收分开记录；支持参数变体、重复试验、快速探针、任务集检查和基线对比。详见[完整使用指南](docs/workbench-tasks/README.md)。
 - **服务端运行**：有界队列、独立停止、可选人工放行、持久化事件和文件产物；刷新可续接，服务重启后标记中断，不自动重跑业务操作。
 - **经验与周期验证**：从多次运行整理草稿，审阅后加入上下文；周期验证固定任务集版本，升级后暂停并等待核对。成本仅基于实际模型用量与明确配置的价格估算。
 - **指令数据生成**：当前生成器返回模拟样本，用于验证数据格式与流程；尚未接通真实模型扩写。
 - **A/B 偏好采集**：当前用同一个已加载模型的两个温度生成回答；不是两个生产模型版本的流量实验。
-- **训练与迭代**：提供数据、配置、训练、推理和偏好入口；自动发布、灰度分流和回滚没有组成完整编排。
+- **训练与迭代**：新模型供应流程串联数据集、LoRA 训练、产物、合并导出和受管部署，保留作业来源；岗位版本仍需试运行后人工采用。原 CPT/DPO、偏好和评测保留在业务工具；灰度流量与自动回滚尚未接入。
 - **状态与效果**：页面或服务可达，不代表模型质量、任务成功或全部外部服务健康。桌面任务还需核对实际终态和画面。
 
 ## 服务与配置
@@ -118,7 +128,8 @@ npm --prefix console run build
 | --- | --- |
 | `JANUSGRAPH_URL` / `GREMLIN_SERVER_URL` | 图服务地址，前者优先 |
 | `WORKBENCH_PYTHON` | 指定已有业务环境的 Python；默认优先使用 `.venv-full/bin/python` |
-| `WORKBENCH_DATABASE_URL` | 岗位 Agent 存储；默认优先读取 `.workbench/database-url.txt`，否则仅开发回退 SQLite |
+| `WORKBENCH_DATABASE_URL` | 岗位、上下文、模型及供应作业的统一存储；默认读取 `.workbench/database-url.txt` |
+| `WORKBENCH_TRAIN_PYTHON` / `WORKBENCH_INFER_PYTHON` | 训练与推理的独立 Python 环境；未配置时使用后端当前环境 |
 | `WORKBENCH_AGENT_TIMEOUT_SECONDS` | 单次岗位 Agent 运行上限，默认 180 秒，最大 900 秒 |
 | `WORKBENCH_API_URL` | Next.js 服务端连接的 Python 地址，默认 `http://127.0.0.1:8766` |
 | `WORKBENCH_TOKEN_FILE` / `WORKBENCH_CONSOLE_TOKEN` | 可选的控制台服务端凭证文件或环境变量；默认读取 `.workbench/bootstrap-access.txt`，环境变量优先；均不发送至浏览器 |

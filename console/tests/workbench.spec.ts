@@ -2,6 +2,7 @@ import { test, expect, Page } from "@playwright/test";
 
 async function open(page: Page) {
   await page.goto("/");
+  await page.locator(".legacy-navigation > summary").click();
   await page.getByRole("button", {name:"离线索引构建",exact:true}).click();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),

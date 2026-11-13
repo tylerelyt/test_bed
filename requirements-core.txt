@@ -1,0 +1,11 @@
+# 岗位 Agent、上下文与模型管理的最小运行环境（Python 3.11）。
+fastapi==0.116.1
+starlette==0.47.3
+pydantic==2.11.10
+fastmcp==2.12.4
+mcp==1.17.0
+SQLAlchemy>=2.0,<2.2
+psycopg[binary]>=3.2,<4
+uvicorn>=0.30,<1
+httpx>=0.27,<1
+pypdf>=5,<7

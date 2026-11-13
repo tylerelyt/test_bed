@@ -6,7 +6,7 @@
 
 ## 运行机制
 
-默认入口为岗位 Agent，使用 FastAPI 业务接口管理岗位、模型服务、发布版本和运行；独立的 `platform_worker` 进程启动原生 Pi，详见[岗位 Agent 指南](../docs/position-agents/README.md)。
+默认入口为岗位 Agent；上下文供应、模型供应、作业与环境有独立主导航，原八模块收在“现有业务工具”。FastAPI 通过岗位、上下文、模型与发布服务管理数据；独立的 `platform_worker` 进程启动原生 Pi，并处理资料导入和模型作业，详见[岗位 Agent 指南](../docs/position-agents/README.md)。
 
 原八模块的浏览器通过 Next.js 的同源接口连接 Python 执行服务。React 渲染原布局和控件，Python 运行原函数，并复用原参数转换、会话状态、动态更新与流式返回。原函数产生的 HTML 结果在隔离文档中显示。
 
@@ -22,7 +22,7 @@ Gradio Python 包仍是兼容依赖，但没有单独的 Gradio Web 服务。旧
 ./start_console.sh
 ```
 
-脚本先检查依赖与图服务，复用或启动 3001 MCP 和 5001 图像服务，再启动 8766 Python 服务与 3100 Next.js。退出时只停止脚本本次启动的进程。
+脚本检查 requirements-core.txt 对应的核心依赖，准备统一数据库，启动或复用 3001 MCP，再启动独立 worker、8766 FastAPI 与 3100 Next.js。原索引服务按需加载；检测到 Flask 时兼容启动 5001 图像服务。图服务不作为核心启动前提，退出时只停止脚本本次启动的进程。
 
 - 有 `console/.next/BUILD_ID` 时，运行生产构建。
 - 没有构建时，运行开发服务。
@@ -68,7 +68,9 @@ Next.js 的服务端 `WORKBENCH_API_URL` 默认指向 `http://127.0.0.1:8766`，
 
 可用 `WORKBENCH_STATE_DIR` 设置记录目录；Python 与 Next.js 共用该配置时使用绝对路径。备份时应先停止执行服务，再复制数据库；不要同时启动多个执行服务共享同一目录。控制台使用其服务端配置的项目身份，历史进一步按会话隔离；原业务数据和计算资源仍是共享环境，未提供分布式任务调度。Agent 的独立接入范围见[服务端凭证与 Agent 授权](../docs/workbench-access/README.md)。
 
-上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。原模型目录和训练输出目录继续由业务模块管理。原数据位置见[数据说明](../data/README.md)。
+上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。新供应流程的原文件、固定数据集、作业配置与日志分别写入 `.workbench/jobs/`、`datasets/`；作业生成的模型保留来源关系。旧模型目录与旧训练输出仍由兼容业务工具管理。原数据位置见[数据说明](../data/README.md)。
+
+详细的数据迁移、备份与模型环境配置见[供应流程说明](../docs/supply/README.md)。
 
 ## 可选评分与成本配置
 

@@ -43,7 +43,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
       return new Response(upload.body,{status:upload.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
     }
     const body = request.method === 'GET' ? undefined : await request.text();
-    const limit = ['native/execute','native/event','native/runs'].includes(path.join('/')) ? 32_000_000 : 2_000_000;
+    const limit = ['native/execute','native/event','native/runs'].includes(path.join('/')) ? 32_000_000 : ['platform/datasets','platform/jobs'].includes(path.join('/')) ? 14_000_000 : 2_000_000;
     if (body && Buffer.byteLength(body) > limit) return Response.json({error:'请求体超过当前接口大小限制'}, {status:413});
     const response = await fetch(`${base}/api/${path.map(encodeURIComponent).join('/')}${request.nextUrl.search}`, {
       method: request.method, headers: {...identityHeaders,'Content-Type':'application/json'}, body,
@@ -57,7 +57,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
       'X-Content-Type-Options':'nosniff',
     }});
   } catch {
-    return Response.json({error:'Python 服务未连接。请先运行 python -m src.search_engine.workbench_api。'}, {status:503});
+    return Response.json({error:'平台后端未连接。请运行 ./start_console.sh，或检查 platform_api 与 platform_worker 日志。'}, {status:503});
   }
 }
 export { proxy as GET, proxy as POST, proxy as DELETE };

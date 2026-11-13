@@ -49,6 +49,14 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
             try:
                 if request.method != 'GET' and request.headers.get('origin'):
                     raise AccessDenied('请通过控制台同源接口访问')
+                if request.method != 'GET':
+                    parts, size = [], 0
+                    async for part in request.stream():
+                        size += len(part)
+                        if size > 14_000_000:
+                            return JSONResponse({'error': '请求内容超过 14 MB'}, status_code=413)
+                        parts.append(part)
+                    request._body = b''.join(parts)
                 policy = app.state.records.access
                 with policy.bind(policy.authenticate(request.headers.get('authorization'))):
                     require_operator()
@@ -72,6 +80,62 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
     @app.get('/api/platform/overview')
     def overview():
         return app.state.platform.overview()
+
+    @app.get('/api/platform/environment')
+    def environment():
+        return app.state.platform.environment()
+
+    @app.get('/api/platform/context')
+    def contexts(q: str = ''):
+        return app.state.platform.context.catalog(q)
+
+    @app.get('/api/platform/context/{table}/{item_id}')
+    def context_item(table: str, item_id: str, version: int | None = None):
+        if table not in ('resources', 'bundles'):
+            raise ValueError('上下文类型无效')
+        return app.state.platform.context.get(table, item_id, version)
+
+    @app.post('/api/platform/context')
+    def context_action(data: dict):
+        store = app.state.platform.context
+        action = data.get('action')
+        if action == 'resource':
+            return store.resource(data.get('name'), data.get('kind'), data.get('content'), data.get('source', ''),
+                data.get('permission', 'read_only'), data.get('tags'), data.get('resource_id'), data.get('expected_version'))
+        if action == 'bundle':
+            return store.bundle(data.get('name'), data.get('resources'), data.get('max_chars', 12000),
+                data.get('bundle_id'), data.get('expected_version'))
+        if action == 'assemble':
+            return store.assemble(data.get('bundle_id'), data.get('version'), data.get('resource_ids'), data.get('query', ''))
+        raise ValueError('上下文操作无效')
+
+    @app.post('/api/platform/datasets')
+    def dataset(data: dict):
+        return app.state.platform.models.dataset(data.get('name'), data.get('rows'))
+
+    @app.get('/api/platform/model-supply')
+    def model_supply():
+        return app.state.platform.models.listing()
+
+    @app.post('/api/platform/artifacts')
+    def artifact(data: dict):
+        return app.state.platform.models.artifact(data)
+
+    @app.post('/api/platform/jobs')
+    def job(data: dict):
+        return app.state.platform.jobs.start(data)
+
+    @app.get('/api/platform/jobs')
+    def jobs():
+        return app.state.platform.jobs.listing()
+
+    @app.get('/api/platform/jobs/{job_id}')
+    def job_detail(job_id: str):
+        return app.state.platform.jobs.detail(job_id)
+
+    @app.post('/api/platform/jobs/{job_id}/cancel')
+    def job_cancel(job_id: str, data: dict):
+        return app.state.platform.jobs.cancel(job_id)
 
     @app.post('/api/platform/positions')
     def position(data: dict):

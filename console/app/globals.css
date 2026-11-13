@@ -272,6 +272,15 @@ input[type=radio]:checked::after { content: ''; width: 8px; height: 8px; backgro
 .preset-badge { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--green); font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
 
 .position-agents { display:grid; gap:22px; }
+.legacy-navigation { margin-top:14px; border-top:1px solid var(--line); padding-top:14px; }
+.legacy-navigation > summary { padding:8px 12px; color:var(--muted); cursor:pointer; font-size:12px; }
+.legacy-navigation button { width:100%; margin-top:4px; }
+.environment-list { display:grid; grid-template-columns:140px minmax(0,1fr); gap:16px; }
+.environment-list dt { color:var(--muted); }
+.environment-list dd { margin:0; overflow-wrap:anywhere; }
+.context-preview pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:420px; overflow:auto; }
+section[aria-label="模型供应流程"] { display:grid; gap:22px; }
+@media(max-width:650px) { .legacy-navigation { flex-shrink:0; margin:0; padding:0; border:0; } .legacy-navigation[open] { display:flex; } .legacy-navigation > summary { white-space:nowrap; } .environment-list { grid-template-columns:minmax(0,1fr); gap:8px; } .environment-list dd { margin-bottom:12px; } }
 .agent-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:start; }
 .agent-card { display:grid; gap:18px; min-width:0; padding:24px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }
 .agent-card label { display:grid; gap:8px; color:#596251; font-size:12px; }

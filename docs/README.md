@@ -8,6 +8,8 @@
 
 | 要完成的工作 | 从这里开始 |
 | --- | --- |
+| 配置岗位 Agent 的 Harness、上下文、模型与采用版本 | [岗位 Agent](position-agents/README.md) |
+| 导入企业资料、准备模型数据、训练与部署、核对后台作业 | [上下文与模型供应](supply/README.md) |
 | 准备文档、检查索引、验证召回与排序 | [索引、检索与排序](search-recommendation/README.md) |
 | 核对回答使用的文档或图谱事实 | [RAG 与 OAG](rag/README.md) |
 | 配置模板并检查工具、资源和历史装配 | [上下文工程与 MCP](context-engineering/README.md) |

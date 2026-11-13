@@ -73,6 +73,55 @@ class Event(Base):
     body: Mapped[dict] = mapped_column(JSON)
 
 
+class ContextResource(Base):
+    __tablename__ = 'context_resources'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+
+
+class ContextBundle(Base):
+    __tablename__ = 'context_bundles'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+
+
+class ContextAudit(Base):
+    __tablename__ = 'context_audit'
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+
+
+class Dataset(Owned, Base):
+    __tablename__ = 'model_datasets'
+    name: Mapped[str] = mapped_column(String(120))
+    count: Mapped[int] = mapped_column(Integer)
+    digest: Mapped[str] = mapped_column(String(64))
+    path: Mapped[str] = mapped_column(Text)
+
+
+class ModelArtifact(Owned, Base):
+    __tablename__ = 'model_artifacts'
+    name: Mapped[str] = mapped_column(String(120))
+    path: Mapped[str] = mapped_column(Text)
+    base_model: Mapped[str] = mapped_column(Text)
+    format: Mapped[str] = mapped_column(String(24))
+    source_job: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class Job(Owned, Base):
+    __tablename__ = 'platform_jobs'
+    kind: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(24), default='queued')
+    parameters: Mapped[dict] = mapped_column(JSON)
+    execution_identity: Mapped[dict] = mapped_column(JSON)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[str] = mapped_column(Text, default='')
+    finished_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 def connect(directory, url=None):
     directory = Path(directory)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)

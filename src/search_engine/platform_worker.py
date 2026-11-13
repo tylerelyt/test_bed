@@ -20,10 +20,16 @@ def main():
         raise SystemExit('本机岗位 Agent 执行进程已经运行')
     platform = AgentPlatform(directory, ContextStore(directory), AccessPolicy(directory), background=False)
     platform.runs.recover()
+    platform.jobs.start_worker()
     marker = directory / 'agent-worker.json'
     private_write(marker, json.dumps({'pid': os.getpid()}))
     for signum in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(signum, lambda *_: platform.runs.stop.set())
+        def stop(*_):
+            # Signal handlers must not acquire Event/Condition locks: a signal
+            # can interrupt Event.wait while its non-reentrant lock is held.
+            platform.runs.shutdown_requested = True
+            platform.jobs.shutdown_requested = True
+        signal.signal(signum, stop)
     try:
         platform.runs.loop()
     finally:

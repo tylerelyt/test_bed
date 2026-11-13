@@ -13,7 +13,7 @@ from .workbench_access import identity, check, visible, require_operator, Access
 KINDS = ('knowledge', 'instructions', 'tool', 'experience', 'notebook', 'role')
 
 
-class ContextStore:
+class LegacyContextStore:
     def __init__(self, directory=None):
         self.directory = Path(directory or os.environ.get('WORKBENCH_STATE_DIR') or Path(__file__).resolve().parents[2] / '.workbench')
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -216,6 +216,19 @@ class ContextStore:
         with self.db() as db:
             db.execute('INSERT INTO audit VALUES (?, ?)', (item['id'], json.dumps(item, ensure_ascii=False)))
         return item
+
+
+def ContextStore(directory=None):
+    """All production consumers select the same SQL repository; SQLite remains a dev adapter."""
+    location = Path(directory or os.environ.get('WORKBENCH_STATE_DIR') or Path(__file__).resolve().parents[2] / '.workbench')
+    if os.environ.get('WORKBENCH_DATABASE_URL') or (location / 'database-url.txt').exists():
+        from .agent_platform.database import connect
+        from .agent_platform.context import ContextRepository
+        engine, session = connect(location)
+        store = ContextRepository(session, location)
+        store.engine = engine
+        return store
+    return LegacyContextStore(location)
 
 
 def register_context_mcp(mcp, store=None):

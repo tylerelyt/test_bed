@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { downloadJSON, request } from "../lib/workbench-api";
+import { downloadJSON } from "../lib/workbench-api";
+import { platformRequest as request } from "../lib/platform-api";
+import ContextImport from "./context-import";
 type Resource = {
   id: string;
   name: string;
@@ -63,11 +65,13 @@ export default function ContextSupply() {
     [query, setQuery] = useState(""),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
+    [loaded, setLoaded] = useState(false),
     [pending, setPending] = useState(false);
   async function refresh() {
     const data = await request("context");
     setResources(data.resources);
     setBundles(data.bundles);
+    setLoaded(true);
   }
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
@@ -119,13 +123,24 @@ export default function ContextSupply() {
     <div
       className="context-supply"
       data-verify-unit="ContextSupply"
-      data-verify-state={pending ? "pending" : "ready"}
+      data-verify-state={!loaded ? "loading" : pending ? "pending" : "ready"}
     >
       <p className="run-help">
         为 Agent 组合资料、操作说明、工具定义和经验。MCP 目录只返回元数据，Agent
-        按需读取；配置固定资源版本，笔记写入单独授权。这里沿用原 MCP
-        服务，不要求新增 Agent 绑定。
+        按需读取；配置固定资源版本，笔记写入单独授权。资料、MCP 与岗位发布
+        共用同一份上下文记录，更新后可为岗位生成新的候选版本。
       </p>
+      <button
+        className="secondary"
+        disabled={pending}
+        onClick={() => void act(async () => {})}
+      >
+        刷新资源库
+      </button>
+      <details className="run-editor">
+        <summary>从文件导入资料</summary>
+        <ContextImport />
+      </details>
       {error && (
         <p role="alert" className="inline-error">
           {error}

@@ -7,7 +7,8 @@ import time
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from ..workbench_access import identity, require_business
-from .catalog import Agent, Release, Run, get, owned, public, text
+from .common import get, owned, public, text
+from .database import Agent, Release, Run
 from .database import Event
 
 
@@ -17,6 +18,7 @@ class Runs:
         self.lock, self.stop = threading.RLock(), threading.Event()
         self.thread = None
         self.last_error = None
+        self.shutdown_requested = False
         if background:
             self.recover()
             self.thread = threading.Thread(target=self.loop, daemon=True, name='position-agent-worker')
@@ -100,7 +102,7 @@ class Runs:
                 self.event(run_id, {'type': 'platform_started', 'harness': manifest['harness'], 'digest': digest})
                 def cancelled():
                     with self.session() as db:
-                        return self.stop.is_set() or db.get(Run, run_id).status == 'cancelling'
+                        return self.shutdown_requested or self.stop.is_set() or db.get(Run, run_id).status == 'cancelling'
                 result = self.runtime.execute(run_id, manifest, task, lambda event:self.event(run_id, event), cancelled)
                 with self.session.begin() as db:
                     current = db.get(Run, run_id)
@@ -119,7 +121,7 @@ class Runs:
         return True
 
     def loop(self):
-        while not self.stop.wait(.3):
+        while not self.shutdown_requested and not self.stop.wait(.3):
             try:
                 self.execute_next()
                 self.last_error = None

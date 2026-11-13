@@ -14,8 +14,6 @@ from fastmcp import FastMCP
 # 确保能导入项目模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
 
-from src.search_engine.service_manager import get_index_service
-
 class DynamicMCPServer:
     """动态MCP服务器 - 完全隔离解耦"""
     
@@ -25,7 +23,7 @@ class DynamicMCPServer:
         self.access = AccessPolicy()
         self.mcp = FastMCP(server_name, auth=mcp_auth(self.access), stateless_http=True)
         configure_mcp(self.mcp, self.access)
-        self.index_service = get_index_service()
+        self._index_service = None
         
         # 注册所有功能
         self._register_prompts()
@@ -38,6 +36,13 @@ class DynamicMCPServer:
         print("对话历史按项目、身份和会话隔离保存")
         print("🔒 架构: 完全隔离解耦，所有功能通过MCP协议动态发现")
     
+    @property
+    def index_service(self):
+        if self._index_service is None:
+            from src.search_engine.service_manager import get_index_service
+            self._index_service = get_index_service()
+        return self._index_service
+
     def _register_prompts(self):
         """注册提示词 - 通过MCP协议动态发现"""
         

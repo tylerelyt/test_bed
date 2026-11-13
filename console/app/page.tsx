@@ -16,6 +16,41 @@ import {
 } from "lucide-react";
 import NativeWorkbench from "../components/native-workbench";
 import PositionAgents from "../components/position-agents";
+import ContextSupply from "../components/context-supply";
+import SupplyJobs from "../components/supply-jobs";
+import PlatformEnvironment from "../components/platform-environment";
+const platformModules = [
+  {
+    id: -1,
+    title: "岗位 Agent",
+    description: "预配上下文与模型，发布并运行岗位 Agent",
+    icon: Blocks,
+  },
+  {
+    id: -2,
+    title: "上下文供应",
+    description: "导入企业资料、维护资源版本与岗位供应配置",
+    icon: Database,
+  },
+  {
+    id: -3,
+    title: "模型供应",
+    description: "管理数据、训练、模型产物、部署与外部模型服务",
+    icon: ChartNoAxesCombined,
+  },
+  {
+    id: -4,
+    title: "作业管理",
+    description: "查看资料与模型作业的状态、日志和结果",
+    icon: Activity,
+  },
+  {
+    id: -5,
+    title: "运行环境",
+    description: "检查数据库、执行进程、Harness 与训练推理环境",
+    icon: Network,
+  },
+];
 const modules = [
   {
     title: "离线索引构建",
@@ -44,7 +79,7 @@ export default function Page() {
   useEffect(installVerification, []);
   useEffect(() => {
     const saved = sessionStorage.getItem("workbench-selected-module");
-    if (saved !== null && Number(saved) >= -1 && Number(saved) < 8)
+    if (saved !== null && Number(saved) >= -5 && Number(saved) < 8)
       setSelected(Number(saved));
   }, []);
   function selectModule(index: number) {
@@ -53,10 +88,7 @@ export default function Page() {
   }
   const currentModule =
     selected < 0
-      ? {
-          title: "岗位 Agent",
-          description: "预配上下文与模型，发布并运行岗位 Agent",
-        }
+      ? platformModules.find((x) => x.id === selected)!
       : modules[selected];
   return (
     <div className={`shell ${rail ? "" : "compact"}`}>
@@ -66,40 +98,47 @@ export default function Page() {
             <Workflow size={22} />
           </span>
           <span>
-            test bed<small>企业上下文供应</small>
+            test bed<small>岗位 Agent 供应平台</small>
           </span>
         </a>
         <div className="workspace-label">
-          企业上下文工程 <span>本地</span>
+          企业 Agent 后台 <span>本地</span>
         </div>
         <nav>
-          <button
-            aria-pressed={selected === -1}
-            className={selected === -1 ? "active" : ""}
-            onClick={() => selectModule(-1)}
-          >
-            <Blocks size={18} />
-            <span>岗位 Agent</span>
-          </button>
-          {modules.map(({ title, icon: Icon }, i) => (
+          {platformModules.map(({ id, title, icon: Icon }) => (
             <button
-              key={title}
-              data-module-index={i}
-              aria-pressed={i === selected}
-              className={i === selected ? "active" : ""}
-              onClick={() => selectModule(i)}
+              key={id}
+              data-platform-index={id}
+              aria-pressed={selected === id}
+              className={selected === id ? "active" : ""}
+              onClick={() => selectModule(id)}
             >
               <Icon size={18} />
               <span>{title}</span>
             </button>
           ))}
+          <details className="legacy-navigation" open={selected >= 0}>
+            <summary>现有业务工具</summary>
+            {modules.map(({ title, icon: Icon }, i) => (
+              <button
+                key={title}
+                data-module-index={i}
+                aria-pressed={i === selected}
+                className={i === selected ? "active" : ""}
+                onClick={() => selectModule(i)}
+              >
+                <Icon size={18} />
+                <span>{title}</span>
+              </button>
+            ))}
+          </details>
         </nav>
         <div className="sidebar-note">
           <span className="eyebrow">面向业务任务</span>
           <p>
-            配置与验证
+            供应与验证
             <br />
-            Agent 所需的企业上下文。
+            岗位 Agent 所需的上下文与模型。
           </p>
           <a
             href="https://github.com/tylerelyt/test_bed/blob/main/README.md"
@@ -127,22 +166,35 @@ export default function Page() {
             <strong>{currentModule.title}</strong>
           </div>
         </header>
-        <div className="page-content">
+        <div
+          className="page-content"
+          data-platform-module={selected < 0 ? selected : undefined}
+        >
           <div className="page-heading">
             <div>
-              <div className="eyebrow">企业上下文供应后台</div>
+              <div className="eyebrow">岗位 Agent 供应平台</div>
               <h1>{currentModule.title}</h1>
               <p>{currentModule.description}</p>
             </div>
           </div>
-          {selected < 0 ? (
+          {selected === -1 ? (
             <PositionAgents />
+          ) : selected === -2 ? (
+            <div className="agent-card">
+              <ContextSupply />
+            </div>
+          ) : selected === -3 ? (
+            <PositionAgents key="model-supply" initialView="models" hideTabs />
+          ) : selected === -4 ? (
+            <SupplyJobs />
+          ) : selected === -5 ? (
+            <PlatformEnvironment />
           ) : (
             <NativeWorkbench moduleIndex={selected} />
           )}
         </div>
         <footer>
-          TEST BED <span>企业上下文工程工作台</span>
+          TEST BED <span>岗位 Agent · 上下文 · 模型</span>
           <a
             href="https://github.com/tylerelyt/test_bed"
             target="_blank"

@@ -8,6 +8,7 @@
 
 | 工具 | 用途 | 使用时核对 |
 | --- | --- | --- |
+| [start_platform_db.py](start_platform_db.py) | 初始化/启动项目 PostgreSQL，不注册系统服务 | 数据目录、端口和私有连接配置；模型权重另行准备 |
 | [verify_console_migration.py](verify_console_migration.py) | 对完整原运行时执行以读取和输入校验为主的回调验收 | Python 服务与图服务先就绪；会改变测试会话的部分状态 |
 | [data_quality_checker.py](data_quality_checker.py) | 检查文档、索引和 CTR 数据 | 对应文件和运行数据是否就是本次任务的数据 |
 | [performance_monitor.py](performance_monitor.py) | 资源观测、性能报告和测试工具 | 负载、数据量、环境与采样时间 |

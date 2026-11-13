@@ -2,6 +2,65 @@ export function installVerification() {
   const visible = (element: Element) =>
     element instanceof HTMLElement && element.getClientRects().length > 0;
   const current = () => {
+    const platform = document.querySelector<HTMLElement>(
+      "[data-platform-module]",
+    );
+    if (platform) {
+      const navigation = Array.from(
+        document.querySelectorAll<HTMLElement>("nav [data-platform-index]"),
+      );
+      const controls = Array.from(
+        platform.querySelectorAll("input,textarea,select,button"),
+      ).filter(visible);
+      const unnamed = controls.filter((element) =>
+        element.tagName === "BUTTON"
+          ? !element.textContent?.trim() && !element.getAttribute("aria-label")
+          : !element.getAttribute("aria-label") &&
+            !Array.from((element as HTMLInputElement).labels || []).some(
+              (label) => label.textContent?.trim(),
+            ),
+      );
+      const units = Array.from(
+        platform.querySelectorAll<HTMLElement>("[data-verify-state]"),
+      );
+      const ready =
+        units.length > 0 &&
+        units.every(
+          (x) =>
+            !["loading", "unavailable"].includes(x.dataset.verifyState || ""),
+        );
+      const checks = [
+        {
+          id: "platform-navigation",
+          ok:
+            navigation.length === 5 &&
+            navigation.filter((x) => x.getAttribute("aria-pressed") === "true")
+              .length === 1,
+          detail: "五个主入口，恰有一个选中",
+        },
+        {
+          id: "named-controls",
+          ok: unnamed.length === 0,
+          detail: `${unnamed.length} 个未命名可见控件`,
+        },
+        {
+          id: "viewport",
+          ok: document.documentElement.scrollWidth <= innerWidth + 1,
+          detail: "页面无横向溢出",
+        },
+      ];
+      return {
+        format_version: 1,
+        module: Number(platform.dataset.platformModule),
+        state: ready ? "ready" : "loading",
+        verdict: !ready
+          ? "BLOCKED"
+          : checks.every((x) => x.ok)
+            ? "PASS"
+            : "FAIL",
+        checks,
+      };
+    }
     const workbench = document.querySelector<HTMLElement>(
       '[data-verify-unit="NativeWorkbench"]',
     );
@@ -37,7 +96,7 @@ export function installVerification() {
       {
         id: "module-count",
         ok: modules.length === 8,
-        detail: `${modules.length} 个一级模块`,
+        detail: `${modules.length} 个兼容业务模块`,
       },
       {
         id: "selected-module",
@@ -87,12 +146,21 @@ export function installVerification() {
       "RunEvidence",
       "EvaluationSuites",
       "ContextSupply",
+      "PositionAgents",
+      "SupplyJobs",
+      "PlatformEnvironment",
     ],
     modules: Array.from(
       document.querySelectorAll<HTMLElement>("nav [data-module-index]"),
     ).map((element) => ({
       index: Number(element.dataset.moduleIndex),
       name: element.textContent?.trim(),
+    })),
+    platform_modules: Array.from(
+      document.querySelectorAll<HTMLElement>("nav [data-platform-index]"),
+    ).map((x) => ({
+      index: Number(x.dataset.platformIndex),
+      name: x.textContent?.trim(),
     })),
     invariants: [
       "module-count",

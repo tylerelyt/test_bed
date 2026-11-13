@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ContextSupply from "./context-supply";
+import ModelSupply from "./model-supply";
 import { downloadJSON } from "../lib/workbench-api";
 
 type Position = { id: string; name: string; duties: string };
@@ -88,10 +89,16 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return result;
 }
 
-export default function PositionAgents() {
+export default function PositionAgents({
+  initialView = "agents",
+  hideTabs = false,
+}: {
+  initialView?: string;
+  hideTabs?: boolean;
+}) {
   const [data, setData] = useState<Overview>(empty),
     [bundles, setBundles] = useState<Bundle[]>([]),
-    [view, setView] = useState("agents");
+    [view, setView] = useState(initialView);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -117,7 +124,7 @@ export default function PositionAgents() {
   async function refresh() {
     const [next, context] = await Promise.all([
       api<Overview>("overview"),
-      fetch("/api/native/context", { cache: "no-store" }).then(async (r) => {
+      fetch("/api/platform/context", { cache: "no-store" }).then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw Error(j.error);
         return j as { bundles: Bundle[] };
@@ -207,37 +214,46 @@ export default function PositionAgents() {
     void act(fn);
   };
   return (
-    <section className="position-agents" aria-label="岗位 Agent 管理">
+    <section
+      className="position-agents"
+      aria-label="岗位 Agent 管理"
+      data-verify-unit="PositionAgents"
+      data-verify-state={
+        loading ? "loading" : data.harnesses.length ? "ready" : "unavailable"
+      }
+    >
       <p className="run-help">
         为岗位配置 Agent，预先选好上下文和模型，试运行后采用对应版本。
       </p>
-      <div
-        className="history-tabs"
-        role="tablist"
-        aria-label="岗位 Agent 工作区"
-      >
-        {[
-          ["agents", "岗位与 Agent"],
-          ["context", "上下文配置"],
-          ["models", "模型服务"],
-          ["runs", "发布与运行"],
-        ].map(([id, label]) => (
-          <button
-            role="tab"
-            key={id}
-            aria-selected={view === id}
-            onClick={() => {
-              setView(id);
-              setNotice("");
-              setError("");
-              if (id === "runs")
-                void refresh().catch((e) => setError(e.message));
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {!hideTabs && (
+        <div
+          className="history-tabs"
+          role="tablist"
+          aria-label="岗位 Agent 工作区"
+        >
+          {[
+            ["agents", "岗位与 Agent"],
+            ["context", "上下文配置"],
+            ["models", "模型服务"],
+            ["runs", "发布与运行"],
+          ].map(([id, label]) => (
+            <button
+              role="tab"
+              key={id}
+              aria-selected={view === id}
+              onClick={() => {
+                setView(id);
+                setNotice("");
+                setError("");
+                if (id === "runs")
+                  void refresh().catch((e) => setError(e.message));
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {error && (
         <p role="alert" className="inline-error">
           {error}
@@ -369,6 +385,7 @@ export default function PositionAgents() {
           </div>
         </div>
       )}
+      {view === "models" && <ModelSupply />}
       {view === "models" && (
         <div className="agent-grid">
           <form

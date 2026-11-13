@@ -27,24 +27,19 @@ elif [ -x .venv-full/bin/python ]; then
 else
   workbench_python=python3
 fi
-"$workbench_python" -c 'import gradio, torch, fastmcp, gremlin_python, sqlalchemy, uvicorn' || {
-  echo '请用 Python 3.11 安装 requirements-platform.txt，或设置 WORKBENCH_PYTHON 指向原完整环境。' >&2
+"$workbench_python" -c 'import fastapi, fastmcp, sqlalchemy, uvicorn, httpx, pypdf' || {
+  echo '请用 Python 3.11 安装 requirements-core.txt，并设置 WORKBENCH_PYTHON；原业务工具另装 requirements-platform.txt。' >&2
   exit 1
 }
 [ -d console/node_modules ] || { echo '请先运行 npm --prefix console ci（Node.js 22+）。' >&2; exit 1; }
 workbench_state_dir="$($workbench_python -c 'import os;from pathlib import Path;print(Path(os.environ.get("WORKBENCH_STATE_DIR", ".workbench")).resolve())')"
 export WORKBENCH_STATE_DIR="$workbench_state_dir"
-"$workbench_python" - <<'PY'
-import os,socket,urllib.parse
-url=os.environ.get('JANUSGRAPH_URL') or os.environ.get('GREMLIN_SERVER_URL') or 'ws://localhost:8182/gremlin'
-parsed=urllib.parse.urlparse(url)
-try:
-    with socket.create_connection((parsed.hostname,parsed.port or 8182),timeout=3):pass
-except OSError:
-    print('原图谱服务未就绪：岗位Agent仍可使用，图谱操作需另行启动原服务。')
-PY
 owned_pids=()
-cleanup(){ for pid in "${owned_pids[@]}"; do kill "$pid" 2>/dev/null || true; done; }
+cleanup(){
+  trap - EXIT INT TERM
+  for pid in "${owned_pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+  for pid in "${owned_pids[@]}"; do wait "$pid" 2>/dev/null || true; done
+}
 trap cleanup EXIT INT TERM
 listening(){ "$workbench_python" - "$1" <<'PY'
 import socket,sys
@@ -53,34 +48,58 @@ try:
 except OSError:sys.exit(1)
 PY
 }
+if [ -f "$workbench_state_dir/database-url.txt" ] && [ -d "$workbench_state_dir/postgres" ]; then
+  "$workbench_python" tools/start_platform_db.py
+fi
+"$workbench_python" - <<'PY'
+import os
+from pathlib import Path
+from src.search_engine.workbench_access import private_write
+directory=Path(os.environ['WORKBENCH_STATE_DIR'])
+directory.mkdir(parents=True,exist_ok=True,mode=0o700)
+if not os.environ.get('WORKBENCH_DATABASE_URL') and not (directory/'database-url.txt').exists():
+    private_write(directory/'database-url.txt','sqlite:///'+str(directory/'agent-platform-v1.sqlite3'))
+    print('未配置 PostgreSQL，使用统一 SQLite 开发库；部署配置见 README。')
+PY
 if ! listening 3001; then
   "$workbench_python" -m src.search_engine.mcp.dynamic_mcp_server &
   mcp_pid=$!;owned_pids+=("$mcp_pid")
   for attempt in $(seq 1 60); do listening 3001 && break; kill -0 "$mcp_pid"; sleep .5; done
   listening 3001 || { echo 'MCP 服务启动超时。' >&2;exit 1; }
 fi
-if ! listening 5001; then
+if ! listening 5001 && "$workbench_python" -c 'import importlib.util;raise SystemExit(0 if importlib.util.find_spec("flask") else 1)'; then
   "$workbench_python" -m flask --app image_generation_service run --host 127.0.0.1 --port 5001 &
   owned_pids+=("$!")
 fi
-if [ -f "$workbench_state_dir/database-url.txt" ] && [ -d "$workbench_state_dir/postgres" ]; then
-  "$workbench_python" tools/start_platform_db.py
-fi
 "$workbench_python" -m src.search_engine.platform_worker &
 worker_pid=$!;owned_pids+=("$worker_pid")
+worker_ready=0
 for attempt in $(seq 1 120); do
-  [ -f "$workbench_state_dir/agent-worker.json" ] && break
-  kill -0 "$worker_pid";sleep .25
+  kill -0 "$worker_pid" || { echo '执行进程启动失败；请检查旧进程及日志，未启动控制台。' >&2;exit 1; }
+  if "$workbench_python" - "$workbench_state_dir/agent-worker.json" "$worker_pid" <<'PY'
+import json,sys
+from pathlib import Path
+try:ready=json.loads(Path(sys.argv[1]).read_text())['pid']==int(sys.argv[2])
+except (OSError,ValueError,KeyError):ready=False
+raise SystemExit(0 if ready else 1)
+PY
+  then worker_ready=1;break;fi
+  sleep .25
 done
+[ "$worker_ready" = 1 ] || { echo '执行进程未写入本次 PID，启动超时。' >&2;exit 1; }
 kill -0 "$worker_pid"
 "$workbench_python" -m src.search_engine.platform_api &
 api_pid=$!;owned_pids+=("$api_pid")
 for attempt in $(seq 1 40); do listening 8766 && break;kill -0 "$api_pid";sleep .25;done
 listening 8766 || { echo 'Python 执行服务启动超时。' >&2;exit 1; }
-if [ -f console/.next/BUILD_ID ]; then
-  npm --prefix console start &
-else
-  npm --prefix console run dev &
-fi
+(
+  cd console
+  node scripts/copy-vis.mjs
+  if [ -f .next/BUILD_ID ]; then
+    exec node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3100
+  else
+    exec node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3100
+  fi
+) &
 web_pid=$!;owned_pids+=("$web_pid")
 wait "$web_pid"

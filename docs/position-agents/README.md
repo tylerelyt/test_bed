@@ -9,7 +9,7 @@
 使用 Python 3.11 和 Node.js 22.19 或更新版本，从仓库根目录执行：
 
 ```bash
-python -m pip install -r requirements-platform.txt
+python -m pip install -r requirements-core.txt
 npm --prefix console ci
 npm --prefix runtimes/pi ci --ignore-scripts
 npm --prefix console run build
@@ -28,7 +28,7 @@ macOS 默认查找 `/opt/homebrew/opt/postgresql@17/bin`，其他安装位置通
 ## 使用步骤
 
 1. 打开控制台，在“岗位与 Agent”创建岗位，写明职责，再设置该岗位的 Agent。
-2. 在“上下文配置”创建资料、规则等资源，并组合成供应配置；这里复用现有上下文服务。
+2. 在“上下文配置”创建资料、规则等资源，并组合成供应配置；可以先导入文件，控制台与 MCP 统一读取平台数据库。
 3. 在“模型服务”登记已有的 OpenAI Chat Completions 兼容服务，例如运行中的 vLLM 或 Ollama。填写实际服务地址和模型标识，按需要提供服务密钥。保存配置不表示已经验证业务效果。
 4. 在“发布与运行”选择 Agent、模型服务和上下文配置，生成候选版本。职责、资料快照和模型配置在此时固定；后续修改不会原地改变旧候选版本。
 5. 输入岗位任务并运行。执行器会启动真实 Pi 进程，由 Pi 调用模型和已注册的 `read_enterprise_context` 工具读取预配置资料。
@@ -52,14 +52,16 @@ FastAPI 管理配置与运行记录，`platform_worker` 是一个独立本机进
 
 当前环境没有配置真实业务模型密钥，也没有运行中的本地推理模型；使用者需登记自己的模型服务后进行业务验收。
 
-后续接入范围：其他 Harness、更多模型协议与推理参数、自动资料同步和索引构建、训练/微调到模型登记部署的完整链路、继续原生会话。现有训练与检索功能仍可通过原模块使用，本轮没有声称已将它们全部迁入新平台的数据模型。
+后续接入范围：其他 Harness、更多模型协议与推理参数、自动资料同步和索引构建、完整模型评测与 CPT/DPO 作业、继续原生会话。LoRA 训练、合并导出、产物登记与 vLLM 部署已接入新供应作业，详见[供应流程](../supply/README.md)；其他旧训练与检索工具继续保留。
 
 ## 接口与进程
 
-- `src/search_engine/agent_platform/catalog.py`：岗位、模型服务与固定发布包。
+- `src/search_engine/agent_platform/catalog.py`：组合岗位、模型服务与发布模块；各模块分别负责数据写入。
+- `src/search_engine/agent_platform/context.py`：共享上下文存储及旧数据迁移。
+- `src/search_engine/agent_platform/models.py`、`jobs.py`：模型数据/产物和独立供应作业。
 - `src/search_engine/agent_platform/pi_runtime.py`：Pi 原生配置与进程接入。
 - `src/search_engine/agent_platform/runs.py`：请求去重、队列状态和运行记录。
 - `src/search_engine/platform_api.py`：FastAPI 管理 API及旧模块传输适配。
 - `src/search_engine/platform_worker.py`：唯一的本机执行进程，使用本机文件锁避免重复启动。
 
-业务接口使用 `/api/platform/positions`、`agents`、`models`、`releases` 和 `runs`；原 `/api/native/*` 接口通过兼容适配器保留。开发和 CI 可用 SQLite，实际单机部署优先使用 PostgreSQL；上下文资源暂沿用原服务。
+业务接口使用 `/api/platform/positions`、`agents`、`models`、`releases` 和 `runs`；原 `/api/native/*` 接口通过兼容适配器保留。开发和 CI 可用 SQLite，实际单机部署优先使用 PostgreSQL；上下文资源已迁入同一数据库，原 MCP 与旧接口兼容读取。
