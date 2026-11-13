@@ -7,6 +7,7 @@ import {displayLabel,displayMarkdown} from '../lib/presentation';
 import {resultDocument} from '../lib/result-document';
 import RunHistory,{request,SavedTask} from './run-history';
 import {runStatus} from '../lib/workbench-api';
+import {useWorkbenchAccess} from './access-gate';
 import ServiceDiagnostics from './service-diagnostics';
 type Props=Record<string,unknown>;
 type Component={id:number;type:string;props:Props};
@@ -17,6 +18,7 @@ type Delta=Record<string,{props?:Props;value?:unknown}>;
 const text=(v:unknown)=>v==null?'':typeof v==='string'?v:JSON.stringify(v);
 const fileUrl=(v:unknown):string=>typeof v==='string'?v:((v as {url?:string;path?:string})?.url||(v as {path?:string})?.path||'');
 export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
+ const access=useWorkbenchAccess(),restricted=access?.identity.business_access===false;
  const [layout,setLayout]=useState<Layout|null>(null),[values,setValues]=useState<Record<string,unknown>>({}),[overrides,setOverrides]=useState<Record<string,Props>>({}),[active,setActive]=useState<Record<string,number>>({}),[busy,setBusy]=useState(0),[error,setError]=useState(''),[status,setStatus]=useState('');
  const runtimeId=useRef(''),presetLock=useRef(false);
  const [presetPending,setPresetPending]=useState(false);
@@ -31,7 +33,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
   const r=await fetch('/api/native/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:session.current})});const data=await r.json();if(!r.ok)throw Error(data.error||'模块初始化失败');
   runtimeId.current=data.runtime_id;const initial=Object.fromEntries(data.components.map((c:Component)=>[String(c.id),c.props.value]));current.current=initial;setValues(initial);setOverrides({});setLayout(data);setStatus('工作台已就绪');
  }catch(e){setError((e as Error).message)}finally{setLoading(false)}}
- useEffect(()=>{void connect()},[]);
+ useEffect(()=>{if(!restricted)void connect()},[restricted]);
  const components=new Map(layout?.components.map(c=>[c.id,c])||[]);
  const rootTabs=layout?.components.find(c=>c.type==='tabs');
  const findNode=(node:Node,id:number):Node|undefined=>node.id===id?node:node.children?.map(n=>findNode(n,id)).find(Boolean);
@@ -39,7 +41,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
  const rootTabIds=new Set(rootTabNodes.map(n=>n.id));
  const firstMarkdown=(node:Node):number|undefined=>components.get(node.id)?.type==='markdown'?node.id:node.children?.map(firstMarkdown).find(id=>id!==undefined);
  const introIds=new Set(rootTabNodes.map(firstMarkdown));
- const moduleLabel=text(components.get(rootTabNodes[moduleIndex]?.id)?.props.label);
+ const moduleLabel=text(components.get(rootTabNodes[moduleIndex]?.id)?.props.label)||['🏗️ 第一部分：离线索引构建','🔍 第二部分：在线召回排序','🤖 第三部分：RAG','🧠 第四部分：OAG（图谱游走推理）','🧩 第五部分：上下文工程','🖼️ 第六部分：多模态系统','📊 第七部分：数据回收训练','🛡️ 第八部分：系统监控'][moduleIndex];
  const apply=useCallback((delta:Delta)=>{
   const next={...current.current};
   for(const [id,entry]of Object.entries(delta)){if(!entry||typeof entry!=='object')continue;if('value'in entry)next[id]=entry.value;if(entry.props&&'value'in entry.props)next[id]=entry.props.value;}
@@ -155,6 +157,7 @@ export default function NativeWorkbench({moduleIndex=0}:{moduleIndex?:number}){
   if(node.children?.length)return <div>{children()}</div>;
   return <p role="alert" className="inline-error">尚未支持的原控件：{c.type}（{label}）</p>;
  }
+ if(restricted)return <section className="native-workbench" data-verify-unit="NativeWorkbench" data-verify-state="restricted" data-verify-module={moduleIndex}><p className="run-help">当前身份可维护本项目的上下文，未获准访问原共享业务模块。</p>{error&&<p role="alert" className="inline-error">{error}</p>}<RunHistory onPresetPending={pendingPreset} activeTask={null} onExitPreset={()=>{}} module={moduleLabel} revision={revision} labels={{}} actions={{}} onRestore={()=>setError('当前身份未获原业务操作权限')} onReconnect={()=>setError('当前身份未获原业务操作权限')}/></section>;
  return <section className="native-workbench" data-verify-unit="NativeWorkbench" data-verify-module={moduleIndex} data-verify-state={loading?'loading':busy>0?'running':layout?'ready':'unavailable'} data-verify-busy={busy} data-verify-components={layout?.components.length||0} data-verify-events={layout?.dependencies.length||0}><div className="native-toolbar"><p>{status||'正在载入原工作台…'}</p><button className="text-button" disabled={loading} onClick={connect}>{loading?<Loader2 className="spin" size={15}/>:<RefreshCw size={15}/>}重新载入</button>{busy>0&&<span><Loader2 className="spin" size={15}/>执行中</span>}{savedTask?.module===moduleLabel&&<span className="preset-badge">预设：{savedTask.name} · v{savedTask.version||1}<button className="text-button" onClick={()=>setSavedTask(null)}>退出任务预设</button></span>}</div>{error&&<p role="alert" className="inline-error">{error}</p>}{(error||moduleIndex===7)&&<ServiceDiagnostics/>}{layout&&<RunHistory onPresetPending={pendingPreset} activeTask={savedTask} onExitPreset={()=>setSavedTask(null)} actions={Object.fromEntries(layout.dependencies.map(d=>[String(d.id),displayLabel(text(components.get(d.targets[0]?.[0]??-1)?.props.value||components.get(d.targets[0]?.[0]??-1)?.props.label||'操作'))]))} module={moduleLabel} revision={revision} labels={Object.fromEntries([...components.values()].map(c=>[String(c.id),displayLabel(text(c.props.label||c.props.value))]))} onRestore={restoreTask} onReconnect={record=>{if(record.session!==session.current){setError('此运行来自其他会话。请在记录中查看结果；当前页面不会接管其会话状态。');return}remember(record.id);void followRun(record.id)}}/>}{loading&&<div className="empty-state"><Loader2 className="spin"/><p>首次载入正在初始化原模块与数据服务。</p></div>}{layout&&render(layout.layout)}</section>
 }
 function Media({value,kind}:{value:unknown;kind:string}){if(Array.isArray(value))return <>{value.map((v,i)=><Media key={i} value={v} kind={kind}/>)}</>;const url=fileUrl(value);if(!url)return null;return <div>{kind==='image'?<img src={url} alt={(value as {orig_name?:string})?.orig_name||'模块图片'} style={{maxWidth:'100%'}}/>:kind==='audio'?<audio controls src={url}/>:kind==='video'?<video controls src={url} style={{maxWidth:'100%'}}/>:<a href={url} download>下载 {(value as {orig_name?:string})?.orig_name||'文件'}</a>}</div>}

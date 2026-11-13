@@ -52,6 +52,12 @@ def main():
                             gr.Button('查看状态').click(lambda: {'source': 'deterministic-ci-fixture', 'ready': True}, [], output)
         executor = NativeRuntime(lambda: blocks)
         records = RunStore(executor, folder, background=True)
+        import hashlib,json
+        records.access.path.write_text(json.dumps({'version':1,'principals':[
+            {'id':'fixture-operator','project':'local','role':'operator','business_access':True,
+             'token_sha256':hashlib.sha256(b'fixture-operator-token-not-for-real-use').hexdigest()},
+            {'id':'fixture-config','project':'context-only','role':'operator','business_access':False,
+             'token_sha256':hashlib.sha256(b'fixture-context-only-token-not-for-real-use').hexdigest()}]}))
         server = ThreadingHTTPServer(('127.0.0.1', 8768), make_handler(executor, records))
         try:
             server.serve_forever()

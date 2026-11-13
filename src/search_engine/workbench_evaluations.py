@@ -6,6 +6,8 @@ import threading
 import time
 import uuid
 from urllib.request import Request, urlopen
+from contextlib import nullcontext
+from .workbench_access import identity, AccessDenied, require_business
 
 
 def nonempty(value, limit=120):
@@ -170,7 +172,7 @@ class Evaluations:
             run = self.store.get('runs', run_id)
             if run['status'] not in ('completed', 'stopped'):
                 raise ValueError('仅能验收已经完成的运行')
-            review = {'passed': passed, 'reason': reason, 'at': time.time(), 'actor': '本地工作台操作员'}
+            review = {'passed': passed, 'reason': reason, 'at': time.time(), 'actor': identity().id}
             run.setdefault('acceptance_history', []).append(review)
             run['acceptance'] = review
             self.store.put('runs', run)
@@ -246,22 +248,45 @@ class Evaluations:
                 pending = db.execute("SELECT COUNT(*) FROM runs WHERE json_extract(body, '$.status') IN ('queued','running','awaiting_review')").fetchone()[0]
             if pending + expected > 200:
                 raise ValueError('队列容量不足以容纳完整任务集，请稍后再运行')
+            plans, cells = [], []
+            try:
+                for task in tasks[:1] if mode == 'probe' else tasks:
+                    for variant in suite['variants']:
+                        for trial in range(1 if mode == 'probe' else suite['repeats']):
+                            values = {**prepared[task['id']], **{k: v for k, v in variant.get('values', {}).items() if k in task['inputs']}}
+                            values.update({key: None for key in task.get('secret_env', {})})
+                            session = 'eval-' + batch_id + '-' + uuid.uuid4().hex[:12]
+                            plan = self.store.prepare_run(session, task['fn_id'], values, task.get('event'), task['id'],
+                                metadata={'batch_id': batch_id, 'variant': variant['name'], 'trial': trial + 1},
+                                expected_task_version=suite['task_versions'][task['id']])
+                            plans.append(plan)
+                            cells.append({'task_id': task['id'], 'task_name': task['name'], 'variant': variant['name'],
+                                          'trial': trial + 1, 'run_id': plan['run']['id']})
+            except Exception:
+                for plan in plans:
+                    self.store.executor.release_session(plan['session'])
+                if 'session' in locals():
+                    self.store.executor.release_session(session)
+                raise
             batch = {'id': batch_id, 'module': suite['module'], 'suite_id': suite_id,
                      'suite_version': suite['version'], 'task_versions': suite['task_versions'],
-                     'mode': mode, 'expected_count': expected, 'cells': [],
+                     'mode': mode, 'expected_count': expected, 'cells': cells, 'status': 'submitting',
                      'audit': self.audit(suite_id), 'created_at': time.time()}
             self.store.put('batches', batch)
-            for task in tasks[:1] if mode == 'probe' else tasks:
-                for variant in suite['variants']:
-                    for trial in range(1 if mode == 'probe' else suite['repeats']):
-                        values = {**prepared[task['id']], **{k: v for k, v in variant.get('values', {}).items() if k in task['inputs']}}
-                        values.update({key: None for key in task.get('secret_env', {})})
-                        session = 'eval-' + batch_id + '-' + uuid.uuid4().hex[:12]
-                        result = self.store.start(session, task['fn_id'], values, task.get('event'), task['id'],
-                                                  metadata={'batch_id': batch_id, 'variant': variant['name'], 'trial': trial + 1})
-                        batch['cells'].append({'task_id': task['id'], 'task_name': task['name'], 'variant': variant['name'],
-                                               'trial': trial + 1, 'run_id': result['run_id']})
-                        self.store.put('batches', batch)
+            started = []
+            try:
+                for plan in plans:
+                    result = self.store.start(plan['session'], plan['fn_id'], {}, plan=plan)
+                    started.append(result['run_id'])
+                batch['status'] = 'submitted'
+            except Exception as exc:
+                batch.update(status='submission_failed', submission_error=str(exc))
+                for run_id in started:
+                    self.store.decide(run_id, 'cancel')
+                for plan in plans:
+                    self.store.executor.release_session(plan['session'])
+            self.store.put('batches', batch)
+
         return self.summary(batch_id)
 
     def audit(self, suite_id):
@@ -295,7 +320,11 @@ class Evaluations:
         batch = self.store.get('batches', batch_id)
         rows = []
         for cell in batch['cells']:
-            run = self.store.get('runs', cell['run_id'])
+            try:
+                run = self.store.get('runs', cell['run_id'])
+            except ValueError:
+                run = {'status': 'submission_failed', 'finished_at': None, 'usage': [],
+                       'error': batch.get('submission_error', '计划单元缺少运行记录')}
             row = {**cell, 'status': run['status'], 'verdict': run.get('evaluation', {}).get('verdict', 'ungraded'),
                    'duration': (run.get('callback_finished_at', run['finished_at']) - run.get('execution_started_at', run['started_at'])) if run['finished_at'] else None,
                    'usage': run.get('usage', []), 'error': run.get('error')}
@@ -306,15 +335,23 @@ class Evaluations:
             times = sorted(row['duration'] for row in members if row['duration'] is not None)
             calls = [call for row in members for call in row['usage']]
             currencies = {call.get('currency') for call in calls}
+            usage_complete = all(row['usage'] for row in members) and all(
+                call.get('usage_known', True) and call.get('input_tokens') is not None and call.get('output_tokens') is not None
+                for call in calls)
             complete = all(row['status'] not in ('queued', 'running', 'awaiting_review') for row in members)
             groups.append({'variant': label, 'count': len(members), 'passed': sum(row['verdict'] == 'passed' for row in members),
                            'pass_rate': sum(row['verdict'] == 'passed' for row in members) / len(members),
                            'complete': complete, 'p95_seconds': times[math.ceil(.95 * len(times)) - 1] if times else None,
-                           'input_tokens': sum(call['input_tokens'] for call in calls) if calls else None,
-                           'output_tokens': sum(call['output_tokens'] for call in calls) if calls else None,
-                           'cost': sum(call['cost'] for call in calls) if calls and all(call['cost'] is not None for call in calls) and len(currencies) == 1 else None,
+                           'usage_complete': bool(usage_complete),
+                           'input_tokens': sum(call['input_tokens'] for call in calls) if usage_complete else None,
+                           'output_tokens': sum(call['output_tokens'] for call in calls) if usage_complete else None,
+                           'cost': sum(call['cost'] for call in calls) if usage_complete and all(call['cost'] is not None for call in calls) and len(currencies) == 1 else None,
                            'currency': next(iter(currencies)) if len(currencies) == 1 else None})
-        complete = bool(rows) and all(group['complete'] for group in groups)
+        complete = (bool(rows) and len(rows) == batch.get('expected_count', len(rows))
+                    and batch.get('status', 'submitted') == 'submitted'
+                    and all(row['status'] not in ('submission_failed', 'interrupted', 'cancelled', 'rejected') for row in rows)
+                    and all(group['complete'] for group in groups))
+        terminal = batch.get('status') == 'submission_failed' or (bool(rows) and all(group['complete'] for group in groups))
         candidates = [group for group in groups if group['passed'] > 0] if complete else []
         priced = bool(groups) and all(group['cost'] is not None for group in groups) and len({group['currency'] for group in groups}) == 1
         candidates.sort(key=lambda group: (-group['pass_rate'], group['cost'] if priced else 0,
@@ -322,7 +359,7 @@ class Evaluations:
         recommendation = {'variant': candidates[0]['variant'], 'basis': '先比较当前规则通过率，'
                           + ('再比较同币种成本和耗时。' if priced else '再比较耗时；成本未参与排序。'),
                           'notice': '这是当前任务与规则下的候选，需结合任务集检查和人工业务验收。'} if candidates else None
-        return {**batch, 'rows': rows, 'groups': groups, 'complete': complete, 'recommendation': recommendation}
+        return {**batch, 'rows': rows, 'groups': groups, 'complete': complete, 'terminal': terminal, 'recommendation': recommendation}
 
     def baseline(self, suite_id, batch_id):
         suite, batch = self.store.get('suites', suite_id), self.summary(batch_id)
@@ -357,7 +394,8 @@ class Evaluations:
         item = {**old, 'id': old.get('id', uuid.uuid4().hex), 'module': suite['module'], 'suite_id': suite_id,
                 'suite_version': suite['version'],
                 'suite_name': suite['name'], 'interval_minutes': interval_minutes, 'enabled': enabled,
-                'next_at': time.time() + interval_minutes * 60, 'updated_at': time.time()}
+                'next_at': time.time() + interval_minutes * 60, 'updated_at': time.time(),
+                'project': identity().project, 'actor': identity().public(), '_execution_identity': identity().claim()}
         self.store.put('schedules', item)
         return item
 
@@ -370,11 +408,19 @@ class Evaluations:
             for item in due:
                 if item.get('last_batch'):
                     try:
-                        previous = self.summary(item['last_batch'])
-                    except ValueError:
+                        claims = item.get('_execution_identity')
+                        scope = (nullcontext() if claims and claims.get('id') == 'local-internal'
+                                 else self.store.access.resume(claims or {}))
+                        with scope:
+                            previous = self.summary(item['last_batch'])
+                    except (ValueError, KeyError, AccessDenied):
                         previous = None
                     if previous is None or any(row['status'] == 'interrupted' for row in previous['rows']):
                         item.update(enabled=False, error='上次周期验证中断或记录缺失，请核对后重新启用')
+                        db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+                        continue
+                    if previous.get('status') == 'submission_failed' or (previous.get('terminal') and not previous['complete']):
+                        item.update(enabled=False, error='上次周期验证提交失败，请核对后重新启用')
                         db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
                         continue
                     if not previous['complete']:
@@ -386,33 +432,51 @@ class Evaluations:
                 db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
                 claimed.append(item)
         for item in claimed:
+            claims = item.get('_execution_identity')
             try:
-                if self.store.get('suites', item['suite_id'])['version'] != item.get('suite_version'):
-                    raise ValueError('任务集已有新版本，请核对后重新启用周期验证')
-                self.start(item['suite_id'], request_id=item['last_batch'])
-                batch = self.store.get('batches', item['last_batch'])
-                batch['schedule_id'] = item['id']
-                self.store.put('batches', batch)
-                item.pop('error', None)
-            except (ValueError, OSError) as exc:
+                if not claims:
+                    raise ValueError('周期任务缺少执行身份，请核对后重新启用')
+                scope = (nullcontext() if claims.get('id') == 'local-internal' and not claims.get('fingerprint')
+                         else self.store.access.resume(claims))
+                with scope:
+                    self._run_schedule(item)
+            except (ValueError, AccessDenied) as exc:
                 item.update(enabled=False, error=str(exc))
-            with self.store.lock:
-                latest = self.store.get('schedules', item['id'])
-                if latest.get('last_batch') != item['last_batch']:
-                    continue
-                if item.get('error'):
-                    latest['error'] = item['error']
-                    if latest['updated_at'] == item['updated_at']:
-                        latest['enabled'] = False
-                else:
-                    latest.pop('error', None)
-                self.store.put('schedules', latest)
+                # This system bookkeeping must not depend on the revoked identity.
+                with self.store.db() as db:
+                    db.execute('UPDATE schedules SET body=? WHERE id=?', (json.dumps(item, ensure_ascii=False), item['id']))
+
         return due
+
+    def _run_schedule(self, item):
+        try:
+            require_business()
+            if self.store.get('suites', item['suite_id'])['version'] != item.get('suite_version'):
+                raise ValueError('任务集已有新版本，请核对后重新启用周期验证')
+            self.start(item['suite_id'], request_id=item['last_batch'])
+            batch = self.store.get('batches', item['last_batch'])
+            batch['schedule_id'] = item['id']
+            self.store.put('batches', batch)
+            item.pop('error', None)
+        except (ValueError, OSError) as exc:
+            item.update(enabled=False, error=str(exc))
+        with self.store.lock:
+            latest = self.store.get('schedules', item['id'])
+            if latest.get('last_batch') != item['last_batch']:
+                return
+            if item.get('error'):
+                latest['error'] = item['error']
+                if latest['updated_at'] == item['updated_at']:
+                    latest['enabled'] = False
+            else:
+                latest.pop('error', None)
+            self.store.put('schedules', latest)
 
     def loop(self):
         while not self.stop.wait(1):
             self.last_tick = time.time()
             try:
+                self.store.executor.cleanup_resources()
                 self.tick()
                 self.last_error = None
             except Exception as exc:

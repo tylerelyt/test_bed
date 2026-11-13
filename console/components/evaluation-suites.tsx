@@ -22,6 +22,9 @@ type Batch = {
   suite_id: string;
   mode: string;
   complete: boolean;
+  terminal?: boolean;
+  submission_error?: string;
+  expected_count?: number;
   recommendation?: { variant: string; basis: string; notice: string } | null;
   rows: {
     task_name: string;
@@ -310,8 +313,9 @@ export default function EvaluationSuites({
         <div className="run-detail">
           <h4>
             {batch.mode === "probe" ? "快速探针" : "完整评测"} ·{" "}
-            {batch.complete ? "已结束" : "执行中"}
+            {batch.submission_error ? "提交失败" : batch.complete ? "已结束" : batch.terminal ? "已停止或不完整" : "执行中"}
           </h4>
+          {batch.submission_error && <p role="alert" className="inline-error">{batch.submission_error}。本批次不作为完整评测或基线。</p>}
           {batch.recommendation && (
             <p className="run-help">
               当前规则下的候选：{batch.recommendation.variant}。
@@ -421,7 +425,7 @@ export default function EvaluationSuites({
             >
               比较任务集基线
             </button>
-            {!batch.complete && (
+            {!batch.complete && !batch.terminal && (
               <button
                 className="text-button"
                 onClick={() =>

@@ -270,3 +270,10 @@ input[type=radio]:checked::after { content: ''; width: 8px; height: 8px; backgro
 }
 
 .preset-badge { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--green); font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
+
+.access-gate { min-height:100vh; display:grid; place-items:center; padding:24px; }
+.access-gate form { width:100%; max-width:460px; padding:32px; border:1px solid var(--line); border-radius:10px; background:var(--paper); }
+.access-gate label { display:block; margin:24px 0 8px; }
+.access-gate .primary { margin-top:18px; }
+.access-identity { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:11px; max-width:42%; }
+.access-identity > span { overflow-wrap:anywhere; }

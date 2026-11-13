@@ -12,6 +12,8 @@ import uuid
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from contextvars import copy_context
+from .workbench_access import AccessPolicy, identity, check, visible
 from pathlib import Path
 from .workbench_telemetry import observe_usage
 
@@ -46,6 +48,7 @@ class RunStore:
         self.pending_functions = defaultdict(deque)
         self.pending_review = {}
         self.cancel_requests = set()
+        self.leases = {}
         self.closed = False
         source_hash = hashlib.sha256()
         source_root = Path(__file__).resolve().parents[1]
@@ -80,6 +83,7 @@ class RunStore:
                                error='执行服务已重启；操作未自动重跑，请核对实际业务状态。')
                     db.execute('UPDATE runs SET body=? WHERE id=?', (encoded(run), row[0]))
         self.path.chmod(0o600)
+        self.access = AccessPolicy(self.directory)
         from .workbench_evaluations import Evaluations
         from .workbench_context import ContextStore
         self.context = ContextStore(self.directory)
@@ -91,12 +95,13 @@ class RunStore:
         self.pool.shutdown(wait=True)
         self.controls.shutdown(wait=True)
 
-    def enqueue(self, fn_id, work, control=False):
+    def enqueue(self, fn_id, work, control=False, context=None):
+        context = copy_context() if context is None else context
         with self.lock:
             if self.closed:
                 return
             if fn_id in self.active_functions:
-                self.pending_functions[fn_id].append((work, control))
+                self.pending_functions[fn_id].append((work, control, context))
                 return
             self.active_functions.add(fn_id)
         def execute():
@@ -108,7 +113,7 @@ class RunStore:
                     next_job = self.pending_functions[fn_id].popleft() if self.pending_functions[fn_id] else None
                     if next_job:
                         self.enqueue(fn_id, *next_job)
-        (self.controls if control else self.pool).submit(execute)
+        (self.controls if control else self.pool).submit(context.run, execute)
 
     @contextmanager
     def db(self):
@@ -128,19 +133,28 @@ class RunStore:
             row = db.execute(f'SELECT body FROM {table} WHERE id=?', (item_id,)).fetchone()
         if not row:
             raise ValueError('记录不存在')
-        return json.loads(row[0])
+        return check(json.loads(row[0]))
 
     def put(self, table, item):
         if table not in TABLES:
             raise ValueError('记录类型无效')
         with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            previous = db.execute(f'SELECT body FROM {table} WHERE id=?', (item['id'],)).fetchone()
+            old = check(json.loads(previous[0])) if previous else None
+            item.setdefault('project', old.get('project', 'local') if old else identity().project)
+            item.setdefault('actor', old.get('actor', {'id': 'legacy-unknown', 'project': item['project'], 'role': 'legacy'})
+                            if old else identity().public())
+            check(item)
+            if old and item['project'] != old.get('project', 'local'):
+                raise PermissionError('记录不能通过修改移入其他项目')
             db.execute(f'INSERT OR REPLACE INTO {table} VALUES (?, ?)', (item['id'], encoded(item)))
 
     def listing(self, table, module):
         if table not in TABLES:
             raise ValueError('记录类型无效')
         with self.db() as db:
-            rows = db.execute(f"SELECT body FROM {table} WHERE json_extract(body, '$.module')=? ORDER BY rowid DESC LIMIT 100", (module,)).fetchall()
+            rows = db.execute(f"SELECT body FROM {table} WHERE json_extract(body, '$.module')=? AND COALESCE(json_extract(body, '$.project'),'local')=? ORDER BY rowid DESC LIMIT 100", (module, identity().project)).fetchall()
         return [json.loads(row[0]) for row in rows]
 
     def catalog(self, module):
@@ -234,7 +248,15 @@ class RunStore:
                 if found:
                     return found
             return []
-        tabs = [components[c]['props'].get('label', '') for c in ancestors(config['layout'], [])
+        trail = ancestors(config['layout'], [])
+        if target is None:
+            for candidate in dependency['outputs'] + dependency['inputs']:
+                target = candidate
+                trail = ancestors(config['layout'], [])
+                if any(c in components and components[c]['type'] in ('tab', 'tabitem') for c in trail):
+                    break
+            target = None
+        tabs = [components[c]['props'].get('label', '') for c in trail
                 if c in components and components[c]['type'] in ('tab', 'tabitem')]
         module = tabs[0] if tabs else '工作台'
         target_props = components.get(target, {}).get('props', {})
@@ -276,7 +298,7 @@ class RunStore:
             return value
         return clean
 
-    def start(self, session, fn_id, submitted, event=None, task_id=None, request_id=None, metadata=None, expected_task_version=None):
+    def prepare_run(self, session, fn_id, submitted, event=None, task_id=None, request_id=None, metadata=None, expected_task_version=None):
         if request_id is not None and (not isinstance(request_id, str) or not re.fullmatch('[a-f0-9]{32}', request_id)):
             raise ValueError('运行请求标识无效')
         descriptor = self.descriptor(fn_id)
@@ -320,27 +342,58 @@ class RunStore:
                'runtime_id': self.executor.instance_id, 'user_inputs': user_inputs,
                'context_binding': binding, 'secret_env': task.get('secret_env', {}) if task else {},
                'metadata': clean(metadata or {}), 'usage': [], 'artifacts': [], 'reviews': [],
-               'code': self.code,
+               'code': self.code, 'project': identity().project, 'actor': identity().public(),
+               '_execution_identity': identity().claim(),
                'config_version': digest({'schema': descriptor['schema'], 'inputs': snapshot, 'code': self.code['source_sha256']})}
+        return {'run': run, 'descriptor': descriptor, 'control': control, 'task': task, 'clean': clean,
+                'inputs': inputs, 'binding': binding, 'assembled': assembled, 'original_text': original_text,
+                'session': session, 'fn_id': fn_id, 'event': event}
+
+    def start(self, session, fn_id, submitted, event=None, task_id=None, request_id=None, metadata=None, expected_task_version=None, *, plan=None):
+        plan = plan or self.prepare_run(session, fn_id, submitted, event, task_id, request_id, metadata, expected_task_version)
+        run, descriptor, control, task, clean, inputs, binding, assembled, original_text = (
+            plan[key] for key in ('run', 'descriptor', 'control', 'task', 'clean', 'inputs', 'binding', 'assembled', 'original_text'))
         with self.lock:
             with self.db() as db:
                 existing = db.execute('SELECT body FROM runs WHERE id=?', (run['id'],)).fetchone()
             if existing:
                 existing = json.loads(existing[0])
-                if existing['session'] != session or existing['fn_id'] != fn_id:
+                check(existing)
+                if existing.get('actor', {}).get('id', identity().id) != identity().id or existing['session'] != session or existing['fn_id'] != fn_id:
                     raise ValueError('运行请求标识已被其他操作使用')
                 return {'run_id': existing['id'], 'config_version': existing['config_version']}
             with self.db() as db:
                 pending = db.execute("SELECT COUNT(*) FROM runs WHERE json_extract(body, '$.status') IN ('queued','running','awaiting_review')").fetchone()[0]
             if pending >= 200 and not control:
                 raise ValueError('运行队列已满，请等待或取消未执行任务')
-            if assembled:
-                run['context'] = self.context.record_supply(assembled, run['id'], session)
-            self.put('runs', run)
-            self.live[run['id']] = {}
+            lease = self.executor.pin(session, inputs)
+            try:
+                if assembled:
+                    run['context'] = self.context.record_supply(assembled, run['id'], session)
+                self.put('runs', run)
+                self.live[run['id']] = {}
+                self.leases[run['id']] = lease
+            except BaseException:
+                self.executor.unpin(lease, discard=bool(run.get('metadata', {}).get('batch_id')))
+                raise
         # Capture values now: later edits in the browser must not change a queued callback's inputs.
         execution_values = dict(inputs)
         def work():
+            claims = run.get('_execution_identity', {})
+            if claims.get('fingerprint'):
+                try:
+                    from .workbench_access import Identity
+                    who = self.access.revalidate(Identity(claims['id'], claims['project'], claims['role'], claims['fingerprint']))
+                    if who.role != 'operator' or not who.business_access:
+                        raise PermissionError('执行身份的业务权限已撤销')
+                except PermissionError as exc:
+                    with self.condition:
+                        run.update(status='failed', error=str(exc), finished_at=time.time())
+                        self.put('runs', run)
+                        lease = self.leases.pop(run['id'], None)
+                        if lease: self.executor.unpin(lease, discard=bool(run.get('metadata', {}).get('batch_id')))
+                        self.condition.notify_all()
+                    return
             with self.condition:
                 current = self.get('runs', run['id'])
                 if current['status'] in ('cancelled', 'rejected'):
@@ -389,13 +442,17 @@ class RunStore:
                 with self.condition:
                     self.put('runs', run)
                     # Only previews need temporary URLs; durable records never contain them.
-                    finished = [key for key in self.live if self.get('runs', key)['status'] not in ACTIVE]
+                    with self.db() as db:
+                        ended = {row[0] for row in db.execute("SELECT id FROM runs WHERE json_extract(body, '$.status') NOT IN ('queued','running','awaiting_review')")}
+                    finished = [key for key in self.live if key in ended]
                     for key in finished[:-20]:
                         del self.live[key]
+                    lease = self.leases.pop(run['id'], None)
+                    if lease: self.executor.unpin(lease, discard=bool(run.get('metadata', {}).get('batch_id')))
                     self.condition.notify_all()
         lane = ('control', fn_id) if control else ('module', descriptor['module'])
         if run['status'] == 'awaiting_review':
-            self.pending_review[run['id']] = (lane, work, control)
+            self.pending_review[run['id']] = (lane, work, control, copy_context())
         else:
             self.enqueue(lane, work, control)
         return {'run_id': run['id'], 'config_version': run['config_version']}
@@ -419,7 +476,7 @@ class RunStore:
                 if run['status'] != 'awaiting_review' or run_id not in self.pending_review:
                     raise ValueError('本次运行不在等待放行')
                 job = self.pending_review.pop(run_id)
-                run['reviews'].append({'decision': decision, 'at': time.time(), 'actor': '本地工作台操作员'})
+                run['reviews'].append({'decision': decision, 'at': time.time(), 'actor': identity().id})
                 run.update(status='queued' if decision == 'approve' else 'rejected')
                 if decision == 'reject':
                     run['finished_at'] = time.time()
@@ -427,6 +484,9 @@ class RunStore:
                 if decision == 'approve':
                     self.enqueue(*job)
             self.put('runs', run)
+            if run['status'] in ('cancelled', 'rejected'):
+                lease = self.leases.pop(run_id, None)
+                if lease: self.executor.unpin(lease, discard=bool(run.get('metadata', {}).get('batch_id')))
             self.condition.notify_all()
         return run
 

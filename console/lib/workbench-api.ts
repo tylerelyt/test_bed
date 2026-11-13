@@ -95,6 +95,7 @@ export const runStatus: Record<string, string> = {
   completed: "执行完成",
   failed: "执行失败",
   interrupted: "服务重启，执行中断",
+  submission_failed: "提交失败",
   cancelled: "已取消（未执行）",
   stopped: "执行返回（曾请求停止）",
   rejected: "未放行",
@@ -117,6 +118,7 @@ export async function request(path: string, body?: unknown) {
         },
   );
   const result = await response.json();
+  if(response.status===401&&typeof window!=='undefined')window.dispatchEvent(new Event('workbench-auth-required'));
   if (!response.ok) throw Object.assign(Error(result.error || "操作失败"),{status:response.status});
   return result;
 }

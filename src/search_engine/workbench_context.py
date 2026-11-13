@@ -5,8 +5,10 @@ import sqlite3
 import time
 import uuid
 import hashlib
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
+
+from .workbench_access import identity, check, visible, require_operator, AccessDenied
 
 KINDS = ('knowledge', 'instructions', 'tool', 'experience', 'notebook', 'role')
 
@@ -33,7 +35,7 @@ class ContextStore:
         finally:
             db.close()
 
-    def get(self, table, item_id, version=None):
+    def _read(self, table, item_id, version=None):
         if table not in ('resources', 'bundles') or not isinstance(item_id, str):
             raise ValueError('上下文标识无效')
         with self.db() as db:
@@ -41,7 +43,27 @@ class ContextStore:
                              (item_id, version) if version is not None else (item_id,)).fetchone()
         if not row:
             raise ValueError('上下文资源不存在')
-        return json.loads(row[0])
+        return check(json.loads(row[0]))
+
+    def get(self, table, item_id, version=None):
+        item = self._read(table, item_id, version)
+        who = identity()
+        if who.role == 'operator':
+            return item
+        if table == 'bundles':
+            if item_id not in who.bundles:
+                raise AccessDenied('此 Agent 未获准读取该供应配置')
+        else:
+            refs = []
+            for bundle_id in who.bundles:
+                try:
+                    refs.extend(self._read('bundles', bundle_id)['resources'])
+                except ValueError:
+                    continue
+            if not any(ref['id'] == item_id and (ref['version'] == item['version'] or
+                       (ref['permission'] == 'read_write' and item.get('kind') == 'notebook')) for ref in refs):
+                raise AccessDenied('此资源版本不在 Agent 当前获准的配置中')
+        return item
 
     def catalog(self, query=''):
         result = {}
@@ -50,23 +72,39 @@ class ContextStore:
                 rows = db.execute(f'SELECT body FROM {table} x WHERE version=(SELECT MAX(version) FROM {table} y WHERE x.id=y.id) ORDER BY rowid DESC').fetchall()
                 items = [json.loads(row[0]) for row in rows]
                 result[table] = [{k: v for k, v in item.items() if k != 'content'} for item in items
-                                 if query.lower() in json.dumps({k: v for k, v in item.items() if k != 'content'}, ensure_ascii=False).lower()][:100]
+                                 if visible(item) and query.lower() in json.dumps({k: v for k, v in item.items() if k != 'content'}, ensure_ascii=False).lower()
+                                 and (identity().role == 'operator' or (item['id'] in identity().bundles if table == 'bundles'
+                                      else self.agent_resource_allowed(item['id'])))][:100]
         return result
 
-    def save(self, table, item, expected_version=None):
+    def agent_resource_allowed(self, resource_id):
+        return any(resource_id in {ref['id'] for ref in self._read('bundles', bundle_id)['resources']}
+                   for bundle_id in identity().bundles)
+
+    def save(self, table, item, expected_version=None, *, connection=None, audit=None):
+        item.setdefault('project', identity().project)
+        item['actor'] = identity().public()
+        check(item)
         if table not in ('resources', 'bundles'):
             raise ValueError('上下文类型无效')
-        with self.db() as db:
-            db.execute('BEGIN IMMEDIATE')
-            current = db.execute(f'SELECT MAX(version) FROM {table} WHERE id=?', (item['id'],)).fetchone()[0]
+        with (self.db() if connection is None else nullcontext(connection)) as db:
+            if connection is None:
+                db.execute('BEGIN IMMEDIATE')
+            previous = db.execute(f'SELECT version,body FROM {table} WHERE id=? ORDER BY version DESC LIMIT 1', (item['id'],)).fetchone()
+            if previous: check(json.loads(previous[1]))
+            current = previous[0] if previous else None
             if current != expected_version:
                 raise ValueError('上下文版本已变化，请重新读取后修改')
             item['version'] = (current or 0) + 1
             item['updated_at'] = time.time()
             db.execute(f'INSERT INTO {table} VALUES (?, ?, ?)', (item['id'], item['version'], json.dumps(item, ensure_ascii=False)))
+            if audit is not None:
+                db.execute('INSERT INTO audit VALUES (?, ?)', (audit['id'], json.dumps({**audit, 'version': item['version']}, ensure_ascii=False)))
         return item
 
-    def resource(self, name, kind, content, source='', permission='read_only', tags=None, resource_id=None, expected_version=None):
+    def resource(self, name, kind, content, source='', permission='read_only', tags=None, resource_id=None, expected_version=None, *, connection=None, audit=None):
+        if connection is None:
+            require_operator()
         if kind not in KINDS or not isinstance(name, str) or not 0 < len(name.strip()) <= 120:
             raise ValueError('请填写资源名称并选择有效类型')
         if not isinstance(content, str) or len(content) > 200000 or not isinstance(source, str) or len(source) > 2000:
@@ -88,9 +126,10 @@ class ContextStore:
                 raise ValueError('工具内容须包含 name、description 和 input_schema 的 JSON 对象')
         item = {'id': resource_id or uuid.uuid4().hex, 'name': name.strip(), 'kind': kind,
                 'content': content, 'source': source, 'permission': permission, 'tags': tags or []}
-        return self.save('resources', item, expected_version)
+        return self.save('resources', item, expected_version, connection=connection, audit=audit)
 
     def bundle(self, name, resources, max_chars=12000, bundle_id=None, expected_version=None):
+        require_operator()
         if not isinstance(name, str) or not 0 < len(name.strip()) <= 120 or not isinstance(resources, list) or not 1 <= len(resources) <= 30:
             raise ValueError('请填写配置名称并选择 1—30 个资源')
         if isinstance(max_chars, bool) or not isinstance(max_chars, int) or not 100 <= max_chars <= 200000:
@@ -125,6 +164,7 @@ class ContextStore:
 
     def assemble(self, bundle_id, version=None, resource_ids=None, query=''):
         bundle = self.get('bundles', bundle_id, version)
+        version = bundle['version']
         available = self.discover(bundle_id, version)['resources']
         if resource_ids is not None and (not isinstance(resource_ids, list) or set(resource_ids) - {ref['id'] for ref in available}):
             raise ValueError('选择了配置之外的资源')
@@ -151,24 +191,25 @@ class ContextStore:
     def write_notebook(self, bundle_id, resource_id, expected_version, content, session, bundle_version=None):
         if not isinstance(session, str) or not 0 < len(session) <= 120:
             raise ValueError('写入需要会话来源')
-        bundle = self.get('bundles', bundle_id, bundle_version)
-        ref = next((ref for ref in bundle['resources'] if ref['id'] == resource_id), None)
-        if not ref or ref['permission'] != 'read_write':
-            raise ValueError('此配置未授予该笔记写入权限')
-        resource = self.get('resources', resource_id)
-        if resource['kind'] != 'notebook' or resource['permission'] != 'read_write':
-            raise ValueError('资源不可写')
-        result = self.resource(resource['name'], 'notebook', content, resource['source'], 'read_write',
-                               resource['tags'], resource_id, expected_version)
-        audit = {'id': uuid.uuid4().hex, 'bundle_id': bundle_id, 'resource_id': resource_id,
-                 'version': result['version'], 'session': session, 'at': time.time()}
         with self.db() as db:
-            db.execute('INSERT INTO audit VALUES (?, ?)', (audit['id'], json.dumps(audit, ensure_ascii=False)))
-        return result
+            db.execute('BEGIN IMMEDIATE')
+            bundle = self.get('bundles', bundle_id, bundle_version)
+            latest = self.get('bundles', bundle_id)
+            refs = [next((ref for ref in item['resources'] if ref['id'] == resource_id), None)
+                    for item in (bundle, latest)]
+            if any(not ref or ref['permission'] != 'read_write' for ref in refs):
+                raise ValueError('当前配置未授予该笔记写入权限')
+            resource = self.get('resources', resource_id)
+            if resource['kind'] != 'notebook' or resource['permission'] != 'read_write':
+                raise ValueError('资源不可写')
+            audit = {'id': uuid.uuid4().hex, 'bundle_id': bundle_id, 'resource_id': resource_id,
+                     'session': session, 'at': time.time(), 'project': identity().project, 'actor': identity().public()}
+            return self.resource(resource['name'], 'notebook', content, resource['source'], 'read_write',
+                                 resource['tags'], resource_id, expected_version, connection=db, audit=audit)
 
     def record_supply(self, assembled, run_id, session):
         item = {'id': uuid.uuid4().hex, 'kind': 'callback_supply', 'bundle_id': assembled['bundle_id'],
-                'bundle_version': assembled['version'], 'run_id': run_id, 'session': session, 'at': time.time(),
+                'bundle_version': assembled['version'], 'project': identity().project, 'actor': identity().public(), 'run_id': run_id, 'session': session, 'at': time.time(),
                 'used_chars': assembled['used_chars'], 'max_chars': assembled['max_chars'],
                 'resources': [{'id': ref['id'], 'version': ref['resolved_version'], 'name': ref['name']} for ref in assembled['resources']],
                 'content_sha256': hashlib.sha256(json.dumps(assembled['resources'], ensure_ascii=False, sort_keys=True).encode()).hexdigest()}

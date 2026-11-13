@@ -30,19 +30,12 @@ class MCPClientManager:
         }
         self._connection_status = {}
     
-        # ✅ 对话历史文件路径（与MCP Server保持一致，JSONL格式）
-        self.history_file = os.path.join(
-            os.path.dirname(__file__),
-            "../../..",
-            "data",
-            "conversation_history.jsonl"  # JSONL 格式
-        )
-    
     async def connect_all_servers(self) -> Dict[str, bool]:
         """连接所有MCP服务器 - 使用标准 FastMCP Client"""
         print("🔗 连接MCP服务器...")
         
         from fastmcp import Client
+        from fastmcp.client.transports import StreamableHttpTransport
         
         connection_results = {}
         
@@ -52,7 +45,8 @@ class MCPClientManager:
                 
                 # ✅ 使用标准 FastMCP Client 而不是 as_proxy
                 # Client 支持完整的 MCP 协议，包括 read_resource()
-                client = Client(config['url'])
+                from src.search_engine.workbench_access import client_headers
+                client = Client(StreamableHttpTransport(config['url'], headers=client_headers()))
                 
                 # 测试连接（进入上下文）
                 await self._test_connection(client, server_name)
@@ -93,7 +87,12 @@ class MCPClientManager:
     
     def get_client(self, server_name: str) -> Optional[FastMCP]:
         """获取指定服务器的客户端"""
-        return self.clients.get(server_name)
+        if server_name not in self.clients:
+            return None
+        from fastmcp import Client
+        from fastmcp.client.transports import StreamableHttpTransport
+        from src.search_engine.workbench_access import client_headers
+        return Client(StreamableHttpTransport(self.server_configs[server_name]['url'], headers=client_headers()))
     
     def is_connected(self, server_name: str) -> bool:
         """检查服务器是否已连接"""
@@ -150,7 +149,7 @@ class MCPClientManager:
         - conversation://current/history → 通过MCP Resource读取文件内容
         - 其他资源 → 从MCP Server获取
         
-        ✅ 读写解耦：读通过MCP，写直接操作文件
+        读通过MCP，写入按当前项目、身份与会话隔离的存储
         """
         # ✅ 对话历史通过MCP Resource读取（MCP Server会读文件）
         client = self.get_client("unified_server")
@@ -197,7 +196,7 @@ class MCPClientManager:
         
         MCP 标准订阅流程（未来可实现）：
         1. Client: resources/subscribe("conversation://current/history")
-        2. Client: 写入数据（直接 append）
+        2. Client: 写入当前身份和会话的历史存储
         3. Server: notifications/resources/updated
         4. Client: resources/read（获取最新内容）
         
@@ -213,19 +212,10 @@ class MCPClientManager:
             # 解析TAO数据
             tao_record = json.loads(tao_data)
             
-            # ✅ 确保目录存在
-            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-            
-            # ✅ 直接 append 一行到 JSONL 文件（O(1) 操作）
-            with open(self.history_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(tao_record, ensure_ascii=False) + '\n')
-            
-            print(f"✅ 对话轮次已追加到 JSONL 文件")
-            print(f"📁 文件路径: {self.history_file}")
-            print(f"📝 新增TAO: user={tao_record.get('user', '')[:30]}...")
-            
-            return "成功追加对话轮次到 JSONL"
-            
+            from src.search_engine.workbench_history import HistoryStore
+            HistoryStore().append(tao_record)
+            return "对话轮次已写入当前项目、身份和会话的历史"
+
         except Exception as e:
             raise Exception(f"添加对话轮次失败: {e}")
     

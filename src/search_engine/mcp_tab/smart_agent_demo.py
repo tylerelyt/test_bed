@@ -837,26 +837,10 @@ def create_smart_agent_demo():
     def clear_conversation_history() -> str:
         """清空对话历史 - 直接操作 JSONL 文件"""
         try:
-            import os
-            
-            # 历史文件路径
-            history_file = os.path.join(
-                os.path.dirname(__file__),
-                "../..",
-                "..",
-                "data",
-                "conversation_history.jsonl"
-            )
-            
-            # 清空文件（保留文件，但清空内容）
-            if os.path.exists(history_file):
-                with open(history_file, 'w', encoding='utf-8') as f:
-                    pass  # 清空文件
-                
-                return "✅ 对话历史已清空\n\n历史文件已清空，可以开始新的对话"
-            else:
-                return "⚠️ 历史文件不存在\n\n无需清空"
-                
+            from ..workbench_history import HistoryStore
+            HistoryStore().clear()
+            return "当前会话的历史已清空"
+
         except Exception as e:
             return f"❌ 清空历史失败: {str(e)}"
     

@@ -2,6 +2,8 @@ import { test, expect, Page } from "@playwright/test";
 
 async function open(page: Page) {
   await page.goto("/");
+  await page.getByLabel("访问凭证", {exact:true}).fill("fixture-operator-token-not-for-real-use");
+  await page.getByRole("button", {name:"进入工作台",exact:true}).click();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),
   ).toHaveAttribute("data-verify-state", "ready");
@@ -54,6 +56,42 @@ async function saveTask(page: Page, name: string) {
   await page.getByRole("button", { name: "保存任务", exact: true }).click();
   return (await (await response).json()).id as string;
 }
+
+test("身份凭证、只读Cookie与退出后的访问拒绝", async ({page,request})=>{
+  expect((await request.get('/api/native/context')).status()).toBe(401);
+  expect((await request.post('/api/access',{data:{token:'x'.repeat(8192)}})).status()).toBe(413);
+  await page.goto('/');
+  await page.getByLabel('访问凭证',{exact:true}).fill('invalid-credential-for-browser-verification');
+  await page.getByRole('button',{name:'进入工作台',exact:true}).click();
+  await expect(page.locator('.access-gate [role="alert"]')).toContainText('凭证无效');
+  await open(page);
+  await expect(page.locator('.access-identity')).toContainText('fixture-operator');
+  const cookies=await page.context().cookies();
+  expect(cookies.find(cookie=>cookie.name==='workbench_access')?.httpOnly).toBe(true);
+  expect(await page.evaluate(()=>document.cookie)).not.toContain('workbench_access');
+  await page.getByRole('button',{name:'退出',exact:true}).click();
+  await expect(page.getByLabel('访问凭证',{exact:true})).toBeVisible();
+  expect((await page.request.get('/api/native/context')).status()).toBe(401);
+});
+
+test("项目上下文操作员可维护资源，原共享业务需要单独授权", async ({page})=>{
+  let initialized=false;
+  page.on('request',request=>{if(request.url().endsWith('/api/native/layout'))initialized=true});
+  await page.goto('/');
+  await page.getByLabel('访问凭证',{exact:true}).fill('fixture-context-only-token-not-for-real-use');
+  await page.getByRole('button',{name:'进入工作台',exact:true}).click();
+  await expect(page.locator('[data-verify-unit="NativeWorkbench"]')).toHaveAttribute('data-verify-state','restricted');
+  await page.getByRole('button',{name:'上下文工程',exact:true}).click();
+  await history(page);
+  await page.getByRole('tab',{name:'供应配置',exact:true}).click();
+  await page.getByText('维护上下文资源',{exact:true}).click();
+  await page.getByLabel('资源名称',{exact:true}).fill('本项目资料');
+  await page.getByLabel('内容',{exact:true}).fill('只属于上下文项目的内容');
+  await page.getByRole('button',{name:'保存资源',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'资源版本已保存'})).toBeVisible();
+  expect(initialized).toBe(false);
+  expect((await page.request.post('/api/native/runs',{data:{session:'test',fn_id:1,values:{}}})).status()).toBe(403);
+});
 
 test("八模块机器可读约定与移动端", async ({ page }) => {
   await open(page);

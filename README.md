@@ -58,7 +58,7 @@ docker compose -f compose.console.yml up -d gremlin
 ./start_console.sh
 ```
 
-打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**。首次打开会初始化原业务模块与数据。前台运行时按 `Ctrl+C` 结束本次启动的进程。
+打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**。首次启动生成的本机操作员凭证保存在 `.workbench/bootstrap-access.txt`。登录后，获准访问原业务的身份会初始化原模块与数据。详见[身份与项目权限](docs/workbench-access/README.md)。前台运行时按 `Ctrl+C` 结束本次启动的进程。
 
 需要关闭终端后继续运行时：
 
@@ -82,6 +82,7 @@ npm --prefix console run build
 ## 当前能力与边界
 
 - **页面与业务执行**：八个模块已迁到 Next.js，沿用原数据和函数。Gradio Python 包用于原组件参数与状态兼容，新工作台不需要另启 Gradio 站点。
+- **身份与项目范围**：独立的操作员和 Agent 凭证；上下文、运行记录及历史按项目授权，Agent 仅能读取获准配置。原共享业务模块需要单独授权，见[权限说明](docs/workbench-access/README.md)。
 - **上下文供应**：版本化组合资料、操作说明、工具定义、角色职责、经验和笔记，按预算装配，通过原 MCP 服务供 Agent 按需读取。固定任务也可选用具体配置版本，保留实际输入与资源来源。
 - **任务验证**：固定任务、自动规则、可选模型评分与人工验收分开记录；支持参数变体、重复试验、快速探针、任务集检查和基线对比。详见[完整使用指南](docs/workbench-tasks/README.md)。
 - **服务端运行**：有界队列、独立停止、可选人工放行、持久化事件和文件产物；刷新可续接，服务重启后标记中断，不自动重跑业务操作。
@@ -107,6 +108,7 @@ npm --prefix console run build
 | `JANUSGRAPH_URL` / `GREMLIN_SERVER_URL` | 图服务地址，前者优先 |
 | `WORKBENCH_PYTHON` | 指定已有业务环境的 Python；默认优先使用 `.venv-full/bin/python` |
 | `WORKBENCH_API_URL` | Next.js 服务端连接的 Python 地址，默认 `http://127.0.0.1:8766` |
+| `WORKBENCH_ACCESS_FILE` | 私有身份配置；默认自动初始化 `.workbench/access.json`，无有效凭证不能访问业务接口 |
 | `WORKBENCH_STATE_DIR` | 运行记录、任务与经验的保存目录，默认仓库下 `.workbench/` |
 | `WORKBENCH_CONCURRENCY` | 业务任务并发上限，默认 3，可设为 1—8；同模块串行，停止独立 |
 | `WORKBENCH_ARTIFACT_MAX_MB` | 单个输出文件的归档上限，默认 64 MB |

@@ -1,9 +1,9 @@
 name: Next.js workbench
 on:
   push:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', '.github/workflows/console.yml']
   pull_request:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', '.github/workflows/console.yml']
 permissions:
   contents: read
 jobs:

@@ -18,19 +18,29 @@ def observe_usage():
         _current.reset(token)
 
 
-def record_usage(response, provider='dashscope'):
+def record_usage(response, provider='dashscope', *, stream=False, call_id=None):
     calls = _current.get()
     if calls is None:
         return
+    stream_key = str(call_id or getattr(response, 'id', 'stream')) if stream else None
+    previous = next((item for item in calls if stream_key and item.get('_stream_id') == stream_key), None)
     usage = getattr(response, 'usage', None)
     if hasattr(usage, 'model_dump'):
         usage = usage.model_dump()
     if not isinstance(usage, dict):
+        if previous is None:
+            calls.append({'provider': provider, 'model': str(getattr(response, 'model', 'unknown')), 'input_tokens': None,
+                          'output_tokens': None, 'cost': None, 'currency': None, 'price_source': None, 'usage_known': False,
+                          **({'_stream_id': stream_key} if stream else {})})
         return
     model = str(getattr(response, 'model', 'unknown'))
+    if previous is not None:
+        calls.remove(previous)
     incoming = usage.get('prompt_tokens', usage.get('input_tokens'))
     outgoing = usage.get('completion_tokens', usage.get('output_tokens'))
     if not all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in (incoming, outgoing)):
+        calls.append({'provider': provider, 'model': model, 'input_tokens': None, 'output_tokens': None,
+                      'cost': None, 'currency': None, 'price_source': None, 'usage_known': False})
         return
     cost = None
     price = None
@@ -43,6 +53,6 @@ def record_usage(response, provider='dashscope'):
     except (ValueError, TypeError, KeyError, AttributeError):
         price = None
     calls.append({'provider': provider, 'model': model, 'input_tokens': incoming,
-                  'output_tokens': outgoing, 'cost': cost,
+                  'output_tokens': outgoing, 'cost': cost, 'usage_known': True,
                   'currency': price.get('currency') if cost is not None else None,
-                  'price_source': price.get('source') if cost is not None else None})
+                  'price_source': price.get('source') if cost is not None else None, **({'_stream_id': stream_key} if stream else {})})

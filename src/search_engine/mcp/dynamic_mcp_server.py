@@ -21,24 +21,11 @@ class DynamicMCPServer:
     
     def __init__(self, server_name: str = "dynamic-mcp-server"):
         """初始化动态MCP服务器"""
-        self.mcp = FastMCP(server_name)
+        from src.search_engine.workbench_access import AccessPolicy, configure_mcp, mcp_auth
+        self.access = AccessPolicy()
+        self.mcp = FastMCP(server_name, auth=mcp_auth(self.access), stateless_http=True)
+        configure_mcp(self.mcp, self.access)
         self.index_service = get_index_service()
-        
-        # ✅ 对话历史持久化文件（JSONL 格式，方便 append）
-        self.history_file = os.path.join(
-            os.path.dirname(__file__), 
-            "../../..", 
-            "data", 
-            "conversation_history.jsonl"  # 改用 JSONL
-        )
-        
-        # 确保data目录存在
-        os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-        
-        # 初始化历史文件（如果不存在）
-        if not os.path.exists(self.history_file):
-            with open(self.history_file, 'w', encoding='utf-8') as f:
-                pass  # 创建空文件
         
         # 注册所有功能
         self._register_prompts()
@@ -48,7 +35,7 @@ class DynamicMCPServer:
         register_context_mcp(self.mcp)
         
         print(f"🚀 初始化动态MCP服务器: {server_name}")
-        print(f"📁 历史文件: {self.history_file}")
+        print("对话历史按项目、身份和会话隔离保存")
         print("🔒 架构: 完全隔离解耦，所有功能通过MCP协议动态发现")
     
     def _register_prompts(self):
@@ -443,70 +430,14 @@ ${{local:tao_example}}
             mime_type="application/json"
         )
         def get_conversation_history() -> str:
-            """
-            获取对话历史资源 - 读取 JSONL 文件
-            
-            返回当前会话的完整对话历史，包括用户输入和AI回复。
-            支持多轮对话的上下文管理，为LLM提供对话连续性。
-            
-            ✅ 读写解耦设计（JSONL格式）：
-            - 读：逐行解析 JSONL，返回 JSON 数组
-            - 写：直接 append 一行到文件末尾（O(1)）
-            """
-            try:
-                # ✅ 从 JSONL 文件逐行读取
-                history = []
-                if os.path.exists(self.history_file):
-                    with open(self.history_file, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            line = line.strip()
-                            if line:  # 跳过空行
-                                try:
-                                    history.append(json.loads(line))
-                                except json.JSONDecodeError as e:
-                                    print(f"⚠️ MCP服务器: 跳过无效行: {line[:50]}... 错误: {e}")
-                
-                print(f"🔍 MCP服务器: 读取对话历史，当前长度: {len(history)}")
-                # 返回 JSON 数组格式（与客户端兼容）
-                return json.dumps(history, ensure_ascii=False, indent=2)
-                
-            except FileNotFoundError:
-                print(f"⚠️ MCP服务器: 历史文件不存在，返回空历史")
-                return "[]"
-            except Exception as e:
-                print(f"❌ MCP服务器: 获取历史失败: {e}")
-                return json.dumps({
-                    "error": str(e),
-                    "turns": [],
-                    "timestamp": "now"
-                }, ensure_ascii=False, indent=2)
-        
+            """只读取当前项目、身份与会话的历史。"""
+            from src.search_engine.workbench_history import HistoryStore
+            return json.dumps(HistoryStore().read(), ensure_ascii=False)
+
     def append_to_history(self, tao_record: dict) -> None:
-        """
-        追加记录到历史文件 - MCP Server端写入方法（JSONL格式）
-        
-        ✅ JSONL 格式优势：
-        - O(1) 追加操作，无需读取整个文件
-        - 支持流式处理，内存友好
-        - 并发写入更安全
-            
-        Args:
-            tao_record: 要追加的TAO记录
-        """
-        try:
-            # ✅ 直接 append 一行到 JSONL 文件末尾
-            with open(self.history_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(tao_record, ensure_ascii=False) + '\n')
-            
-            print(f"✅ MCP服务器: 历史已追加（JSONL格式）")
-            
-            # TODO: 发送 notifications/resources/updated
-            # 需要 FastMCP 支持订阅机制
-            
-        except Exception as e:
-            print(f"❌ MCP服务器: 追加历史失败: {e}")
-            raise
-    
+        from src.search_engine.workbench_history import HistoryStore
+        HistoryStore().append(tao_record)
+
     async def start_server(self, host: str = "localhost", port: int = 3001):
         """启动服务器"""
         print(f"📍 启动动态MCP服务器: http://{host}:{port}/mcp")

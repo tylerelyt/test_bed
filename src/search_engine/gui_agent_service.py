@@ -648,7 +648,7 @@ class SimplePromptAgent:
                 
                 for chunk in stream:
                     from .workbench_telemetry import record_usage
-                    record_usage(chunk, 'configured')
+                    record_usage(chunk, 'configured', stream=True, call_id=id(stream))
                     if not chunk.choices:
                         continue
                     

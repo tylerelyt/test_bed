@@ -4,9 +4,12 @@ parser=argparse.ArgumentParser(description="原模块只读和输入校验回归
 parser.add_argument("--url",default="http://127.0.0.1:8766")
 parser.add_argument("--output",default="logs/console-migration-acceptance.json")
 args=parser.parse_args()
+import os
+credential_file=Path(os.environ.get('WORKBENCH_TOKEN_FILE','.workbench/bootstrap-access.txt'))
+credential=credential_file.read_text().strip()
 base=args.url.rstrip('/')+'/api/native/'
 def post(path,data):
- request=urllib.request.Request(base+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json'})
+ request=urllib.request.Request(base+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+credential})
  with urllib.request.urlopen(request,timeout=120) as response:
   return json.load(response) if path=='layout' else [json.loads(line) for line in response]
 layout=post('layout',{'session':'original-acceptance'})

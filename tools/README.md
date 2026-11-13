@@ -45,3 +45,5 @@ python tools/verify_console_migration.py
 工作台“系统状态”视图主要从数据与索引统计组织结果。绿色状态文案不是对所有模型、MCP、图像服务和桌面环境的独立健康检查，应到对应模块核对实际调用与结果。
 
 对性能或效果给出结论时，同时记录代码版本、数据、模型、环境、参数和测量方法。无法提供这些条件的示例数字不作为本项目的验收依据。
+
+工作台身份的创建、轮换和撤销使用 `manage_workbench_access.py`，操作说明见[身份与项目权限](../docs/workbench-access/README.md)。`verify_console_migration.py` 默认从本机凭证文件读取认证信息，也可用 `WORKBENCH_TOKEN_FILE` 指向自己的操作员凭证文件。

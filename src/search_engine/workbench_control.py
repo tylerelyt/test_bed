@@ -5,6 +5,7 @@ import os
 import socket
 from urllib.parse import urlparse
 from .workbench_context import ContextStore
+from .workbench_access import visible
 
 
 class WorkbenchControls:
@@ -33,7 +34,8 @@ class WorkbenchControls:
                 return self.context.get(table, path[len(prefix):], int(version) if version else None)
         if path == '/api/native/evaluations':
             with self.records.db() as db:
-                tasks = [json.loads(row[0]) for row in db.execute('SELECT body FROM tasks ORDER BY rowid DESC LIMIT 200')]
+                tasks = [item for row in db.execute('SELECT body FROM tasks ORDER BY rowid DESC')
+                         if visible(item := json.loads(row[0]))][:200]
             return {'tasks': tasks}
         if path.startswith('/api/native/evaluations/'):
             return self.records.evaluations.summary(path.rsplit('/', 1)[-1])

@@ -5,6 +5,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
   const { path } = await context.params;
   // Only this server chooses the backend; credentials never enter browser storage.
   const base = process.env.WORKBENCH_API_URL || 'http://127.0.0.1:8766';
+  const credential=request.headers.get('authorization')||(request.cookies.get('workbench_access')?.value?'Bearer '+request.cookies.get('workbench_access')!.value:'');
+  const identityHeaders:Record<string,string>=credential?{Authorization:credential}:{};
   if (request.method !== 'GET') {
     const origin = request.headers.get('origin');
     if (origin && new URL(origin).host !== request.headers.get('host')) return Response.json({error:'请求来源不匹配'}, {status:403});
@@ -14,7 +16,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
       const size=Number(request.headers.get('X-File-Size'));
       if (!Number.isSafeInteger(size)||size<0) return Response.json({error:'文件长度无效'},{status:400});
       const init: RequestInit & {duplex:'half'} = {
-        method:'POST', headers:{'Content-Type':'application/octet-stream',
+        method:'POST', headers:{...identityHeaders,'Content-Type':'application/octet-stream',
           'Content-Length':String(size), 'X-File-Name':request.headers.get('X-File-Name')||'upload'},
         body:request.body, duplex:'half', signal:request.signal,
       };
@@ -25,7 +27,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{path: str
     const limit = ['native/execute','native/event','native/runs'].includes(path.join('/')) ? 32_000_000 : 2_000_000;
     if (body && Buffer.byteLength(body) > limit) return Response.json({error:'请求体超过当前接口大小限制'}, {status:413});
     const response = await fetch(`${base}/api/${path.map(encodeURIComponent).join('/')}${request.nextUrl.search}`, {
-      method: request.method, headers: {'Content-Type':'application/json'}, body,
+      method: request.method, headers: {...identityHeaders,'Content-Type':'application/json'}, body,
       signal: request.signal, cache: 'no-store',
     });
     return new Response(response.body, {status:response.status, headers:{
