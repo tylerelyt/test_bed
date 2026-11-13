@@ -1,0 +1,9 @@
+{
+  "name": "test-bed-pi-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "岗位 Agent 使用的原生 Pi Harness，独立于控制台依赖",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2"
+  }
+}

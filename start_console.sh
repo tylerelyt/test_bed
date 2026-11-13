@@ -27,11 +27,13 @@ elif [ -x .venv-full/bin/python ]; then
 else
   workbench_python=python3
 fi
-"$workbench_python" -c 'import gradio, torch, fastmcp, gremlin_python' || {
-  echo '请用 Python 3.11 安装 requirements-console.txt，或设置 WORKBENCH_PYTHON 指向原完整环境。' >&2
+"$workbench_python" -c 'import gradio, torch, fastmcp, gremlin_python, sqlalchemy, uvicorn' || {
+  echo '请用 Python 3.11 安装 requirements-platform.txt，或设置 WORKBENCH_PYTHON 指向原完整环境。' >&2
   exit 1
 }
 [ -d console/node_modules ] || { echo '请先运行 npm --prefix console ci（Node.js 22+）。' >&2; exit 1; }
+workbench_state_dir="$($workbench_python -c 'import os;from pathlib import Path;print(Path(os.environ.get("WORKBENCH_STATE_DIR", ".workbench")).resolve())')"
+export WORKBENCH_STATE_DIR="$workbench_state_dir"
 "$workbench_python" - <<'PY'
 import os,socket,urllib.parse
 url=os.environ.get('JANUSGRAPH_URL') or os.environ.get('GREMLIN_SERVER_URL') or 'ws://localhost:8182/gremlin'
@@ -39,7 +41,7 @@ parsed=urllib.parse.urlparse(url)
 try:
     with socket.create_connection((parsed.hostname,parsed.port or 8182),timeout=3):pass
 except OSError:
-    raise SystemExit('Gremlin 图服务未就绪，请先启动原 JanusGraph/Gremlin 服务；开发环境可用 compose.console.yml。')
+    print('原图谱服务未就绪：岗位Agent仍可使用，图谱操作需另行启动原服务。')
 PY
 owned_pids=()
 cleanup(){ for pid in "${owned_pids[@]}"; do kill "$pid" 2>/dev/null || true; done; }
@@ -61,7 +63,17 @@ if ! listening 5001; then
   "$workbench_python" -m flask --app image_generation_service run --host 127.0.0.1 --port 5001 &
   owned_pids+=("$!")
 fi
-"$workbench_python" -m src.search_engine.workbench_api &
+if [ -f "$workbench_state_dir/database-url.txt" ] && [ -d "$workbench_state_dir/postgres" ]; then
+  "$workbench_python" tools/start_platform_db.py
+fi
+"$workbench_python" -m src.search_engine.platform_worker &
+worker_pid=$!;owned_pids+=("$worker_pid")
+for attempt in $(seq 1 120); do
+  [ -f "$workbench_state_dir/agent-worker.json" ] && break
+  kill -0 "$worker_pid";sleep .25
+done
+kill -0 "$worker_pid"
+"$workbench_python" -m src.search_engine.platform_api &
 api_pid=$!;owned_pids+=("$api_pid")
 for attempt in $(seq 1 40); do listening 8766 && break;kill -0 "$api_pid";sleep .25;done
 listening 8766 || { echo 'Python 执行服务启动超时。' >&2;exit 1; }

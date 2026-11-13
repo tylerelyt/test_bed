@@ -1,9 +1,9 @@
 name: Next.js workbench
 on:
   push:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
   pull_request:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
 permissions:
   contents: read
 jobs:
@@ -14,13 +14,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install 'gradio==4.44.1' 'huggingface-hub<1' 'pydantic==2.11.10' 'fastapi==0.116.1' 'numpy<2' 'fastmcp==2.12.4' 'mcp==1.17.0'
-      - run: python -m unittest discover -s tests -p 'test_*.py' -v
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: console/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: runtimes/pi
+      - run: python -m pip install 'gradio==4.44.1' 'huggingface-hub<1' 'pydantic==2.11.10' 'fastapi==0.116.1' 'numpy<2' 'fastmcp==2.12.4' 'mcp==1.17.0' 'SQLAlchemy>=2.0,<2.2' 'uvicorn>=0.30,<1' 'httpx>=0.27,<1'
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
       - run: npm ci
         working-directory: console
       - run: npm run build

@@ -242,6 +242,7 @@ console/*.tsbuildinfo
 console/.env*
 !console/.env.example
 .workbench/
+runtimes/*/node_modules/
 
 .venv-full/
 console/public/vendor/

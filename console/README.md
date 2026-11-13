@@ -6,7 +6,9 @@
 
 ## 运行机制
 
-浏览器通过 Next.js 的同源接口连接 Python 执行服务。React 渲染原布局和控件，Python 运行原函数，并复用原参数转换、会话状态、动态更新与流式返回。原函数产生的 HTML 结果在隔离文档中显示。
+默认入口为岗位 Agent，使用 FastAPI 业务接口管理岗位、模型服务、发布版本和运行；独立的 `platform_worker` 进程启动原生 Pi，详见[岗位 Agent 指南](../docs/position-agents/README.md)。
+
+原八模块的浏览器通过 Next.js 的同源接口连接 Python 执行服务。React 渲染原布局和控件，Python 运行原函数，并复用原参数转换、会话状态、动态更新与流式返回。原函数产生的 HTML 结果在隔离文档中显示。
 
 参照 research-desk，控制台由服务端持有连接凭证，打开页面直接进入原模块。Next.js 默认读取仓库 `.workbench/bootstrap-access.txt`；可通过服务端 `WORKBENCH_TOKEN_FILE`（绝对路径）或 `WORKBENCH_CONSOLE_TOKEN` 指定，后者优先。浏览器不输入或保存凭证，也不能通过 Cookie 或 Authorization 请求头切换服务端身份。
 
@@ -51,10 +53,10 @@ npm --prefix console start
 ```bash
 python -m src.search_engine.mcp.dynamic_mcp_server
 python -m flask --app image_generation_service run --host 127.0.0.1 --port 5001
-python -m src.search_engine.workbench_api
+python -m src.search_engine.platform_api
 ```
 
-以上是三个独立进程，需要分别保持运行。然后启动前端；不要同时重复启动统一脚本占用相同端口。
+另需运行 `python -m src.search_engine.platform_worker` 处理岗位 Agent 队列；以上进程需要分别保持运行。然后启动前端；不要同时重复启动统一脚本占用相同端口。
 
 Next.js 的服务端 `WORKBENCH_API_URL` 默认指向 `http://127.0.0.1:8766`，可放在 `console/.env.local`。模型密钥继续按原业务环境提供，不进入浏览器公共变量。
 

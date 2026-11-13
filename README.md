@@ -2,11 +2,11 @@
 
 面向 FDE（前线部署工程师）的企业上下文供应后台，用于准备、配置和验证 Agent 所需的文档、索引、知识图谱、提示词、工具与反馈数据。
 
-平台承担企业上下文的日常配置与供应；测试床是其中验证配置和业务变更的能力。项目沿用 Test Bed 名称。
+平台以岗位 Agent 为管理对象，预先组合岗位职责、上下文和模型服务，再通过现成 Harness 执行。当前首版接入 **Pi 1.5.2**，支持候选版本试运行、人工采用、运行记录和原生会话保存；测试床是验证能力，项目沿用 Test Bed 名称。
 
 工作台通过 Next.js 界面调用原 Python 业务函数，把检索、图谱推理、上下文装配、多模态和训练实验放在同一入口。围绕具体任务检查三件事：**材料从哪里来、模型实际获得了什么、结果能否由依据和执行记录验证。**
 
-[快速开始](#快速开始) · [八个模块](#八个模块) · [上下文供应与任务验证](docs/workbench-tasks/README.md) · [使用指南](docs/README.md) · [运行与开发](console/README.md)
+[岗位 Agent 使用](docs/position-agents/README.md) · [架构与实施范围](docs/architecture/README.md) · [快速开始](#快速开始) · [八个模块](#八个模块) · [上下文供应与任务验证](docs/workbench-tasks/README.md) · [使用指南](docs/README.md) · [运行与开发](console/README.md)
 
 ## 八个模块
 
@@ -25,18 +25,29 @@
 
 ### 1. 安装环境
 
-需要 Python 3.11、Node.js 22+、npm，以及可连接的 JanusGraph/Gremlin 图服务。完整依赖包含多个机器学习框架；模型权重在实际加载时按需获取。
+需要 Python 3.11、Node.js 22.19+、npm；岗位 Agent 使用现成的模型服务。原图谱功能另需 JanusGraph/Gremlin 图服务。完整依赖包含多个机器学习框架；模型权重在实际加载时按需获取。
 
 ```bash
 git clone https://github.com/tylerelyt/test_bed.git
 cd test_bed
 python3.11 -m venv .venv-full
 source .venv-full/bin/activate
-python -m pip install -r requirements-console.txt
+python -m pip install -r requirements-platform.txt
 npm --prefix console ci
+npm --prefix runtimes/pi ci --ignore-scripts
 ```
 
-### 2. 准备图服务
+### 2. 准备数据库与原图服务
+
+安装 PostgreSQL 17 后，运行以下命令初始化项目自己的数据目录；必要时用 `WORKBENCH_POSTGRES_BIN` 指定 PostgreSQL 的 bin 目录：
+
+```bash
+python tools/start_platform_db.py
+```
+
+数据库仅监听本机 55432，数据和私有连接配置保存在 `.workbench/`；不注册开机服务。开发和 CI 未配置 PostgreSQL 时可使用 SQLite，页面不会把它标成 PostgreSQL。
+
+图服务仅用于原图谱等功能，不影响岗位 Agent 配置：
 
 已有图服务时，设置实际地址：
 
@@ -58,7 +69,7 @@ docker compose -f compose.console.yml up -d gremlin
 ./start_console.sh
 ```
 
-打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**，直接进入工作台并初始化原模块与数据。参照 research-desk 的单操作员控制台，连接后端的凭证由 Next.js 服务端持有，默认读取自动生成的本机私有文件，无需在浏览器输入。详见[服务端凭证与 Agent 授权](docs/workbench-access/README.md)。前台运行时按 `Ctrl+C` 结束本次启动的进程。
+打开 **[http://127.0.0.1:3100](http://127.0.0.1:3100)**，直接进入“岗位 Agent”；选择原业务模块时再初始化其布局与数据。参照 research-desk 的单操作员控制台，连接后端的凭证由 Next.js 服务端持有，默认读取自动生成的本机私有文件，无需在浏览器输入。详见[服务端凭证与 Agent 授权](docs/workbench-access/README.md)。前台运行时按 `Ctrl+C` 结束本次启动的进程。
 
 需要关闭终端后继续运行时：
 
@@ -107,6 +118,8 @@ npm --prefix console run build
 | --- | --- |
 | `JANUSGRAPH_URL` / `GREMLIN_SERVER_URL` | 图服务地址，前者优先 |
 | `WORKBENCH_PYTHON` | 指定已有业务环境的 Python；默认优先使用 `.venv-full/bin/python` |
+| `WORKBENCH_DATABASE_URL` | 岗位 Agent 存储；默认优先读取 `.workbench/database-url.txt`，否则仅开发回退 SQLite |
+| `WORKBENCH_AGENT_TIMEOUT_SECONDS` | 单次岗位 Agent 运行上限，默认 180 秒，最大 900 秒 |
 | `WORKBENCH_API_URL` | Next.js 服务端连接的 Python 地址，默认 `http://127.0.0.1:8766` |
 | `WORKBENCH_TOKEN_FILE` / `WORKBENCH_CONSOLE_TOKEN` | 可选的控制台服务端凭证文件或环境变量；默认读取 `.workbench/bootstrap-access.txt`，环境变量优先；均不发送至浏览器 |
 | `WORKBENCH_ACCESS_FILE` | 私有身份配置；默认自动初始化 `.workbench/access.json`，无有效凭证不能访问业务接口 |

@@ -56,11 +56,18 @@ def main():
         records.access.path.write_text(json.dumps({'version':1,'principals':[
             {'id':'fixture-operator','project':'local','role':'operator','business_access':True,
              'token_sha256':hashlib.sha256(b'fixture-operator-token-not-for-real-use').hexdigest()}]}))
-        server = ThreadingHTTPServer(('127.0.0.1', 8768), make_handler(executor, records))
+        import uvicorn
+        from src.search_engine.platform_api import create_app
+        app = create_app(executor, records, database_url='sqlite:///'+str(Path(folder)/'platform.sqlite3'), embedded_worker=True)
+        import threading
+        from tools.harness_test_model import server as model_server
+        model = model_server(8779)
+        threading.Thread(target=model.serve_forever, daemon=True).start()
         try:
-            server.serve_forever()
+            uvicorn.run(app, host='127.0.0.1', port=8768, log_level='warning')
         finally:
-            server.server_close()
+            model.shutdown()
+            model.server_close()
             records.close()
             executor.close()
 
