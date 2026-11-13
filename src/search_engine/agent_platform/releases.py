@@ -8,8 +8,9 @@ from .pi_runtime import PiRuntime
 
 
 class Releases:
-    def __init__(self, session, context):
+    def __init__(self, session, context, knowledge=None):
         self.session, self.context = session, context
+        self.knowledge=knowledge
 
     def check_model(self, db, model_id):
         deployment = db.scalar(select(Job).where(Job.kind == 'deploy', Job.project == identity().project,
@@ -21,6 +22,7 @@ class Releases:
         require_business()
         # The existing context service owns authorization and version resolution.
         context = self.context.assemble(bundle_id, bundle_version)
+        if self.knowledge:context=self.knowledge.freeze(context)
         with self.session.begin() as db:
             agent = get(db, Agent, agent_id)
             position = get(db, Position, agent.position_id)
@@ -30,7 +32,7 @@ class Releases:
                         'position': {'id': position.id, 'name': position.name, 'duties': position.duties},
                         'agent': {'id': agent.id, 'name': agent.name},
                         'model': public(model), 'context': context,
-                        'tools': ['read_enterprise_context'],
+                        'tools': ['read_enterprise_context']+(['search_enterprise_knowledge'] if context.get('retrievals') else []),
                         'notice': '本版仅开放读取预配置上下文的工具，不开放 shell 或任意文件访问'}
             digest = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
             version = (db.scalar(select(func.max(Release.version)).where(Release.agent_id == agent.id)) or 0) + 1

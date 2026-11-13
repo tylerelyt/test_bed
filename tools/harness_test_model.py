@@ -19,6 +19,26 @@ class ModelHandler(BaseHTTPRequestHandler):
             delta = {'role': 'assistant', 'tool_calls': [{'index': 0, 'id': 'fixture_context_call',
                      'type': 'function', 'function': {'name': 'read_enterprise_context', 'arguments': '{}'}}]}
             finish = 'tool_calls'
+        elif getattr(self.server,'retrieval_query',None) and tool_result.get('tool_call_id')=='fixture_context_call':
+            def find_index(value):
+                if isinstance(value,str):
+                    try:return find_index(json.loads(value))
+                    except ValueError:return None
+                if isinstance(value,dict):
+                    if value.get('retrievals'):return value['retrievals'][0]['id']
+                    for item in value.values():
+                        found=find_index(item)
+                        if found:return found
+                if isinstance(value,list):
+                    for item in value:
+                        found=find_index(item)
+                        if found:return found
+                return None
+            index_id=find_index(tool_result['content'])
+            delta={'role':'assistant','tool_calls':[{'index':0,'id':'fixture_search_call','type':'function',
+                'function':{'name':'search_enterprise_knowledge','arguments':json.dumps({'index_id':index_id,
+                    'query':self.server.retrieval_query})}}]}
+            finish='tool_calls'
         else:
             # Echo actual tool output so an empty or incorrectly scoped context fails acceptance.
             delta = {'role': 'assistant', 'content': '已读取预配置上下文，依据如下：\n' + tool_result['content']}

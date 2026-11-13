@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .workbench_access import identity, check, visible, require_operator, AccessDenied
 
-KINDS = ('knowledge', 'instructions', 'tool', 'experience', 'notebook', 'role')
+KINDS = ('knowledge', 'instructions', 'tool', 'experience', 'notebook', 'role', 'retrieval')
 
 
 class LegacyContextStore:
@@ -117,6 +117,11 @@ class LegacyContextStore:
             old = self.get('resources', resource_id)
             if old['kind'] != kind or old['permission'] != permission:
                 raise ValueError('资源类型和权限不可原地改变，请另建资源')
+        if kind == 'retrieval':
+            try:
+                reference=json.loads(content)
+                if set(reference)!={'index_id','digest'} or not all(isinstance(v,str) for v in reference.values()):raise ValueError()
+            except (ValueError,TypeError,AttributeError):raise ValueError('检索资源须引用具体索引和摘要')
         if kind == 'tool':
             try:
                 tool = json.loads(content)

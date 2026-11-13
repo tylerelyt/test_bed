@@ -14,17 +14,36 @@ class ModelSupply:
     def __init__(self, session, directory):
         self.session, self.directory = session, Path(directory)
 
+    def train(self,data,queue):
+        """Explicit model-supply command; the queue manages execution only."""
+        return self.start_operation('train',data,queue)
+
+    def start_operation(self,kind,data,queue):
+        if kind not in ('train','merge','deploy'): raise ValueError('模型操作无效')
+        return queue.enqueue({**data,'kind':kind},prepare=lambda folder:self.operations.prepare(kind,data))
+
     def listing(self):
         with self.session() as db:
             return {name: [public(x) for x in db.scalars(select(cls).where(cls.project == identity().project)
                     .order_by(cls.created_at.desc()).limit(200))]
                     for name, cls in [('datasets', Dataset), ('artifacts', ModelArtifact)]}
 
-    def dataset(self, name, rows):
+    def dataset(self, name, rows, stage="sft"):
         require_business()
         name = text(name, '数据集名称')
         if not isinstance(rows, list) or not 1 <= len(rows) <= 100000:
             raise ValueError('数据集须为包含 1—100000 条记录的 JSON 数组')
+        if stage not in ('pt','sft','dpo'): raise ValueError('数据阶段无效')
+        if stage in ('pt','dpo'):
+            clean=[]
+            for index,row in enumerate(rows):
+                if not isinstance(row,dict):raise ValueError(f'第 {index+1} 条不是对象')
+                if stage=='pt':clean.append({'text':text(row.get('text'),f'第 {index+1} 条 text',32000)})
+                else:clean.append({'instruction':text(row.get('instruction'),f'第 {index+1} 条 instruction',32000),
+                    'chosen':text(row.get('chosen'),f'第 {index+1} 条 chosen',32000),
+                    'rejected':text(row.get('rejected'),f'第 {index+1} 条 rejected',32000)})
+            descriptor={'columns':{'prompt':'text'}} if stage=='pt' else {'ranking':True,'columns':{'prompt':'instruction','chosen':'chosen','rejected':'rejected'}}
+            return self.native_dataset(name,clean,descriptor)
         clean = []
         for index, row in enumerate(rows):
             if not isinstance(row, dict):

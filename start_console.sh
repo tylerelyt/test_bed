@@ -28,7 +28,7 @@ else
   workbench_python=python3
 fi
 "$workbench_python" -c 'import fastapi, fastmcp, sqlalchemy, uvicorn, httpx, pypdf' || {
-  echo '请用 Python 3.11 安装 requirements-core.txt，并设置 WORKBENCH_PYTHON；原业务工具另装 requirements-platform.txt。' >&2
+  echo '请用 Python 3.11 安装 requirements-context.txt，并设置 WORKBENCH_PYTHON；原业务工具另装 requirements-platform.txt。' >&2
   exit 1
 }
 [ -d console/node_modules ] || { echo '请先运行 npm --prefix console ci（Node.js 22+）。' >&2; exit 1; }

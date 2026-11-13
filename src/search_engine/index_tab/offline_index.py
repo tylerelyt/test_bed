@@ -127,7 +127,9 @@ class InvertedIndex:
                     # TF
                     tf = self.term_freq[word][doc_id] / self.doc_lengths[doc_id]
                     # IDF
-                    idf = math.log(total_docs / self.doc_freq[word])
+                    # A one-document package still has matching evidence. The
+                    # unsmoothed log(N/df) made every score zero and hid it.
+                    idf = math.log((1 + total_docs) / (1 + self.doc_freq[word])) + 1
                     # TF-IDF
                     score += tf * idf
             
@@ -394,4 +396,4 @@ def main():
     print("💡 现在可以启动在线服务: python online_service.py")
 
 if __name__ == "__main__":
-    main() 
+    main()

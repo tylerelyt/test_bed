@@ -25,52 +25,30 @@ class UnifiedEvaluations(old_evaluations.EvaluationTests):
         self.store=RunStore(self.runtime,self.store.directory);self.addCleanup(self.store.close);self.eval=self.store.evaluations
 
 class BusinessSupplyTests(unittest.TestCase):
-    def test_all_eight_domains_share_jobs_model_context_and_output_publication(self):
-        calls=[]
-        class Handler(BaseHTTPRequestHandler):
-            def do_POST(self):
-                data=json.loads(self.rfile.read(int(self.headers['Content-Length'])));calls.append(data)
-                body=json.dumps({'id':'response','choices':[{'index':0,'message':{'role':'assistant','content':data['messages'][0]['content']},'finish_reason':'stop'}]}).encode()
-                self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
-        server=ThreadingHTTPServer(('127.0.0.1',0),Handler);threading.Thread(target=server.serve_forever,daemon=True).start()
-        try:
-            with tempfile.TemporaryDirectory() as directory:
-                folder=Path(directory);(folder/'database-url.txt').write_text('sqlite:///'+str(folder/'platform.sqlite3'))
-                with gr.Blocks() as blocks:
-                    with gr.Tabs():
-                        for name in ['离线索引构建','在线召回排序','RAG','OAG 图谱推理','上下文工程','多模态系统','数据回收训练','系统监控']:
-                            with gr.Tab(name):
-                                question=gr.Textbox(value='问题',label='问题');result=gr.JSON()
-                                def work(query):
-                                    from src.search_engine.business_execution import OpenAI
-                                    client=OpenAI(api_key='unused',base_url='http://127.0.0.1:9/v1')
-                                    return {'answer':client.chat.completions.create(model='must-be-overridden',messages=[{'role':'user','content':query}]).choices[0].message.content,'echo':'selected-private-key'}
-                                gr.Button('执行').click(work,question,result)
-                runtime=NativeRuntime(lambda:blocks);store=RunStore(runtime,folder);platform=AgentPlatform(folder,store.context,store.access,background=False)
-                try:
-                    runtime.layout('session')
-                    resource=store.context.resource('制度','knowledge','金额超过5000元需审批')
-                    bundle=store.context.bundle('共享上下文',[{'id':resource['id'],'required':True}])
-                    model=platform.catalog.model({'name':'业务模型','api_key':'selected-private-key','model':'selected-model','base_url':f'http://127.0.0.1:{server.server_port}/v1'})
-                    for fn in blocks.fns.values():
-                        fn_id=fn._id;cid=str(fn.inputs[0]._id)
-                        run=store.start('session',fn_id,{cid:'如何处理'},metadata={'supply':{'model_id':model['id'],'context_binding':{'bundle_id':bundle['id'],'version':1,'component_id':cid}}})
-                        list(store.events(run['run_id']));record=store.get('runs',run['run_id'])
-                        self.assertEqual(record['status'],'completed',record.get('error'))
-                        self.assertEqual(record['model_service']['id'],model['id'])
-                        self.assertNotIn('selected-private-key',json.dumps(record))
-                        self.assertIn('5000',json.dumps(record['outputs'],ensure_ascii=False))
-                    self.assertEqual(len(calls),8);self.assertTrue(all(x['model']=='selected-model' for x in calls))
-                    self.assertEqual(len(platform.business.listing()),8)
-                    published=platform.business.publish(run['run_id'],'业务结果')
-                    self.assertIn('5000',published['content'])
-                    with store.access.bind(Identity('other','other','operator',business_access=True)):
-                        self.assertEqual(platform.business.listing(),[])
-                        with self.assertRaises(PermissionError):platform.business.publish(run['run_id'],'越权')
-                    with platform.session() as db:
-                        self.assertEqual(len(list(db.scalars(select(BusinessRecord).where(BusinessRecord.kind=='runs')))),8)
-                finally:store.close();platform.close();runtime.close()
-        finally:server.shutdown();server.server_close()
+    def test_legacy_callback_cannot_override_model_or_be_published_as_knowledge(self):
+        from fastapi.testclient import TestClient
+        from src.search_engine.platform_api import create_app
+        with tempfile.TemporaryDirectory() as directory:
+            with gr.Blocks() as blocks:
+                with gr.Tab('RAG'):
+                    field=gr.Textbox(value='原输入',label='问题');output=gr.JSON()
+                    gr.Button('执行').click(lambda query:{'answer':query},field,output)
+            runtime=NativeRuntime(lambda:blocks);store=RunStore(runtime,directory)
+            try:
+                runtime.layout('session');fn=next(iter(blocks.fns))
+                with self.assertRaisesRegex(ValueError,'不接受供应覆盖'):
+                    store.start('session',fn,{str(field._id):'用户输入'},metadata={'supply':{'model_id':'arbitrary'}})
+                run=store.start('session',fn,{str(field._id):'用户输入'});list(store.events(run['run_id']))
+                record=store.get('runs',run['run_id'])
+                self.assertEqual(record['inputs'][str(field._id)],'用户输入')
+                self.assertNotIn('model_service',record)
+                token=(Path(directory)/'bootstrap-access.txt').read_text().strip()
+                with TestClient(create_app(runtime,store)) as client:
+                    response=client.post('/api/platform/business-runs/'+run['run_id']+'/publish',
+                        headers={'Authorization':'Bearer '+token},json={'name':'界面输出'})
+                    self.assertEqual(response.status_code,410)
+                    self.assertEqual(store.context.catalog()['resources'],[])
+            finally:store.close();runtime.close()
 
 class BusinessHistoryMigration(unittest.TestCase):
     def test_all_record_kinds_and_events_migrate_once_without_new_writes_to_old_file(self):

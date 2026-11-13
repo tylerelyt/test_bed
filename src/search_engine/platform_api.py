@@ -18,7 +18,7 @@ from .agent_platform.service import AgentPlatform
 from .workbench_access import AccessDenied, require_business, require_operator
 
 
-def create_app(executor=None, records=None, database_url=None, embedded_worker=False, external_worker=False):
+def create_app(executor=None, records=None, database_url=None, embedded_worker=False, external_worker=False, legacy_index=None):
     @asynccontextmanager
     async def lifespan(app):
         if external_worker:
@@ -26,7 +26,7 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
             from .workbench_context import ContextStore
             directory=Path(os.environ.get('WORKBENCH_STATE_DIR') or Path(__file__).resolve().parents[2]/'.workbench')
             active_records=SimpleNamespace(directory=directory,access=AccessPolicy(directory),context=ContextStore(directory))
-            platform=AgentPlatform(directory,active_records.context,active_records.access,database_url,background=False)
+            platform=AgentPlatform(directory,active_records.context,active_records.access,database_url,background=False,legacy_index=legacy_index)
             app.state.records,app.state.platform=active_records,platform
             async with httpx.AsyncClient(timeout=None) as client:
                 app.state.client=client
@@ -40,7 +40,7 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
         active_executor = executor or runtime
         active_records = records or RunStore(active_executor, background=True)
         platform = AgentPlatform(active_records.directory, active_records.context, active_records.access, database_url,
-                                 background=embedded_worker)
+                                 background=embedded_worker,legacy_index=legacy_index)
         legacy = ThreadingHTTPServer(('127.0.0.1', 0), make_handler(active_executor, active_records))
         legacy.daemon_threads = True
         thread = threading.Thread(target=legacy.serve_forever, daemon=True)
@@ -85,6 +85,10 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
     async def invalid(request, exc):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
+    @app.exception_handler(ImportError)
+    async def missing_dependency(request,exc):
+        return JSONResponse({'error':'业务服务依赖未就绪，请安装 requirements-context.txt；图谱等原功能另需完整依赖'},status_code=503)
+
     @app.exception_handler(AccessDenied)
     async def denied(request, exc):
         return JSONResponse({'error': str(exc)}, status_code=exc.status)
@@ -104,6 +108,42 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
     @app.get('/api/platform/context')
     def contexts(q: str = ''):
         return app.state.platform.context.catalog(q)
+
+    @app.post('/api/platform/context-supply/validate')
+    def validate_supply(data:dict):
+        return app.state.platform.validation.rag(data.get('index_id'),data.get('model_id'),data.get('query'))
+
+    @app.post('/api/platform/context-supply/import')
+    def import_context(data:dict):
+        return app.state.platform.knowledge.import_file(data,app.state.platform.jobs)
+
+    @app.get('/api/platform/context-supply/indexes')
+    def context_indexes():
+        return app.state.platform.knowledge.listing()
+
+    @app.get('/api/platform/context-supply/sources/legacy-index')
+    def legacy_documents():
+        return app.state.platform.knowledge.legacy_documents()
+
+    @app.post('/api/platform/context-supply/sources/legacy-graph')
+    def graph_facts(data:dict):
+        return app.state.platform.knowledge.snapshot_graph(data.get('entity'),data.get('name'))
+
+    @app.post('/api/platform/context-supply/sources/legacy-index')
+    def source_document(data:dict):
+        return app.state.platform.knowledge.snapshot_legacy(data.get('document_id'),data.get('name'))
+
+    @app.post('/api/platform/context-supply/indexes')
+    def build_index(data:dict):
+        return app.state.platform.knowledge.build(data.get('name'),data.get('resources'))
+
+    @app.post('/api/platform/context-supply/indexes/{index_id}/search')
+    def search_index(index_id:str,data:dict):
+        return app.state.platform.knowledge.search(index_id,data.get('query'),data.get('limit',5))
+
+    @app.post('/api/platform/context-supply/indexes/{index_id}/reference')
+    def reference_index(index_id:str,data:dict):
+        return app.state.platform.knowledge.reference(index_id,data.get('name'))
 
     @app.get('/api/platform/context/{table}/{item_id}')
     def context_item(table: str, item_id: str, version: int | None = None):
@@ -127,7 +167,16 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
 
     @app.post('/api/platform/datasets')
     def dataset(data: dict):
-        return app.state.platform.models.dataset(data.get('name'), data.get('rows'))
+        return app.state.platform.models.dataset(data.get('name'), data.get('rows'),data.get('stage','sft'))
+
+    @app.post('/api/platform/model-supply/train')
+    def train_model(data:dict):
+        return app.state.platform.models.train(data,app.state.platform.jobs)
+
+    @app.post('/api/platform/model-supply/{operation}')
+    def model_operation(operation:str,data:dict):
+        if operation not in ('merge','deploy'): raise ValueError('模型操作不存在')
+        return app.state.platform.models.start_operation(operation,data,app.state.platform.jobs)
 
     @app.get('/api/platform/model-supply')
     def model_supply():
@@ -176,7 +225,7 @@ def create_app(executor=None, records=None, database_url=None, embedded_worker=F
 
     @app.post('/api/platform/business-runs/{run_id}/publish')
     def publish_business(run_id: str, data: dict):
-        return app.state.platform.business.publish(run_id,data.get('name'),data.get('kind','knowledge'))
+        return JSONResponse({'error':'已撤除界面输出发布。请从上下文供应选择真实资料或索引来源。'},status_code=410)
 
     @app.post('/api/platform/positions')
     def position(data: dict):

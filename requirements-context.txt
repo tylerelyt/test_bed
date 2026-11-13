@@ -1,0 +1,6 @@
+# 原倒排索引业务实现；不安装 Gradio 或训练框架。
+-r requirements-core.txt
+jieba==0.42.1
+setuptools<81
+pandas>=2.1,<3
+requests>=2.31,<3

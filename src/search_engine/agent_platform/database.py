@@ -141,6 +141,14 @@ class BusinessEvent(Base):
     body: Mapped[dict] = mapped_column(JSON)
 
 
+class ContextIndex(Owned, Base):
+    __tablename__ = 'context_indexes'
+    name: Mapped[str] = mapped_column(String(120))
+    digest: Mapped[str] = mapped_column(String(64))
+    path: Mapped[str] = mapped_column(Text)
+    manifest: Mapped[dict] = mapped_column(JSON)
+
+
 def connect(directory, url=None):
     directory = Path(directory)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)

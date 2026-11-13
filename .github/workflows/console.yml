@@ -1,9 +1,9 @@
 name: Next.js workbench
 on:
   push:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'requirements-core.txt', 'start_console.sh', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'requirements-core.txt', 'requirements-context.txt', 'start_console.sh', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
   pull_request:
-    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'requirements-core.txt', 'start_console.sh', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
+    paths: ['console/**', 'src/search_engine/**', 'tests/**', 'tools/verify_console_migration.py', 'tools/console_fixture.py', 'tools/manage_workbench_access.py', 'requirements-console.txt', 'requirements-platform.txt', 'requirements-core.txt', 'requirements-context.txt', 'start_console.sh', 'runtimes/**', 'tools/harness_test_model.py', 'tools/start_platform_db.py', '.github/workflows/console.yml']
 permissions:
   contents: read
 jobs:
@@ -21,7 +21,7 @@ jobs:
           cache-dependency-path: console/package-lock.json
       - run: npm ci --ignore-scripts
         working-directory: runtimes/pi
-      - run: python -m pip install -r requirements-core.txt 'gradio==4.44.1' 'huggingface-hub<1' 'numpy<2' 'openai>=1'
+      - run: python -m pip install -r requirements-context.txt 'gradio==4.44.1' 'huggingface-hub<1' 'numpy<2' 'openai>=1'
       - run: python -m unittest discover -s tests -p 'test_*.py' -v
       - run: npm ci
         working-directory: console

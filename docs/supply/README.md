@@ -4,7 +4,7 @@
 
 [本轮验收记录](validation/README.md)。
 
-平台现在有三个关联的交付物：有版本的上下文配置、可以调用的模型服务、固定了 Harness 与这两项依赖的 Agent 发布包。原八个业务模块入口默认展开在“业务处理与验证”，与岗位供应共用数据库和执行进程；详情见[原模块迁移](business/README.md)。
+平台现在有三个关联的交付物：有版本的上下文配置、可以调用的模型服务、固定了 Harness 与这两项依赖的 Agent 发布包。原八个业务模块保留在“业务处理与验证”；业务服务和供应服务通过明确的资料、索引、数据集和模型产物连接，详见[实际接入范围](business/README.md)。共用数据库与 worker 本身不代表业务接入完成。
 
 ## 上下文供应
 
@@ -17,6 +17,10 @@
 
 上传原文件、SHA-256、解析版本和新资源标识相互关联，记录在作业中。MCP、控制台新接口和旧兼容接口读取同一资源库；只读配置继续固定资源版本，笔记写入仍需显式授权并检查版本。
 
+在“资料来源与检索索引”也可选取原文档服务的真实文档，或按实体读取图谱关系，保存带来源摘要的资料快照；不会把界面输出当成原文。选择一组资料版本构建独立倒排索引，再检查检索结果并生成岗位检索引用。将此引用加入供应配置、创建新岗位候选版本后，Pi 才能检索对应索引；以后修改原资料不会改变已发布版本。当前构建限 30 份资料、合计 100 万字符，需安装 `requirements-context.txt`；图谱读取另需完整兼容环境及已运行的图服务。
+
+“验证资料与模型组合”通过原 RAG 服务显式传入索引与模型，返回实际检索资料及提示词。它会调用选定模型，结果供人工核对，不会自动进入供应配置。
+
 ## 模型供应
 
 ### 已有模型服务
@@ -25,9 +29,9 @@
 
 ### 自有模型
 
-1. 保存训练数据集：上传 JSON 数组，每条包含 `instruction`、`output` 和可选 `input`，最多 10 MB、10 万条。校验后生成独立数据集记录与摘要；重新上传创建新记录，不覆盖旧快照。
+1. 保存训练数据集：选择 CPT、SFT 或 DPO 并上传 JSON 数组，最多 10 MB、10 万条。CPT 每条包含 `text`；SFT 包含 `instruction`、`output` 和可选 `input`；DPO 包含 `instruction`、`chosen`、`rejected`。校验后生成独立数据集记录与摘要；重新上传创建新记录，不覆盖旧快照。
 2. 登记本机基础模型：选择后端实际存在的模型目录。完整权重须包含 `config.json` 和权重文件；LoRA 目录须包含适配器配置与权重。系统不自动下载权重。
-3. 提交 LoRA 训练：选择数据集、基础模型、对话模板、轮次与学习率。后台生成受控配置，通过 LLaMA-Factory 原生 CLI 执行 SFT；实际日志保存到作业目录。
+3. 提交 LoRA 训练：选择相同阶段的数据集、基础模型、对话模板、轮次、学习率和截断长度。模型供应复用原训练参数构建函数，固定数据集描述后，通过 LLaMA-Factory 原生 CLI 执行 CPT/SFT/DPO；配置和实际日志保存到作业目录。此流程不依赖 Gradio 回调或“当前界面运行”。
 4. 核对产物：只有进程正常退出且存在产物文件才登记新 LoRA 模型，并关联来源作业、基础模型和数据集。
 5. 合并导出：选择 LoRA 产物，通过 LLaMA-Factory 导出完整模型，形成新的产物记录。
 6. 部署：选择完整模型、可用端口与模型支持的 vLLM 工具调用解析器。后台启动仅监听本机的 vLLM，核对 `/v1/models` 返回的实际模型标识后才登记模型服务。服务进程由作业持续监管，退出会标为失败。
@@ -45,7 +49,7 @@ JSON 数据示例：
 
 ### 独立的软件环境
 
-核心 API/worker 安装 `requirements-core.txt`，不要求加载 Torch、Gradio 或图服务。原业务工具继续使用 `requirements-platform.txt`；训练和推理可独立安装在匹配硬件的 Python 环境中：
+仅运行核心 API/worker 可安装 `requirements-core.txt`；使用文档索引供应及岗位检索工具时安装 `requirements-context.txt`，它包含核心依赖，不要求加载 Torch、Gradio 或图服务。原业务工具继续使用 `requirements-platform.txt`；训练和推理可独立安装在匹配硬件的 Python 环境中：
 
 ```bash
 export WORKBENCH_TRAIN_PYTHON=/srv/envs/training/bin/python
@@ -75,6 +79,7 @@ export WORKBENCH_INFER_PYTHON=/srv/envs/inference/bin/python
 | --- | --- |
 | 数据库 | 岗位、Agent、上下文各版本、供应审计、数据集/模型元数据、发布、运行与作业 |
 | `.workbench/datasets/<id>/` | 固定训练数据、LLaMA-Factory 数据描述 |
+| `.workbench/context-indexes/<id>/` | 固定索引、资料版本清单与摘要 |
 | `.workbench/jobs/<id>/` | 上传原件、原生配置与命令、日志、进程记录和训练/导出结果 |
 | `.workbench/agent-workspaces/<id>/` | Pi 的独立配置、上下文、原生会话和结果 |
 | `.workbench/model-credentials/` | 私有模型调用凭证 |
@@ -84,4 +89,4 @@ export WORKBENCH_INFER_PYTHON=/srv/envs/inference/bin/python
 
 ## 当前边界
 
-本轮补齐的是统一存储、文件导入和 LoRA 到服务登记的作业连接。原 CPT/SFT/DPO、偏好和评测已通过业务适配层接入统一记录与 worker，训练产物回到模型供应；自动同步、向量检索、MLflow、其他 Harness、原生会话续接没有接入。测试中的协议服务和微型权重仅用于验证调用链，不作为业务质量证据。
+本轮补齐文档/图谱资料快照、固定索引、岗位检索工具、显式 RAG 验证，以及模型供应直接发起 CPT/SFT/DPO 的连接。原偏好、CTR、多模态和 GUI 等功能仍保留兼容入口，尚未全部拆成供应服务。自动同步、向量检索、MLflow、其他 Harness、原生会话续接没有接入。测试中的协议服务和微型权重仅用于验证调用链，不作为业务质量证据；本机尚未实测 vLLM 部署。

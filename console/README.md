@@ -68,7 +68,7 @@ Next.js 的服务端 `WORKBENCH_API_URL` 默认指向 `http://127.0.0.1:8766`，
 
 可用 `WORKBENCH_STATE_DIR` 设置记录目录；Python 与 Next.js 共用该配置时使用绝对路径。备份时应先停止执行服务，再复制数据库；不要同时启动多个执行服务共享同一目录。控制台使用其服务端配置的项目身份，历史进一步按会话隔离；原业务数据和计算资源仍是共享环境，未提供分布式任务调度。Agent 的独立接入范围见[服务端凭证与 Agent 授权](../docs/workbench-access/README.md)。
 
-上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。新供应流程的原文件、固定数据集、作业配置与日志分别写入 `.workbench/jobs/`、`datasets/`；作业生成的模型保留来源关系。旧模型目录保留；原 CPT/SFT/DPO 的数据快照、配置、日志与成功产物已接入统一记录，原生进程文件保存在 `.workbench/business-processes/`。原数据位置见[数据说明](../data/README.md)。
+上传文件通过浏览器、Next.js 与 Python 流式传输，使用临时引用；已完成操作的输出文件会按大小限制归档，保留大小、SHA-256 和来源，重启后仍可下载。新供应流程的原文件、固定数据集、作业配置与日志分别写入 `.workbench/jobs/`、`datasets/`，固定索引保存在 `.workbench/context-indexes/`。模型供应直接发起 CPT/SFT/DPO，成功产物关联数据集、基础模型和作业；旧回调不再自动登记模型或发布输出。旧模型目录及历史记录保留，原数据位置见[数据说明](../data/README.md)。
 
 详细的数据迁移、备份与模型环境配置见[供应流程说明](../docs/supply/README.md)。
 

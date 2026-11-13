@@ -65,19 +65,6 @@ def _gremlin_url(janusgraph_url: Optional[str]) -> str:
 class KGRetrievalService:
     """知识图谱检索服务 —— JanusGraph / Gremlin 后端（不再使用 NetworkX）"""
 
-    @property
-    def ner_service(self):
-        from ..business_execution import current_execution
-        scope=current_execution()
-        if scope and scope['run'].get('model_service'):
-            config=scope['run']['model_service']
-            return NERService(api_key='workbench-selected',base_url=config['base_url'],default_model=config['model'])
-        return getattr(self,'_ner_service',None)
-
-    @ner_service.setter
-    def ner_service(self,value):
-        self._ner_service=value
-
     def __init__(
         self,
         graph_file: str = "data/knowledge_graph_janusgraph_export.json",

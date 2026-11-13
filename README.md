@@ -4,7 +4,7 @@
 
 Agent 由 Harness 和模型组成，平台另外管理它引用的上下文。当前接入 **Pi 1.5.2**，支持固定组合的候选版本、试运行、人工采用、运行记录和原生会话保存。
 
-后台采用 Next.js 界面、FastAPI 业务接口和独立执行进程；原检索、图谱、多模态和训练实验通过业务适配层共用平台存储与 worker。围绕具体任务检查三件事：**材料从哪里来、模型实际获得了什么、结果能否由依据和执行记录验证。**
+后台采用 Next.js、FastAPI 和独立执行进程。原界面兼容保留；文档、索引、图谱事实、训练配置及 RAG 验证通过明确的业务服务接入，实际边界见[服务接入与纠正记录](docs/architecture/service-contracts/README.md)。统一日志与 worker 不算领域迁移，不能宣称八模块已全部迁移完成。
 
 [岗位 Agent 使用](docs/position-agents/README.md) · [架构与实施范围](docs/architecture/README.md) · [快速开始](#快速开始) · [平台入口](#平台入口) · [上下文供应与任务验证](docs/workbench-tasks/README.md) · [使用指南](docs/README.md) · [运行与开发](console/README.md)
 
@@ -42,7 +42,7 @@ git clone https://github.com/tylerelyt/test_bed.git
 cd test_bed
 python3.11 -m venv .venv-full
 source .venv-full/bin/activate
-python -m pip install -r requirements-core.txt
+python -m pip install -r requirements-context.txt
 # 使用原八模块时，再安装完整兼容依赖：
 # python -m pip install -r requirements-platform.txt
 npm --prefix console ci
@@ -110,7 +110,7 @@ npm --prefix console run build
 - **经验与周期验证**：从多次运行整理草稿，审阅后加入上下文；周期验证固定任务集版本，升级后暂停并等待核对。成本仅基于实际模型用量与明确配置的价格估算。
 - **指令数据生成**：当前生成器返回模拟样本，用于验证数据格式与流程；尚未接通真实模型扩写。
 - **A/B 偏好采集**：当前用同一个已加载模型的两个温度生成回答；不是两个生产模型版本的流量实验。
-- **训练与迭代**：新模型供应流程串联数据集、LoRA 训练、产物、合并导出和受管部署，保留作业来源；岗位版本仍需试运行后人工采用。原 CPT/SFT/DPO、偏好和评测也已接入统一记录与后台执行，训练产物关联原运行；灰度流量与自动回滚尚未接入。
+- **训练与迭代**：模型供应直接调用原训练参数构建逻辑，支持 CPT/SFT/DPO 数据集、LoRA 训练、产物登记、合并导出和受管部署；岗位版本仍需试运行后人工采用。原偏好、CTR 和其他实验保留兼容入口及记录，尚未改造成独立供应服务；灰度流量与自动回滚尚未接入。
 - **状态与效果**：页面或服务可达，不代表模型质量、任务成功或全部外部服务健康。桌面任务还需核对实际终态和画面。
 
 ## 服务与配置

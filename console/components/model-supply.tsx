@@ -23,10 +23,12 @@ export default function ModelSupply() {
     [format, setFormat] = useState("weights"),
     [base, setBase] = useState("");
   const [datasetId, setDatasetId] = useState(""),
+    [stage, setStage] = useState("sft"),
     [artifactId, setArtifactId] = useState(""),
     [jobName, setJobName] = useState(""),
     [kind, setKind] = useState("train"),
     [epochs, setEpochs] = useState(1),
+    [cutoff, setCutoff] = useState(512),
     [rate, setRate] = useState(0.0001),
     [template, setTemplate] = useState("default"),
     [port, setPort] = useState(8000),
@@ -78,6 +80,7 @@ export default function ModelSupply() {
               const item = await api("datasets", {
                 name,
                 rows: JSON.parse(await file.text()),
+                stage,
               });
               setDatasetId(item.id);
               setMessage(
@@ -88,9 +91,22 @@ export default function ModelSupply() {
         >
           <h3>保存训练数据集</h3>
           <p className="run-help">
-            JSON 数组，每条包含 instruction、input（可选）和
-            output。与上下文资料分别维护。
+            CPT 使用 text；SFT 使用 instruction、input（可选）、output；DPO 使用
+            instruction、chosen、rejected。数据文件为 JSON
+            数组，训练阶段须与数据格式一致。
           </p>
+          <label>
+            训练阶段
+            <select
+              aria-label="训练阶段"
+              value={stage}
+              onChange={(e) => setStage(e.target.value)}
+            >
+              <option value="pt">CPT 语料训练</option>
+              <option value="sft">SFT 指令训练</option>
+              <option value="dpo">DPO 偏好训练</option>
+            </select>
+          </label>
           <label>
             数据集名称
             <input
@@ -192,11 +208,13 @@ export default function ModelSupply() {
         className="agent-card"
         onSubmit={(e) =>
           void act(e, async () => {
-            await api("jobs", {
+            await api("model-supply/" + kind, {
               kind,
               name: jobName,
               request_id: requestId(),
               artifact_id: artifactId,
+              cutoff_len: cutoff,
+              stage,
               dataset_id: datasetId,
               epochs,
               learning_rate: rate,
@@ -229,7 +247,7 @@ export default function ModelSupply() {
                 setArtifactId("");
               }}
             >
-              <option value="train">LLaMA-Factory LoRA 训练</option>
+              <option value="train">LLaMA-Factory CPT / SFT / DPO 训练</option>
               <option value="merge">LLaMA-Factory 合并导出</option>
               <option value="deploy">vLLM 模型部署</option>
             </select>
@@ -257,6 +275,18 @@ export default function ModelSupply() {
           {kind === "train" && (
             <>
               <label>
+                训练任务阶段
+                <select
+                  aria-label="训练任务阶段"
+                  value={stage}
+                  onChange={(e) => setStage(e.target.value)}
+                >
+                  <option value="pt">CPT</option>
+                  <option value="sft">SFT</option>
+                  <option value="dpo">DPO</option>
+                </select>
+              </label>
+              <label>
                 训练数据集
                 <select
                   required
@@ -270,6 +300,17 @@ export default function ModelSupply() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                训练截断长度
+                <input
+                  aria-label="训练截断长度"
+                  type="number"
+                  min={32}
+                  max={8192}
+                  value={cutoff}
+                  onChange={(e) => setCutoff(Number(e.target.value))}
+                />
               </label>
               <label>
                 训练轮次
@@ -335,7 +376,7 @@ export default function ModelSupply() {
           提交模型作业
         </button>
       </form>
-      <SupplyJobs />
+      <SupplyJobs kind="model" />
     </section>
   );
 }

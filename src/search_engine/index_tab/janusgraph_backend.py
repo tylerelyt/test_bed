@@ -150,6 +150,10 @@ class JanusGraphBackend:
                     time.sleep(CONNECT_RETRY_DELAY_SEC)
         raise JanusGraphBackendError(f"无法连接 Gremlin Server {self._url}: {last_error}")
 
+    def close(self):
+        """Release a short-lived read client without changing graph data."""
+        self._close()
+
     def _close(self):
         if self._script_client is not None:
             try:

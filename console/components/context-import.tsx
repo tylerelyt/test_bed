@@ -20,7 +20,7 @@ export default function ContextImport() {
       let raw = "";
       for (let i = 0; i < bytes.length; i += 8192)
         raw += String.fromCharCode(...bytes.subarray(i, i + 8192));
-      await api("jobs", {
+      await api("context-supply/import", {
         kind: "import",
         name: name || file.name,
         request_id: requestId(),

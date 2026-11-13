@@ -50,6 +50,9 @@ def main():
                         else:
                             output = gr.JSON(label='模块状态')
                             gr.Button('查看状态').click(lambda: {'source': 'deterministic-ci-fixture', 'ready': True}, [], output)
+        from src.search_engine.agent_platform.index_adapter import LexicalIndex
+        original_index=Path(folder)/'original-index.json'
+        LexicalIndex().build([{'id':'fixture-policy','content':'报销金额超过5000元需要经理审批，来源财务制度。'}],original_index)
         executor = NativeRuntime(lambda: blocks)
         Path(folder,'database-url.txt').write_text('sqlite:///'+str(Path(folder)/'platform.sqlite3'))
         records = RunStore(executor, folder, background=True)
@@ -59,7 +62,7 @@ def main():
              'token_sha256':hashlib.sha256(b'fixture-operator-token-not-for-real-use').hexdigest()}]}))
         import uvicorn
         from src.search_engine.platform_api import create_app
-        app = create_app(executor, records, database_url='sqlite:///'+str(Path(folder)/'platform.sqlite3'), embedded_worker=True)
+        app = create_app(executor, records, database_url='sqlite:///'+str(Path(folder)/'platform.sqlite3'), embedded_worker=True,legacy_index=original_index)
         import threading
         from tools.harness_test_model import server as model_server
         model = model_server(8779)

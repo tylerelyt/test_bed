@@ -25,86 +25,10 @@ class LLaMAFactoryTrainer:
             'output_dir': None
         }
         self.config_file = None  # 临时配置文件路径
-        self.managed = None
-        self.log_stream = None
     
     def _build_train_args(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """构建训练参数，转换为 LLaMA-Factory 需要的格式
-        
-        参考 LLaMA-Factory WebUI 的 runner._parse_train_args 方法
-        """
-        args = {}
-        
-        # 基础配置
-        args['stage'] = config.get('stage', 'sft')  # pt, sft, dpo, etc.
-        args['model_name_or_path'] = config.get('model_name_or_path', '')
-        
-        # SFT/DPO阶段：从之前的checkpoint继续训练
-        adapter_path = config.get('adapter_name_or_path', '')
-        if adapter_path:
-            args['adapter_name_or_path'] = adapter_path
-        
-        args['dataset'] = config.get('dataset', '')
-        args['dataset_dir'] = config.get('dataset_dir', 'data/llmops')
-        args['template'] = config.get('template', 'default')
-        args['finetuning_type'] = config.get('finetuning_type', 'lora')
-        
-        # 训练参数
-        args['output_dir'] = config.get('output_dir', '')
-        args['overwrite_output_dir'] = config.get('overwrite_output_dir', True)
-        args['do_train'] = True
-        args['num_train_epochs'] = config.get('num_train_epochs', 3.0)
-        args['learning_rate'] = config.get('learning_rate', 5e-5)
-        args['per_device_train_batch_size'] = config.get('per_device_train_batch_size', 2)
-        args['gradient_accumulation_steps'] = config.get('gradient_accumulation_steps', 8)
-        args['cutoff_len'] = config.get('cutoff_len', 512)  # 改为512，避免小数据集被过滤
-        args['max_grad_norm'] = config.get('max_grad_norm', 1.0)
-        args['lr_scheduler_type'] = config.get('lr_scheduler_type', 'cosine')
-        args['warmup_steps'] = config.get('warmup_steps', 0)
-        args['logging_steps'] = config.get('logging_steps', 5)
-        args['save_steps'] = config.get('save_steps', 100)
-        args['save_strategy'] = 'steps'
-        args['logging_strategy'] = 'steps'
-        
-        # 计算类型 (MacOS MPS 不支持 bf16/fp16，默认使用 fp32)
-        compute_type = config.get('compute_type', 'fp32')
-        if compute_type == 'bf16':
-            args['bf16'] = True
-            args['fp16'] = False
-        elif compute_type == 'fp16':
-            args['fp16'] = True
-            args['bf16'] = False
-        else:  # fp32 或其他
-            args['fp16'] = False
-            args['bf16'] = False
-        
-        # LoRA 配置
-        if args['finetuning_type'] == 'lora':
-            args['lora_rank'] = config.get('lora_rank', 8)
-            args['lora_alpha'] = config.get('lora_alpha', 16)
-            args['lora_dropout'] = config.get('lora_dropout', 0.05)
-            args['lora_target'] = config.get('lora_target', 'all')
-        
-        # DPO 配置
-        if args['stage'] == 'dpo':
-            args['pref_beta'] = config.get('pref_beta', 0.1)
-            args['pref_ftx'] = config.get('pref_ftx', 0.0)
-            args['pref_loss'] = config.get('pref_loss', 'sigmoid')
-        
-        # 其他配置
-        args['max_samples'] = config.get('max_samples', 100000)
-        args['val_size'] = config.get('val_size', 0.0)
-        args['plot_loss'] = True
-        args['trust_remote_code'] = True
-        args['overwrite_cache'] = True  # 总是重新处理数据，避免缓存问题
-        args['preprocessing_num_workers'] = 1  # 单进程处理，避免并发问题
-        
-        if args['val_size'] > 1e-6:
-            args['eval_strategy'] = 'steps'
-            args['eval_steps'] = args['save_steps']
-            args['per_device_eval_batch_size'] = args['per_device_train_batch_size']
-        
-        return args
+        from ..training_config import build_train_args
+        return build_train_args(config)
     
     def _save_config_to_file(self, args: Dict[str, Any]) -> str:
         """将配置保存为临时 YAML 文件
@@ -168,8 +92,7 @@ class LLaMAFactoryTrainer:
         
         # 构建训练参数
         train_args = self._build_train_args(config)
-        from ..business_training import prepare_training
-        self.managed = prepare_training(config,train_args)
+        train_args.pop('trust_remote_code', None)  # Unsupported by the installed 0.9.1 CLI parser.
         
         # 确保输出目录存在
         output_dir = train_args.get('output_dir')
@@ -183,8 +106,6 @@ class LLaMAFactoryTrainer:
         # 保存配置到临时文件
         try:
             config_file = self._save_config_to_file(train_args)
-            if self.managed:
-                config_file=str(self.managed["folder"]/"train-config.json")
             print(f"📄 配置文件已生成: {config_file}")
         except Exception as e:
             if log_callback:
@@ -205,21 +126,17 @@ class LLaMAFactoryTrainer:
             print(f"🚀 启动训练进程: {llamafactory_cmd} train {config_file}")
             # 不捕获 stdout/stderr，让它直接输出到终端
             # 这样用户可以实时看到训练进度
-            if self.managed:self.log_stream=(self.managed["folder"]/"process.log").open("ab")
             self.current_process = subprocess.Popen(
-                [os.environ.get('WORKBENCH_TRAIN_PYTHON') or __import__('sys').executable, '-c', 'from llamafactory.cli import main; main()', 'train', config_file],
+                [os.environ.get('WORKBENCH_TRAIN_PYTHON') or __import__('sys').executable,
+                 '-c', 'from llamafactory.cli import main; main()', 'train', config_file],
                 env=env,
                 start_new_session=True,
-                stdout=self.log_stream, stderr=subprocess.STDOUT,
                 # 注释掉管道，让输出直接显示
                 # stdout=subprocess.PIPE,
                 # stderr=subprocess.PIPE,
                 text=True
             )
             
-            if self.managed:
-                self.managed['scope']['run']['training']['pid']=self.current_process.pid
-                self.managed['scope']['records'].put('runs',self.managed['scope']['run'])
             # 更新状态
             self.training_status = {
                 'running': True,
@@ -236,7 +153,7 @@ class LLaMAFactoryTrainer:
             import traceback
             traceback.print_exc()
             # 清理临时配置文件
-            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
+            if self.config_file and os.path.exists(self.config_file):
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -355,11 +272,7 @@ class LLaMAFactoryTrainer:
         # 非阻塞检查进程状态
         return_code = self.current_process.poll()
         
-        if return_code is not None and self.training_status['running']:
-            from ..business_training import training_finished
-            training_finished(self.managed,return_code)
-            self.managed=None
-            if self.log_stream:self.log_stream.close();self.log_stream=None
+        if return_code is not None:
             # 进程已结束，读取输出
             try:
                 stdout, stderr = self.current_process.communicate(timeout=1)
@@ -374,7 +287,7 @@ class LLaMAFactoryTrainer:
             self.training_status['running'] = False
             
             # 清理临时配置文件
-            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
+            if self.config_file and os.path.exists(self.config_file):
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -391,26 +304,22 @@ class LLaMAFactoryTrainer:
         
         try:
             # 优雅地终止进程
-            os.killpg(self.current_process.pid,signal.SIGTERM)
+            os.killpg(self.current_process.pid, signal.SIGTERM)
             
             # 等待进程结束（最多 5 秒）
             try:
                 self.current_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 # 如果进程没有响应，强制杀死
-                os.killpg(self.current_process.pid,signal.SIGKILL)
+                os.killpg(self.current_process.pid, signal.SIGKILL)
                 self.current_process.wait()
             
-            from ..business_training import training_finished
-            training_finished(self.managed,-15)
-            self.managed=None
-            if self.log_stream:self.log_stream.close();self.log_stream=None
             # 更新状态
             self.training_status['running'] = False
             self.current_process = None
             
             # 清理临时配置文件
-            if not self.managed and self.config_file and os.path.exists(self.config_file) and 'business-processes' not in self.config_file:
+            if self.config_file and os.path.exists(self.config_file):
                 try:
                     config_dir = os.path.dirname(self.config_file)
                     shutil.rmtree(config_dir)
@@ -437,22 +346,18 @@ class LLaMAFactoryTrainer:
         return False
 
 
-# One native training process per project; stop callbacks resolve the same owner.
+# 兼容页面保留按项目管理进程；供应服务不依赖这里的实例。
 _trainers = {}
 _trainer_lock = threading.RLock()
 
 def get_trainer() -> LLaMAFactoryTrainer:
     from ..workbench_access import identity
     with _trainer_lock:
-        return _trainers.setdefault(identity().project,LLaMAFactoryTrainer())
+        return _trainers.setdefault(identity().project, LLaMAFactoryTrainer())
+
 
 def stop_all_trainers():
     with _trainer_lock:
         for trainer in _trainers.values():
-            if trainer.training_status['running']:trainer.stop_training()
-
-def stop_training_for_run(run_id):
-    with _trainer_lock:
-        for trainer in _trainers.values():
-            if trainer.managed and trainer.managed['scope']['run']['id']==run_id:
+            if trainer.training_status['running']:
                 trainer.stop_training()

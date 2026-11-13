@@ -120,7 +120,7 @@ print('fixture native-process log',flush=True)
 
     def test_training_adapter_records_process_output_and_lineage(self):
         executable, artifact, dataset = self.fixture()
-        with patch('src.search_engine.agent_platform.jobs.probe',return_value='fixture'), patch('src.search_engine.agent_platform.jobs.python_for',return_value=str(executable)):
+        with patch('src.search_engine.agent_platform.model_operations.probe',return_value='fixture'), patch('src.search_engine.agent_platform.model_operations.python_for',return_value=str(executable)):
             job = self.job(kind='train', artifact_id=artifact['id'], dataset_id=dataset['id'])
             self.platform.jobs.execute_next()
         result = self.platform.jobs.detail(job['id'])
@@ -135,7 +135,7 @@ print('fixture native-process log',flush=True)
 
     def test_native_failure_never_registers_output(self):
         executable, artifact, dataset = self.fixture('fail')
-        with patch('src.search_engine.agent_platform.jobs.probe',return_value='fixture'), patch('src.search_engine.agent_platform.jobs.python_for',return_value=str(executable)):
+        with patch('src.search_engine.agent_platform.model_operations.probe',return_value='fixture'), patch('src.search_engine.agent_platform.model_operations.python_for',return_value=str(executable)):
             job = self.job(kind='train', artifact_id=artifact['id'], dataset_id=dataset['id'])
             self.platform.jobs.execute_next()
         self.assertEqual(self.platform.jobs.detail(job['id'])['status'], 'failed')
@@ -154,7 +154,7 @@ HTTPServer(('127.0.0.1',port),Handler).serve_forever()
 ''')
         with socket.socket() as listener:
             listener.bind(('127.0.0.1',0)); port=listener.getsockname()[1]
-        with patch('src.search_engine.agent_platform.jobs.probe',return_value='fixture'), patch('src.search_engine.agent_platform.jobs.python_for',return_value=str(executable)):
+        with patch('src.search_engine.agent_platform.model_operations.probe',return_value='fixture'), patch('src.search_engine.agent_platform.model_operations.python_for',return_value=str(executable)):
             job=self.job(kind='deploy',artifact_id=artifact['id'],port=port)
             worker=threading.Thread(target=self.platform.jobs.execute_next);worker.start()
             try:
@@ -183,7 +183,7 @@ HTTPServer(('127.0.0.1',port),Handler).serve_forever()
 
     def test_cancellation_stops_actual_owned_process(self):
         executable, artifact, dataset = self.fixture('wait')
-        with patch('src.search_engine.agent_platform.jobs.probe',return_value='fixture'), patch('src.search_engine.agent_platform.jobs.python_for',return_value=str(executable)):
+        with patch('src.search_engine.agent_platform.model_operations.probe',return_value='fixture'), patch('src.search_engine.agent_platform.model_operations.python_for',return_value=str(executable)):
             job = self.job(kind='train', artifact_id=artifact['id'], dataset_id=dataset['id'])
             worker = threading.Thread(target=self.platform.jobs.execute_next); worker.start()
             try:

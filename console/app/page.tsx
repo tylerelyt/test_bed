@@ -119,6 +119,7 @@ export default function Page() {
           ))}
           <details className="legacy-navigation" open>
             <summary>业务处理与验证</summary>
+            <div className="legacy-links">
             {modules.map(({ title, icon: Icon }, i) => (
               <button
                 key={title}
@@ -131,6 +132,7 @@ export default function Page() {
                 <span>{title}</span>
               </button>
             ))}
+            </div>
           </details>
         </nav>
         <div className="sidebar-note">

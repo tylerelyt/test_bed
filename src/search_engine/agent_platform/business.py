@@ -27,15 +27,5 @@ class BusinessOperations:
                     'source':'business','run_id':row.id})
             return result
 
-    def publish(self,run_id,name,kind='knowledge'):
-        require_business()
-        with self.session() as db:
-            row=db.scalar(select(BusinessRecord).where(BusinessRecord.kind=='runs',BusinessRecord.id==run_id))
-            if not row:raise ValueError('运行不存在')
-            run=check(row.body)
-        if run['status']!='completed':raise ValueError('只有成功完成的运行可以发布产物')
-        outputs=run.get('outputs',{})
-        if not outputs:raise ValueError('本次运行没有可发布的输出')
-        if kind not in ('knowledge','instructions','experience'):raise ValueError('资源类型无效')
-        content=json.dumps(outputs,ensure_ascii=False,indent=2)
-        return self.context.resource(name,kind,content,source='business-run:'+run_id+'; '+run['module']+'; '+run['action'])
+    def publish(self,*args,**kwargs):
+        raise ValueError('运行记录是观察证据，不能作为上下文供应入口；请选择资料或索引来源')

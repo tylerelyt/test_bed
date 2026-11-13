@@ -9,7 +9,7 @@
 使用 Python 3.11 和 Node.js 22.19 或更新版本，从仓库根目录执行：
 
 ```bash
-python -m pip install -r requirements-core.txt
+python -m pip install -r requirements-context.txt
 npm --prefix console ci
 npm --prefix runtimes/pi ci --ignore-scripts
 npm --prefix console run build
@@ -31,7 +31,7 @@ macOS 默认查找 `/opt/homebrew/opt/postgresql@17/bin`，其他安装位置通
 2. 在“上下文配置”创建资料、规则等资源，并组合成供应配置；可以先导入文件，控制台与 MCP 统一读取平台数据库。
 3. 在“模型服务”登记已有的 OpenAI Chat Completions 兼容服务，例如运行中的 vLLM 或 Ollama。填写实际服务地址和模型标识，按需要提供服务密钥。保存配置不表示已经验证业务效果。
 4. 在“发布与运行”选择 Agent、模型服务和上下文配置，生成候选版本。职责、资料快照和模型配置在此时固定；后续修改不会原地改变旧候选版本。
-5. 输入岗位任务并运行。执行器会启动真实 Pi 进程，由 Pi 调用模型和已注册的 `read_enterprise_context` 工具读取预配置资料。
+5. 输入岗位任务并运行。执行器会启动真实 Pi 进程，由 Pi 调用模型和 `read_enterprise_context` 读取预配置资料。发布包包含检索引用时，同时注册 `search_enterprise_knowledge`，只允许检索包内固定的索引版本。
 6. 核对返回内容与来源，下载结果，决定是否采用该版本。只能采用已经完成试运行的对应版本，采用不等于系统自动判定业务质量合格。
 
 ## 执行与保存
@@ -42,7 +42,7 @@ FastAPI 管理配置与运行记录，`platform_worker` 是一个独立本机进
 
 模型密钥保存在 `.workbench/model-credentials/` 的私有文件中，接口不回显密钥。Pi 通过受控环境变量获取该服务密钥，生成的配置文件只包含变量引用；不继承后台的其他服务凭证。
 
-首版只开放读取本次预配上下文的工具，关闭 Pi 的内置 shell、任意文件读写、MCP 自动发现、插件与全局配置自动发现。没有开放通用业务写操作；这不是完整的操作系统沙箱，后续开放执行工具时须另行验证环境隔离。
+首版只开放读取本次预配上下文及检索已发布索引的工具，关闭 Pi 的内置 shell、任意文件读写、MCP 自动发现、插件与全局配置自动发现。检索由后端固定入口执行，模型不能指定文件路径或命令。没有开放通用业务写操作；这不是完整的操作系统沙箱，后续开放执行工具时须另行验证环境隔离。
 
 刷新页面可以重新选择已保存的运行记录和结果。本次新运行不复用上一次 Pi 会话；原生会话已保存供核对，但继续同一个会话的交互尚未接入。停止请求会终止本次 Pi 进程；服务异常后不自动重跑外部动作。
 
@@ -52,7 +52,7 @@ FastAPI 管理配置与运行记录，`platform_worker` 是一个独立本机进
 
 当前环境没有配置真实业务模型密钥，也没有运行中的本地推理模型；使用者需登记自己的模型服务后进行业务验收。
 
-后续接入范围：其他 Harness、更多模型协议与推理参数、自动资料同步和索引构建、继续原生会话。LoRA 训练、合并导出、产物登记与 vLLM 部署已接入新供应作业，详见[供应流程](../supply/README.md)；原 CPT/SFT/DPO、评测和检索功能已通过统一仓储与 worker 接入，详见[原八模块迁移](../supply/business/README.md)。
+后续接入范围：其他 Harness、更多模型协议与推理参数、自动资料同步、向量检索和继续原生会话。当前倒排索引复用原业务实现；模型供应直接复用原训练参数构建逻辑，通过原生 LLaMA-Factory 执行 CPT/SFT/DPO。vLLM 部署适配已提供，本机缺少 vLLM，尚未实机验收。其他原模块仍有兼容入口，统一记录不代表已完成服务拆分，详见[服务接入边界](../architecture/service-contracts/README.md)。
 
 ## 接口与进程
 

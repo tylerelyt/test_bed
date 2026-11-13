@@ -17,7 +17,7 @@ from datetime import datetime
 def call_llm(messages, model="qwen-max"):
     """调用 LLM"""
     try:
-        from ..business_execution import OpenAI
+        from openai import OpenAI
         client = OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -36,7 +36,7 @@ def call_llm(messages, model="qwen-max"):
 class RAGService:
     """RAG服务：基于倒排索引的检索增强生成"""
     
-    def __init__(self, index_service, ollama_url: str = "http://localhost:11434"):
+    def __init__(self, index_service, ollama_url: str = "http://localhost:11434", llm=None):
         """
         初始化RAG服务
         
@@ -45,6 +45,7 @@ class RAGService:
             ollama_url: Ollama服务URL (保留兼容性)
         """
         self.index_service = index_service
+        self.llm = llm
         self.ollama_url = ollama_url
         self.default_model = "qwen-max"  # 改为DashScope模型
         
@@ -114,6 +115,8 @@ class RAGService:
             {"role": "user", "content": user_prompt}
         ]
         
+        if self.llm is not None:
+            return self.llm(messages,model)
         try:
             return call_llm(messages, model)
         except Exception as e:
@@ -133,6 +136,8 @@ class RAGService:
         if model is None:
             model = self.default_model
             
+        if self.llm is not None:
+            return self.llm([{"role":"user","content":prompt}],model)
         try:
             messages = [
                 {"role": "user", "content": prompt}

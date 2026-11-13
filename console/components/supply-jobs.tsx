@@ -36,15 +36,14 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
   const [jobs, setJobs] = useState<Job[]>([]),
     [loaded, setLoaded] = useState(false),
     [selected, setSelected] = useState<Job | null>(null),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState("");
+    [error, setError] = useState("");
   useEffect(() => {
     let live = true;
     async function refresh() {
       try {
         const data = await api("jobs");
         if (live) {
-          setJobs(data.filter((x: Job) => !kind || x.kind === kind));
+          setJobs(data.filter((x: Job) => !kind || (kind === "model" ? ["train", "merge", "deploy"].includes(x.kind) : x.kind === kind)));
           setLoaded(true);
         }
       } catch (e) {
@@ -103,7 +102,6 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
           {error}
         </p>
       )}
-      {notice && <p role="status">{notice}</p>}
       {!jobs.length && <p>暂无作业。</p>}
       {jobs.map((job) => (
         <div
@@ -130,25 +128,6 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
             {selected.name} · {states[selected.status]}
           </h3>
           <p>作业编号：{selected.id}</p>
-          {selected.kind === "business" && selected.status === "completed" && (
-            <button
-              className="secondary"
-              onClick={() =>
-                void api("business-runs/" + selected.id.slice(9) + "/publish", {
-                  name: selected.name + " · 运行结果",
-                  kind: "knowledge",
-                })
-                  .then(() =>
-                    setNotice(
-                      "已发布到上下文资源库，请在上下文供应中刷新并组合配置。",
-                    ),
-                  )
-                  .catch((e) => setError(e.message))
-              }
-            >
-              发布输出为上下文资源
-            </button>
-          )}
           {selected.error && <p role="alert">{selected.error}</p>}
           <pre>{JSON.stringify(selected.result, null, 2)}</pre>
           <h4>原生进程日志（最近 32 KB）</h4>

@@ -9,11 +9,11 @@ from .releases import Releases
 
 
 class Catalog:
-    def __init__(self, session, directory, context):
+    def __init__(self, session, directory, context, knowledge=None):
         self.session = session
         self.positions = Positions(session)
         self.models = ModelServices(session, directory)
-        self.releases = Releases(session, context)
+        self.releases = Releases(session, context, knowledge)
         self.position, self.agent = self.positions.position, self.positions.agent
         self.model = self.models.model
         self.release, self.publish = self.releases.release, self.releases.publish

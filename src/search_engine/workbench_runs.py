@@ -367,22 +367,9 @@ class RunStore:
                         raise ValueError('任务所需的服务端密钥引用尚未配置：' + variable)
                     inputs[cid] = value
         user_inputs = clean(self.executor.export(inputs))
-        supply=(metadata or {}).get('supply',{})
-        binding = task.get('context_binding') if task else supply.get('context_binding')
-        if binding and binding.get('component_id') not in self.context_inputs(fn_id):
-            raise ValueError('上下文目标字段不属于本次操作')
-        model_service=None
-        model_id=task.get('model_id') if task else supply.get('model_id')
-        if model_id:
-            from .agent_platform.database import connect,ModelService
-            from .agent_platform.common import get,public
-            engine,factory=connect(self.directory)
-            try:
-                with factory() as db:model_service=public(get(db,ModelService,model_id))
-            finally:engine.dispose()
-            if model_service['has_credential']:
-                credential=(self.directory/'model-credentials'/(model_service['id']+'.txt')).read_text().strip()
-                clean=self.sanitizer(session,submitted,[credential])
+        if (metadata or {}).get('supply'):
+            raise ValueError('旧业务回调不接受供应覆盖；请通过上下文或模型供应接口操作')
+        binding = task.get('context_binding') if task else None
         assembled = None
         original_text = None
         if binding:
@@ -401,7 +388,7 @@ class RunStore:
                'started_at': time.time(), 'finished_at': None, 'inputs': snapshot,
                'event': clean(event), 'outputs': {}, 'task_id': task_id, 'task_version': task.get('version', 1) if task else None,
                'runtime_id': self.executor.instance_id, 'user_inputs': user_inputs,
-               'context_binding': binding, 'model_service': model_service, 'secret_env': task.get('secret_env', {}) if task else {},
+               'context_binding': binding, 'secret_env': task.get('secret_env', {}) if task else {},
                'metadata': clean(metadata or {}), 'usage': [], 'artifacts': [], 'reviews': [],
                'code': self.code, 'project': identity().project, 'actor': identity().public(),
                '_execution_identity': identity().claim(),
@@ -475,16 +462,9 @@ class RunStore:
                     self.condition.notify_all()
             try:
                 # Live events use the original values, while durable evidence is redacted.
-                from .business_execution import execution_scope
-                with execution_scope(run,self.directory,self), observe_usage() as usage:
+                with observe_usage() as usage:
                     self.executor.execute(session, fn_id, execution_values, event, emit=emit)
                     run['usage'] = clean(usage)
-                training=run.get('training')
-                if training and run['id'] not in self.cancel_requests:
-                    if training.get('return_code') not in (None,0):
-                        raise RuntimeError('原生训练失败，退出代码 '+str(training['return_code'])+'；请查看统一作业日志')
-                    if training.get('artifact_error'):
-                        raise RuntimeError('训练产物登记失败：'+training['artifact_error'])
                 run['callback_finished_at'] = time.time()
                 run['status'] = 'stopped' if run['id'] in self.cancel_requests else 'completed'
                 if task:
@@ -527,9 +507,6 @@ class RunStore:
                     raise ValueError('本次运行已结束')
                 if run['status'] == 'running':
                     self.cancel_requests.add(run_id)
-                    import sys
-                    trainer=sys.modules.get('src.search_engine.training_tab.llamafactory_trainer')
-                    if trainer:trainer.stop_training_for_run(run_id)
                     self.executor.session(run['session'])['cancelled'].add(run['fn_id'])
                     run['cancel_requested'] = True
                 else:
@@ -578,7 +555,6 @@ class RunStore:
             raise ValueError('请填写任务验收要点（2000 字以内）')
         task = {k: run[k] for k in ('module', 'action', 'fn_id', 'schema', 'inputs', 'event', 'config_version')}
         task['inputs'] = run.get('user_inputs', run['inputs'])
-        if run.get('model_service'):task['model_id']=run['model_service']['id']
         from .workbench_evaluations import validate_rules
         if not isinstance(requires_review, bool):
             raise ValueError('放行设置无效')

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-test("原业务运行进入统一作业并发布为岗位上下文", async ({ page }) => {
+test("原业务保留观察记录，不再发布界面输出", async ({ page }) => {
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "在线召回排序", exact: true }),
@@ -27,12 +27,12 @@ test("原业务运行进入统一作业并发布为岗位上下文", async ({ pa
     .first();
   await row.getByRole("button", { name: "查看详情与日志" }).click();
   await expect(page.locator(".context-preview")).toContainText(id);
-  await page.getByRole("button", { name: "发布输出为上下文资源" }).click();
-  await expect(page.getByRole("status")).toContainText("已发布到上下文资源库");
-  await page.getByRole("button", { name: "上下文供应", exact: true }).click();
   await expect(
-    page
-      .locator("#context-resource option")
-      .filter({ hasText: "执行检索 · 运行结果" }),
-  ).toHaveCount(1);
+    page.getByRole("button", { name: "发布输出为上下文资源" }),
+  ).toHaveCount(0);
+  const rejected = await page.request.post(
+    "/api/platform/business-runs/" + id + "/publish",
+    { data: { name: "不允许发布" } },
+  );
+  expect(rejected.status()).toBe(410);
 });

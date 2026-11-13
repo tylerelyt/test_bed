@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { downloadJSON } from "../lib/workbench-api";
 import { platformRequest as request } from "../lib/platform-api";
 import ContextImport from "./context-import";
+import ContextIndexes from "./context-indexes";
 type Resource = {
   id: string;
   name: string;
@@ -43,6 +44,7 @@ const kinds: Record<string, string> = {
   experience: "已审阅经验",
   notebook: "Agent 笔记",
   role: "角色职责",
+  retrieval: "检索索引",
 };
 export default function ContextSupply() {
   const [resources, setResources] = useState<Resource[]>([]),
@@ -125,6 +127,7 @@ export default function ContextSupply() {
       data-verify-unit="ContextSupply"
       data-verify-state={!loaded ? "loading" : pending ? "pending" : "ready"}
     >
+      <ContextIndexes onPublished={refresh} />
       <p className="run-help">
         为 Agent 组合资料、操作说明、工具定义和经验。MCP 目录只返回元数据，Agent
         按需读取；配置固定资源版本，笔记写入单独授权。资料、MCP 与岗位发布
