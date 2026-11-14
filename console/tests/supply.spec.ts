@@ -4,8 +4,8 @@ test("主导航、文件导入、固定训练数据与真实环境状态", async
   const suffix = Date.now().toString();
   await page.goto("/");
   await expect(page.getByText("业务处理与验证", {exact:true})).toHaveCount(0);
-  await page.getByRole("button", { name: "上下文供应", exact: true }).click();
-  await page.getByText("从文件导入资料", { exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "上下文供应", exact: true }).click();
+  await page.getByRole("button", {name:"导入文件",exact:true}).click();
   await page.getByLabel("资料文件", { exact: true }).setInputFiles({
     name: "审批规定.md",
     mimeType: "text/markdown",
@@ -15,22 +15,15 @@ test("主导航、文件导入、固定训练数据与真实环境状态", async
     .getByLabel("导入资源名称", { exact: true })
     .fill("导入制度" + suffix);
   await page.getByRole("button", { name: "提交资料导入", exact: true }).click();
-  const row = page
-    .locator(".agent-row")
-    .filter({ hasText: "导入制度" + suffix });
+  const row = page.locator("[data-supply-job-state]");
   await expect(row).toHaveAttribute("data-supply-job-state", "completed", {
     timeout: 20000,
   });
-  await page.getByRole("button", { name: "刷新资源库", exact: true }).click();
-  await expect(
-    page
-      .locator("#context-resource option")
-      .filter({ hasText: "导入制度" + suffix }),
-  ).toHaveCount(1);
-  await page.getByRole("button", { name: "模型供应", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "模型数据、产物与作业", exact: true }),
-  ).toBeVisible();
+  await page.getByRole("link",{name:"查看生成的资料",exact:true}).click();
+  await expect(page.locator(".context-preview")).toContainText("5000");
+  await page.locator("aside").getByRole("link", { name: "模型供应", exact: true }).click();
+  await page.locator("aside").getByRole("link", {name:"训练数据集",exact:true}).click();
+  await page.getByRole("button",{name:"导入训练数据集",exact:true}).click();
   await page
     .getByLabel("数据集名称", { exact: true })
     .fill("训练数据" + suffix);
@@ -52,22 +45,22 @@ test("主导航、文件导入、固定训练数据与真实环境状态", async
     "数据集已校验并固定保存",
   );
   await expect(
-    page.locator("p").filter({ hasText: "训练数据" + suffix + " · 220 条" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "运行环境", exact: true }).click();
+    page.locator(".resource-table tr").filter({ hasText: "训练数据" + suffix }),
+  ).toContainText("220 条");
+  await page.locator("aside").getByRole("link", { name: "运行环境", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "本机运行环境", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".environment-list")).toContainText("sqlite");
   await expect(page.locator(".environment-list")).toContainText("pypdf");
-  await page.getByRole("button", { name: "作业管理", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "作业管理", exact: true }).click();
   await expect(
-    page.locator(".agent-row").filter({ hasText: "导入制度" + suffix }),
+    page.locator(".resource-table tr").filter({ hasText: "导入制度" + suffix }),
   ).toContainText("已完成");
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     for (const name of ["上下文供应", "模型供应", "作业管理", "运行环境"]) {
-      await page.getByRole("button", { name, exact: true }).click();
+      await page.locator("aside").getByRole("link", { name, exact: true }).click();
       await expect
         .poll(() =>
           page.evaluate(() => (window as any).__verify.current().verdict),

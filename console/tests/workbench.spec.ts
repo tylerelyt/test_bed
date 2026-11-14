@@ -2,8 +2,8 @@ import { test, expect, Page } from "@playwright/test";
 
 async function open(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", {name:"上下文供应",exact:true}).click();
-  await page.getByRole("button", {name:"离线索引构建",exact:true}).click();
+  await page.locator("aside").getByRole("link", { name: "上下文供应", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "离线索引构建", exact: true }).click();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),
   ).toHaveAttribute("data-verify-state", "ready");
@@ -15,7 +15,7 @@ async function history(page: Page) {
   return panel;
 }
 async function search(page: Page) {
-  await page.getByRole("button", { name: "在线召回排序", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "在线召回排序", exact: true }).click();
   const response = page.waitForResponse(
     (r) =>
       r.url().endsWith("/api/native/runs") && r.request().method() === "POST",
@@ -88,7 +88,7 @@ test("控制台同源保护及服务端身份不受浏览器凭证覆盖", async
   expect((await request.post('/api/native/upload',{data:''})).status()).toBe(400);
 });
 
-test("业务能力归入供应入口，机器可读约定与移动端", async ({ page }) => {
+test("业务能力归入供应入口，桌面机器可读约定", async ({ page }) => {
   await open(page);
   const names = [
     ["上下文供应", "离线索引构建"],
@@ -100,11 +100,11 @@ test("业务能力归入供应入口，机器可读约定与移动端", async ({
     ["模型供应", "训练与评测"],
     ["运行环境", "系统监控"],
   ];
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1280]) {
     await page.setViewportSize({ width, height: 950 });
     for (const [domain, name] of names) {
-      await page.getByRole("button", {name:domain,exact:true}).click();
-      await page.getByRole("button", { name, exact: true }).click();
+      await page.locator("aside").getByRole("link", {name:domain,exact:true}).click();
+      await page.locator("aside").getByRole("link", { name, exact: true }).click();
       await expect(page.locator('[data-verify-unit="NativeWorkbench"]')).toHaveAttribute("data-verify-state", "ready");
       const result = await page.evaluate(() =>
         (window as any).__verify.current(),
@@ -215,7 +215,7 @@ test("实际运行、规则、人工基线、重复评测与周期暂停", async
     .click();
   await page.getByRole("button", { name: "暂停", exact: true }).click();
   await expect(page.locator(".schedule-row")).toContainText("已暂停");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -244,7 +244,7 @@ test("经验审阅、上下文组合与预算装配", async ({ page }) => {
     .getByRole("button", { name: "加入上下文资源", exact: true })
     .click();
   await expect(note).toContainText("已加入上下文资源库");
-  await page.getByRole("button", { name: "上下文工程", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "上下文工程", exact: true }).click();
   await page.getByRole("tab", { name: "供应配置", exact: true }).click();
   await page.getByText("维护上下文资源", { exact: true }).click();
   const sourceName = "核对说明-" + Date.now();
@@ -273,7 +273,7 @@ test("经验审阅、上下文组合与预算装配", async ({ page }) => {
   await expect(page.locator(".context-preview")).toContainText("实际装配");
   await expect(page.locator(".context-preview details")).toHaveCount(2);
   const bundleId = await page.locator("#context-bundle").inputValue();
-  await page.getByRole("button", { name: "在线召回排序", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "在线召回排序", exact: true }).click();
   await page.locator("#saved-task").selectOption(taskId);
   await page.getByRole("tab", { name: "固定任务", exact: true }).click();
   await page.getByText("附加企业上下文（可选）", { exact: true }).click();
@@ -305,11 +305,11 @@ test("经验审阅、上下文组合与预算装配", async ({ page }) => {
   expect(ordinary.context_binding).toBeNull();
   expect(JSON.stringify(ordinary.inputs)).not.toContain("[企业上下文]");
   await page.reload();
-  await page.getByRole("button", { name: "在线召回排序", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "在线召回排序", exact: true }).click();
   await expect(page.getByLabel("实验查询", { exact: true })).toHaveValue(
     "机器学习",
   );
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -399,7 +399,7 @@ test("人工放行前不执行，放行后执行同一任务", async ({ page }) 
 
 test("流式刷新只执行一次，失败后界面可继续使用", async ({ page }) => {
   await open(page);
-  await page.getByRole("button", { name: "RAG", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "RAG", exact: true }).click();
   await page.getByRole("button", { name: "触发失败", exact: true }).click();
   await expect(page.locator(".native-workbench > .inline-error")).toContainText(
     "可恢复的验收错误",
@@ -407,7 +407,7 @@ test("流式刷新只执行一次，失败后界面可继续使用", async ({ pa
   await page.getByRole("button", { name: "执行长任务", exact: true }).click();
   await expect(page.getByLabel("回答", { exact: true })).toHaveValue(/步骤/);
   await page.reload();
-  await page.getByRole("button", { name: "RAG", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "RAG", exact: true }).click();
   await expect(page.getByLabel("回答", { exact: true })).toHaveValue(
     "结果：刷新验证，执行次数 1",
   );

@@ -4,12 +4,13 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
   const suffix = Date.now().toString();
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "岗位 Agent", exact: true, level: 1 }),
+    page.getByRole("heading", { name: "岗位与 Agent", exact: true, level: 1 }),
   ).toBeVisible();
   await expect(page.locator(".position-agents")).toBeVisible();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),
   ).toHaveCount(0);
+  await page.getByRole("button",{name:"新建岗位",exact:true}).click();
   await page.getByLabel("岗位名称", { exact: true }).fill("采购审核" + suffix);
   await page
     .getByLabel("岗位职责", { exact: true })
@@ -42,7 +43,8 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
     })
   ).json();
   expect(bundle.id).toBeTruthy();
-  await page.getByRole("button", { name: "模型供应", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "模型供应", exact: true }).click();
+  await page.getByRole("button",{name:"接入模型服务",exact:true}).click();
   await page
     .getByLabel("服务名称", { exact: true })
     .fill("本地协议测试" + suffix);
@@ -55,11 +57,11 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
     .fill("browser-fixture-model-secret");
   await page.getByRole("button", { name: "保存模型服务", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("模型服务配置已保存");
-  await expect(
-    page.getByLabel("服务密钥（可选）", { exact: true }),
-  ).toHaveValue("");
-  await page.getByRole("button", { name: "岗位 Agent", exact: true }).click();
-  await page.getByRole("tab", { name: "发布与运行", exact: true }).click();
+  await expect(page.getByLabel("服务密钥（可选）", { exact: true })).toHaveCount(0);
+  await page.locator("aside").getByRole("link", { name: "岗位 Agent", exact: true }).click();
+  await page.locator("aside").getByRole("link", { name: "发布与运行", exact: true }).click();
+  await page.getByLabel("当前岗位 Agent",{exact:true}).selectOption({label:"采购助理" + suffix});
+  await page.getByLabel("使用的模型服务",{exact:true}).selectOption({label:"本地协议测试" + suffix + " · test-fixture"});
   await page
     .getByLabel("预配的上下文", { exact: true })
     .selectOption(bundle.id);
@@ -89,16 +91,14 @@ test("岗位 Agent 的预配、原生 Pi 试运行、采用和刷新", async ({ 
     .click();
   await expect(page.getByRole("status")).toContainText("已采用该 Agent 版本");
   await page.reload();
+  await page.locator("aside").getByRole("link",{name:"岗位与 Agent",exact:true}).click();
   await expect(
-    page.locator(".agent-row").filter({ hasText: "采购助理" + suffix }),
+    page.locator(".resource-table tr").filter({ hasText: "采购助理" + suffix }),
   ).toContainText("已有采用版本");
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   for (const name of ["岗位与 Agent", "发布与运行", "桌面 Agent"]) {
-    await page.getByRole("tab", { name, exact: true }).click();
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth + 1,
-      ),
-    ).toBe(true);
+    await page.locator("aside").getByRole("link", { name, exact: true }).click();
+    const overflow = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("body *")].filter((node) => node.getClientRects().length && node.getBoundingClientRect().right > innerWidth + 1).map((node) => ({tag:node.tagName,cls:node.className,right:node.getBoundingClientRect().right})).slice(0,12));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), JSON.stringify(overflow)).toBe(true);
   }
 });

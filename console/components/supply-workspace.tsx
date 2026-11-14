@@ -1,38 +1,26 @@
 "use client";
-import { useEffect, useState } from "react";
 import { supplyCapabilities, SupplyDomain } from "../lib/supply-capabilities";
 import ContextSupply from "./context-supply";
 import NativeWorkbench from "./native-workbench";
-import PositionAgents from "./position-agents";
+import ModelServices from "./model-services";
+import ModelSupply from "./model-supply";
+import ContextIndexes from "./context-indexes";
 import PlatformEnvironment from "./platform-environment";
 
-const names = { context: "上下文供应能力", models: "模型供应能力", environment: "运行环境能力" };
-export default function SupplyWorkspace({ domain }: { domain: SupplyDomain }) {
+export default function SupplyWorkspace({ domain, selectedView }: { domain: SupplyDomain; selectedView: string }) {
   const items = supplyCapabilities[domain];
-  const [selected, setSelected] = useState(items[0].id);
-  useEffect(() => {
-    const saved = sessionStorage.getItem("workbench-capability-" + domain);
-    if (items.some((item) => item.id === saved)) setSelected(saved!);
-  }, [domain]);
-  const capability = items.find((item) => item.id === selected) || items[0];
+  const capability = items.find((item) => item.id === selectedView) || items[0];
   return (
     <div className="supply-workspace" data-capability-domain={domain}>
-      <div className="history-tabs capability-navigation" role="group" aria-label={names[domain]}>
-        {items.map((item) => (
-          <button key={item.id} aria-pressed={capability.id === item.id}
-            data-capability={item.id} onClick={() => {
-              setSelected(item.id);
-              sessionStorage.setItem("workbench-capability-" + domain, item.id);
-            }}>{item.title}</button>
-        ))}
-      </div>
       {capability.moduleIndex !== undefined ? (
         <NativeWorkbench key={domain}
           moduleIndex={capability.moduleIndex} tabLabels={capability.tabLabels} description={capability.description} />
       ) : domain === "context" ? (
-        <div className="agent-card"><ContextSupply /></div>
+        capability.id === "indexes" || capability.id === "sources"
+          ? <ContextIndexes initialMode={capability.id === "sources" ? "sources" : "search"} key={capability.id} />
+          : <ContextSupply key={capability.id} view={capability.id === "resources" ? "resources" : "bundles"} />
       ) : domain === "models" ? (
-        <PositionAgents initialView="models" hideTabs />
+        capability.id === "services" ? <ModelServices /> : <ModelSupply view={capability.id === "datasets" ? "datasets" : "artifacts"} key={capability.id} />
       ) : <PlatformEnvironment />}
     </div>
   );

@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import ContextSupply from "./context-supply";
-import ModelSupply from "./model-supply";
 import NativeWorkbench from "./native-workbench";
 import { downloadJSON } from "../lib/workbench-api";
+import { useWorkspace, WorkspaceLink } from "../lib/workspace-navigation";
 
 type Position = { id: string; name: string; duties: string };
 type Agent = {
@@ -97,9 +96,13 @@ export default function PositionAgents({
   initialView?: string;
   hideTabs?: boolean;
 }) {
+  const { route, navigate } = useWorkspace();
+  const [editor, setEditor] = useState<"position" | "agent" | null>(null), [runStep, setRunStep] = useState<"configure" | "try" | "review">("configure");
   const [data, setData] = useState<Overview>(empty),
     [bundles, setBundles] = useState<Bundle[]>([]),
     [view, setView] = useState(initialView);
+  useEffect(() => setView(initialView), [initialView]);
+  useEffect(() => { if (route.area === -1 && route.record) setAgentId(route.record); }, [route.record, route.area]);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -109,14 +112,8 @@ export default function PositionAgents({
     [positionId, setPositionId] = useState(""),
     [agentName, setAgentName] = useState(""),
     [agentId, setAgentId] = useState("");
-  const [modelName, setModelName] = useState(""),
-    [modelId, setModelId] = useState(""),
-    [modelCode, setModelCode] = useState(""),
-    [baseUrl, setBaseUrl] = useState(""),
-    [apiKey, setApiKey] = useState("");
-  const [windowSize, setWindowSize] = useState(32000),
-    [maxTokens, setMaxTokens] = useState(2048),
-    [bundleId, setBundleId] = useState(""),
+  const [modelId, setModelId] = useState("");
+  const [bundleId, setBundleId] = useState(""),
     [releaseId, setReleaseId] = useState("");
   const [task, setTask] = useState(""),
     [runId, setRunId] = useState(""),
@@ -195,7 +192,7 @@ export default function PositionAgents({
     }
   }
   const selectedAgent = data.agents.find(
-    (a) => a.id === (agentId || data.agents[0]?.id),
+    (a) => a.id === agentId,
   );
   const releases = data.releases.filter(
     (r) => r.agent_id === selectedAgent?.id,
@@ -209,6 +206,7 @@ export default function PositionAgents({
     setRunId("");
     setNotice("");
     setError("");
+    setRunStep(data.releases.some((release) => release.agent_id === id) ? "try" : "configure");
   }
   const formSubmit = (fn: () => Promise<void>) => (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,15 +264,12 @@ export default function PositionAgents({
       )}
       {loading && <p>正在载入岗位配置…</p>}
       {view === "desktop" && <NativeWorkbench moduleIndex={5} tabLabels={["GUI-Agent"]} description="配置桌面执行环境与视觉模型，验证 GUI Agent 的桌面任务。" />}
-      {view === "context" && (
-        <div className="agent-card">
-          <ContextSupply />
-        </div>
-      )}
       {view === "agents" && (
-        <div className="agent-grid">
+        <div>
+          <div className="collection-heading"><div><h2>岗位与 Agent <span className="collection-count">{data.positions.length}</span></h2><p>为每个岗位设置 Agent，再选择它使用的模型和上下文。</p></div>{editor ? <button className="text-button" disabled={busy} onClick={() => setEditor(null)}>返回岗位列表</button> : <button className="primary" onClick={() => setEditor("position")}>新建岗位</button>}</div>
+          {editor === "position" &&
           <form
-            className="agent-card"
+            className="agent-card editor-page"
             onSubmit={formSubmit(async () => {
               const item = await api<Position>("positions", {
                 name: positionName,
@@ -283,6 +278,7 @@ export default function PositionAgents({
               setPositionId(item.id);
               setPositionName("");
               setDuties("");
+              setEditor("agent");
               setNotice("岗位已创建");
             })}
           >
@@ -310,8 +306,10 @@ export default function PositionAgents({
               保存岗位
             </button>
           </form>
+          }
+          {editor === "agent" &&
           <form
-            className="agent-card"
+            className="agent-card editor-page"
             onSubmit={formSubmit(async () => {
               const item = await api<Agent>("agents", {
                 position_id: positionId || data.positions[0]?.id,
@@ -319,6 +317,7 @@ export default function PositionAgents({
               });
               chooseAgent(item.id);
               setAgentName("");
+              setEditor(null);navigate(-1, "runs", item.id);
               setNotice("岗位 Agent 已创建，可继续配置上下文和模型");
             })}
           >
@@ -358,141 +357,11 @@ export default function PositionAgents({
               首版使用 Pi 1.5.2，执行由原生 Harness 完成。
             </p>
           </form>
-          <div className="agent-card agent-wide">
-            <h2>已设置的 Agent</h2>
-            {!data.agents.length && (
-              <p className="run-help">先创建一个岗位，再为它设置 Agent。</p>
-            )}
-            {data.agents.map((a) => (
-              <div className="agent-row" key={a.id}>
-                <div>
-                  <strong>{a.name}</strong>
-                  <p>
-                    {data.positions.find((p) => p.id === a.position_id)?.name} ·{" "}
-                    {a.current_release ? "已有采用版本" : "尚未采用版本"}
-                  </p>
-                </div>
-                <button
-                  className="secondary"
-                  onClick={() => {
-                    chooseAgent(a.id);
-                    setView("runs");
-                  }}
-                >
-                  配置与试运行
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {view === "models" && <ModelSupply />}
-      {view === "models" && (
-        <div className="agent-grid">
-          <form
-            className="agent-card"
-            onSubmit={formSubmit(async () => {
-              const item = await api<Model>("models", {
-                name: modelName,
-                model: modelCode,
-                base_url: baseUrl,
-                api_key: apiKey,
-                context_window: windowSize,
-                max_tokens: maxTokens,
-              });
-              setModelId(item.id);
-              setApiKey("");
-              setNotice("模型服务配置已保存；完成真实试运行后再核对可用性");
-            })}
-          >
-            <h2>登记模型服务</h2>
-            <p className="run-help">
-              接入 OpenAI Chat Completions 兼容服务，例如已有的 vLLM 或 Ollama
-              服务。
-            </p>
-            <label>
-              服务名称
-              <input
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                required
-                maxLength={120}
-              />
-            </label>
-            <label>
-              服务地址
-              <input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                required
-                type="url"
-                placeholder="http://127.0.0.1:8000/v1"
-              />
-            </label>
-            <label>
-              模型标识
-              <input
-                value={modelCode}
-                onChange={(e) => setModelCode(e.target.value)}
-                required
-                placeholder="服务实际提供的模型名称"
-              />
-            </label>
-            <label>
-              服务密钥（可选）
-              <input
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                type="password"
-                autoComplete="off"
-              />
-            </label>
-            <div className="agent-grid">
-              <label>
-                上下文长度
-                <input
-                  type="number"
-                  min={1024}
-                  max={2000000}
-                  value={windowSize}
-                  onChange={(e) => setWindowSize(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                输出上限
-                <input
-                  type="number"
-                  min={1}
-                  max={32000}
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(Number(e.target.value))}
-                />
-              </label>
-            </div>
-            <button className="primary" disabled={busy}>
-              保存模型服务
-            </button>
-          </form>
-          <div className="agent-card">
-            <h2>已登记的模型服务</h2>
-            {data.models.length === 0 && (
-              <p className="run-help">
-                登记已有的模型服务后，可为岗位 Agent 选择。
-              </p>
-            )}
-            {data.models.map((m) => (
-              <div className="agent-row" key={m.id}>
-                <div>
-                  <strong>{m.name}</strong>
-                  <p>{m.model}</p>
-                  <small>{m.base_url}</small>
-                  <p>
-                    {m.has_credential ? "密钥已保存，不回显" : "无需服务密钥"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+          }
+          {!editor && (!data.positions.length ? <div className="collection-empty"><h3>尚未配置岗位</h3><p>先创建岗位，填写职责，再为它设置 Agent。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>岗位</th><th>Agent</th><th>采用状态</th><th>操作</th></tr></thead><tbody>{data.positions.flatMap((position) => {
+            const agents = data.agents.filter((agent) => agent.position_id === position.id);
+            return agents.length ? agents.map((agent) => <tr key={agent.id}><td>{position.name}<small className="table-secondary">{position.duties.slice(0, 70)}</small></td><td>{agent.name}</td><td>{agent.current_release ? "已有采用版本" : "尚未采用版本"}</td><td><button className="resource-link" onClick={() => { chooseAgent(agent.id);navigate(-1, "runs", agent.id); }}>配置与试运行</button></td></tr>) : [<tr key={position.id}><td>{position.name}</td><td>尚未设置</td><td>—</td><td><button className="resource-link" onClick={() => { setPositionId(position.id);setEditor("agent"); }}>设置 Agent</button></td></tr>];
+          })}</tbody></table></div>)}
         </div>
       )}
       {view === "runs" && (
@@ -503,7 +372,7 @@ export default function PositionAgents({
               <select
                 aria-label="当前岗位 Agent"
                 value={selectedAgent?.id || ""}
-                onChange={(e) => chooseAgent(e.target.value)}
+                onChange={(e) => { chooseAgent(e.target.value);navigate(-1, "runs", e.target.value || undefined); }}
               >
                 <option value="">请选择 Agent</option>
                 {data.agents.map((a) => (
@@ -515,29 +384,32 @@ export default function PositionAgents({
             </label>
           </div>
           {selectedAgent && (
-            <div className="agent-grid">
+            <div className="agent-flow">
+              <ol className="flow-steps" aria-label="Agent 发布流程">{([["configure", "1 配置版本"], ["try", "2 试运行"], ["review", "3 结果与采用"]] as const).map(([step, title]) => <li key={step}><button aria-current={runStep === step ? "step" : undefined} disabled={step === "try" ? !selectedRelease : step === "review" ? !runId && !data.runs.some((item) => item.agent_id === selectedAgent.id) : false} onClick={() => { if (step === "review" && !runId) { const recent = data.runs.find((item) => item.agent_id === selectedAgent.id);if (recent) { setRunId(recent.id);setReleaseId(recent.release_id); } }setRunStep(step); }}>{title}</button></li>)}</ol>
+              {runStep === "configure" &&
               <form
-                className="agent-card"
+                className="agent-card editor-page"
                 onSubmit={formSubmit(async () => {
                   const item = await api<Release>("releases", {
                     agent_id: selectedAgent.id,
-                    model_id: modelId || data.models[0]?.id,
-                    bundle_id: bundleId || bundles[0]?.id,
+                    model_id: modelId,
+                    bundle_id: bundleId,
                   });
                   setReleaseId(item.id);
                   setRunId("");
+                  setRunStep("try");
                   setNotice("候选版本已生成，岗位职责、上下文和模型配置已固定");
                 })}
               >
                 <h2>组合岗位 Agent 版本</h2>
                 <p className="run-help">
-                  Harness：Pi 1.5.2 · 工具：只读预配上下文
+                  Harness：Pi 1.5.2 · 工具按上下文配置装配
                 </p>
                 <label>
                   使用的模型服务
                   <select
                     aria-label="使用的模型服务"
-                    value={modelId || data.models[0]?.id || ""}
+                    value={modelId}
                     onChange={(e) => setModelId(e.target.value)}
                     required
                   >
@@ -553,7 +425,7 @@ export default function PositionAgents({
                   预配的上下文
                   <select
                     aria-label="预配的上下文"
-                    value={bundleId || bundles[0]?.id || ""}
+                    value={bundleId}
                     onChange={(e) => setBundleId(e.target.value)}
                     required
                   >
@@ -572,10 +444,11 @@ export default function PositionAgents({
                   生成候选版本
                 </button>
                 <p className="run-help">
-                  资料与规则在“上下文配置”维护，生成版本时固定当时的配置。
+                  <WorkspaceLink area={-2} view="configuration">维护上下文配置</WorkspaceLink> · <WorkspaceLink area={-3} view="services">管理模型服务</WorkspaceLink>
                 </p>
               </form>
-              <div className="agent-card">
+              }
+              {runStep === "try" && <div className="agent-card editor-page">
                 <h2>试运行</h2>
                 <label>
                   Agent 版本
@@ -640,6 +513,7 @@ export default function PositionAgents({
                           request_id: requestId.current.id,
                         });
                         setRunId(item.id);
+                        setRunStep("review");
                         requestId.current = null;
                         setNotice("任务已提交，将使用所选版本执行");
                       })
@@ -667,7 +541,8 @@ export default function PositionAgents({
                   </p>
                 )}
               </div>
-              <div className="agent-card agent-wide">
+              }
+              {runStep === "review" && <div className="agent-card">
                 <h2>运行记录</h2>
                 <label>
                   选择运行
@@ -771,6 +646,7 @@ export default function PositionAgents({
                   </div>
                 )}
               </div>
+              }
             </div>
           )}
         </>

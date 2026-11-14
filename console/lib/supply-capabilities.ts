@@ -9,7 +9,10 @@ export type SupplyCapability = {
 
 export const supplyCapabilities: Record<SupplyDomain, SupplyCapability[]> = {
   context: [
+    { id: "resources", title: "资料库" },
     { id: "configuration", title: "供应配置" },
+    { id: "indexes", title: "检索索引" },
+    { id: "sources", title: "业务资料来源" },
     { id: "documents", title: "离线索引构建", moduleIndex: 0 },
     { id: "retrieval", title: "在线召回排序", moduleIndex: 1 },
     { id: "rag", title: "RAG", moduleIndex: 2 },
@@ -24,7 +27,9 @@ export const supplyCapabilities: Record<SupplyDomain, SupplyCapability[]> = {
     },
   ],
   models: [
-    { id: "services", title: "模型与数据" },
+    { id: "services", title: "模型服务" },
+    { id: "datasets", title: "训练数据集" },
+    { id: "artifacts", title: "模型产物" },
     { id: "training", title: "训练与评测", moduleIndex: 6 },
     {
       id: "image-model",

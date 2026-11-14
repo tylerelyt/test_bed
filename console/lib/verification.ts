@@ -13,7 +13,7 @@ export function installVerification() {
     const ready = units.length > 0 && units.every((unit) => !["loading", "unavailable"].includes(unit.dataset.verifyState || ""));
     const native = platform?.querySelector<HTMLElement>('[data-verify-unit="NativeWorkbench"]');
     const checks = [
-      { id: "platform-navigation", ok: navigation.length === 5 && navigation.filter((item) => item.getAttribute("aria-pressed") === "true").length === 1, detail: "五个主入口，恰有一个选中" },
+      { id: "platform-navigation", ok: navigation.length === 5 && navigation.filter((item) => item.getAttribute("aria-current") === "page").length === 1, detail: "五个主入口，恰有一个选中" },
       { id: "named-controls", ok: unnamed.length === 0, detail: `${unnamed.length} 个未命名可见控件` },
       { id: "viewport", ok: document.documentElement.scrollWidth <= innerWidth + 1, detail: "页面无横向溢出" },
     ];
@@ -25,8 +25,8 @@ export function installVerification() {
       verdict: !ready ? "BLOCKED" : checks.every((check) => check.ok) ? "PASS" : "FAIL", checks };
   };
   const manifest = () => ({
-    format_version: 2,
-    units: ["NativeWorkbench", "RunHistory", "RunEvidence", "EvaluationSuites", "ContextSupply", "PositionAgents", "SupplyJobs", "PlatformEnvironment"],
+    format_version: 3,
+    units: ["NativeWorkbench", "RunHistory", "RunEvidence", "EvaluationSuites", "ContextSupply", "ContextIndexes", "ModelServices", "ModelSupply", "PositionAgents", "SupplyJobs", "PlatformEnvironment"],
     capabilities: supplyCapabilities,
     platform_modules: Array.from(document.querySelectorAll<HTMLElement>("nav [data-platform-index]")).map((item) => ({ index: Number(item.dataset.platformIndex), name: item.textContent?.trim() })),
     invariants: ["platform-navigation", "named-controls", "viewport", "native-contract", "nonnegative-busy"],

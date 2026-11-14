@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { platformRequest as api, requestId } from "../lib/platform-api";
 import SupplyJobs from "./supply-jobs";
-export default function ContextImport() {
+export default function ContextImport({ showJobs = true, onSubmitted }: { showJobs?: boolean; onSubmitted?: (id: string) => void }) {
   const [file, setFile] = useState<File | null>(null),
     [name, setName] = useState(""),
     [busy, setBusy] = useState(false),
@@ -20,13 +20,14 @@ export default function ContextImport() {
       let raw = "";
       for (let i = 0; i < bytes.length; i += 8192)
         raw += String.fromCharCode(...bytes.subarray(i, i + 8192));
-      await api("context-supply/import", {
+      const job = await api("context-supply/import", {
         kind: "import",
         name: name || file.name,
         request_id: requestId(),
         filename: file.name,
         content_base64: btoa(raw),
       });
+      onSubmitted?.(job.id);
       setMessage("导入作业已提交。完成后，刷新下方资源库即可选用新资料。");
     } catch (e) {
       setError((e as Error).message);
@@ -70,7 +71,7 @@ export default function ContextImport() {
         )}
         {message && <p role="status">{message}</p>}
       </form>
-      <SupplyJobs kind="import" />
+      {showJobs && <SupplyJobs kind="import" />}
     </>
   );
 }

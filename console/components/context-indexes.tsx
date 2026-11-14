@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { platformRequest as api } from "../lib/platform-api";
+import { WorkspaceLink } from "../lib/workspace-navigation";
+type Evidence = { documents?: { id: string; name: string; version: number; source: string; content: string }[]; answer?: string; prompt_sent?: string };
 type Resource = { id: string; name: string; kind: string; version: number };
 type Index = {
   id: string;
@@ -10,16 +12,19 @@ type Index = {
 };
 export default function ContextIndexes({
   onPublished,
+  initialMode = "search",
 }: {
   onPublished?: () => Promise<void>;
+  initialMode?: "sources" | "search";
 }) {
+  const [mode, setMode] = useState<"sources" | "search" | "build">(initialMode), [sourceType, setSourceType] = useState("documents"), [loaded, setLoaded] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]),
     [indexes, setIndexes] = useState<Index[]>([]),
     [selected, setSelected] = useState<string[]>([]),
     [name, setName] = useState(""),
     [indexId, setIndexId] = useState(""),
     [query, setQuery] = useState(""),
-    [result, setResult] = useState<unknown>(null),
+    [result, setResult] = useState<Evidence | null>(null),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
@@ -43,6 +48,7 @@ export default function ContextIndexes({
     );
     setIndexes(items);
     setModels(overview.models);
+    setLoaded(true);
   }
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
@@ -61,14 +67,16 @@ export default function ContextIndexes({
     }
   }
   return (
-    <details className="run-editor">
-      <summary>资料来源与检索索引</summary>
-      <p className="run-help">
-        直接读取原文档索引服务的资料，或选用已登记资料构建独立索引。索引固定原文版本；岗位只引用明确发布的索引。
-      </p>
+    <section data-verify-unit="ContextIndexes" data-verify-state={loaded ? "ready" : "loading"}>
+      <div className="collection-heading"><div><h2>{mode === "sources" ? "获取业务资料" : mode === "build" ? "构建资料索引" : indexId ? indexes.find((item) => item.id === indexId)?.name : "检索索引"}</h2><p>{mode === "sources" ? "从已有文档或图谱服务保存一份有来源的资料快照。" : "索引固定资料版本，供岗位 Agent 按问题检索。"}</p></div>
+        {mode !== "sources" && (mode === "build" || indexId ? <button className="text-button" onClick={() => { setMode("search");setIndexId("");setResult(null); }}>返回索引列表</button> : <button className="primary" onClick={() => setMode("build")}>新建索引</button>)}
+      </div>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      <div className="agent-grid">
+      {mode === "sources" && <label className="source-selector">资料来源<select aria-label="资料来源" value={sourceType} onChange={(e) => setSourceType(e.target.value)}><option value="documents">文档索引服务</option><option value="graph">知识图谱服务</option></select></label>}
+      {mode === "search" && !indexId && (!indexes.length ? <div className="collection-empty"><h3>尚无检索索引</h3><p>先准备企业资料，再选择具体版本构建索引。</p><WorkspaceLink area={-2} view="resources" className="resource-link">查看资料库</WorkspaceLink></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>索引名称</th><th>资料数量</th><th>版本摘要</th></tr></thead><tbody>{indexes.map((item) => <tr key={item.id}><td><button className="resource-link" onClick={() => { setIndexId(item.id);setResult(null); }}>{item.name}</button></td><td>{item.manifest.sources.length}</td><td><code>{item.digest.slice(0, 12)}</code></td></tr>)}</tbody></table></div>)}
+      <div className="editor-page">
+        {mode === "sources" && sourceType === "documents" &&
         <section className="agent-card">
           <h3>从原文档服务选取资料</h3>
           <button
@@ -123,6 +131,8 @@ export default function ContextIndexes({
             保存文档快照
           </button>
         </section>
+        }
+        {mode === "build" &&
         <section className="agent-card">
           <h3>用资料版本构建索引</h3>
           <button
@@ -173,6 +183,7 @@ export default function ContextIndexes({
                   })),
                 });
                 setIndexId(item.id);
+                setMode("search");
                 setNotice("索引已构建，原资料版本已固定。");
               })
             }
@@ -180,8 +191,10 @@ export default function ContextIndexes({
             构建资料索引
           </button>
         </section>
+        }
       </div>
-      <section className="agent-card">
+      {mode === "sources" && sourceType === "graph" &&
+      <section className="agent-card editor-page">
         <h3>从图谱服务保存事实快照</h3>
         <p className="run-help">
           只读取已有实体关系，不重载或写入图谱。快照记录主体、关系、客体及文档来源；图谱更新后需另存新快照。
@@ -221,8 +234,10 @@ export default function ContextIndexes({
           保存图谱事实快照
         </button>
       </section>
-      <section className="agent-card">
+      }
+      {mode === "search" && indexId && <section className="agent-card">
         <h3>检索检查与岗位引用</h3>
+        <p className="run-help">资料版本：{indexes.find((item) => item.id === indexId)?.manifest.sources.map((source) => source.name + " · v" + source.version).join("、")}</p>
         <label>
           检索索引
           <select
@@ -286,7 +301,7 @@ export default function ContextIndexes({
             生成岗位检索引用
           </button>
         </div>
-        <label>
+        <details className="advanced-options"><summary>用模型验证回答</summary><label>
           验证使用的模型服务
           <select
             aria-label="验证使用的模型服务"
@@ -321,12 +336,19 @@ export default function ContextIndexes({
         >
           验证资料与模型组合
         </button>
+        </details>
         {result != null && (
-          <pre className="context-preview">
-            {JSON.stringify(result, null, 2)}
-          </pre>
+          <div className="context-preview evidence-results">
+            {result.answer && <section><h4>回答</h4><p>{result.answer}</p></section>}
+            <h4>检索资料 · {result.documents?.length || 0} 条</h4>
+            {!result.documents?.length && <p>未检索到匹配资料，请调整问题或索引内容。</p>}
+            {result.documents?.map((document) => <article className="evidence-document" key={document.id}><strong>{document.name} · v{document.version}</strong><p className="run-help">{document.source}</p><p>{document.content.slice(0, 600)}</p>{document.content.length > 600 && <details><summary>查看完整资料</summary><pre>{document.content}</pre></details>}</article>)}
+            {result.prompt_sent && <details><summary>实际提示词</summary><pre>{result.prompt_sent}</pre></details>}
+            <details><summary>原始响应</summary><pre>{JSON.stringify(result, null, 2)}</pre></details>
+          </div>
         )}
       </section>
-    </details>
+      }
+    </section>
   );
 }

@@ -15,7 +15,7 @@ import {
 import PositionAgents from "../components/position-agents";
 import SupplyJobs from "../components/supply-jobs";
 import SupplyWorkspace from "../components/supply-workspace";
-import { previousModuleLocation } from "../lib/supply-capabilities";
+import { WorkspaceNavigation, WorkspaceLink, pagesFor, useWorkspace } from "../lib/workspace-navigation";
 const platformModules = [
   {
     id: -1,
@@ -49,25 +49,16 @@ const platformModules = [
   },
 ];
 export default function Page() {
-  const [selected, setSelected] = useState(-1),
-    [rail, setRail] = useState(true);
+  return <WorkspaceNavigation><WorkbenchPage /></WorkspaceNavigation>;
+}
+function WorkbenchPage() {
+  const { route, navigate } = useWorkspace();
+  const selected = route.area;
+  const [rail, setRail] = useState(true);
   useEffect(installVerification, []);
-  useEffect(() => {
-    const saved = sessionStorage.getItem("workbench-selected-module");
-    if (saved === null) return;
-    const old = previousModuleLocation[Number(saved)];
-    if (old) {
-      const id = old.domain === "context" ? -2 : old.domain === "models" ? -3 : -5;
-      sessionStorage.setItem("workbench-capability-" + old.domain, old.capability);
-      sessionStorage.setItem("workbench-selected-module", String(id));
-      setSelected(id);
-    } else if (platformModules.some((item) => item.id === Number(saved))) setSelected(Number(saved));
-  }, []);
-  function selectModule(index: number) {
-    setSelected(index);
-    sessionStorage.setItem("workbench-selected-module", String(index));
-  }
   const currentModule = platformModules.find((x) => x.id === selected)!;
+  const pages = pagesFor(selected);
+  const currentPage = pages.find((page) => page.id === route.view);
   return (
     <div className={`shell ${rail ? "" : "compact"}`}>
       <aside className="sidebar">
@@ -84,18 +75,24 @@ export default function Page() {
         </div>
         <nav>
           {platformModules.map(({ id, title, icon: Icon }) => (
-            <button
+            <WorkspaceLink
               key={id}
+              area={id}
+              aria-label={title}
+              title={title}
               data-platform-index={id}
-              aria-pressed={selected === id}
+              aria-current={selected === id ? "page" : undefined}
               className={selected === id ? "active" : ""}
-              onClick={() => selectModule(id)}
             >
               <Icon size={18} />
               <span>{title}</span>
-            </button>
+            </WorkspaceLink>
           ))}
         </nav>
+        {pages.length > 0 && <div className="workspace-subnav" role="group" aria-label={currentModule.title + "能力"}>
+          {pages.map((page) => <WorkspaceLink key={page.id} area={selected} view={page.id}
+            aria-current={route.view === page.id ? "page" : undefined}>{page.title}</WorkspaceLink>)}
+        </div>}
         <div className="sidebar-note">
           <span className="eyebrow">面向业务任务</span>
           <p>
@@ -124,9 +121,11 @@ export default function Page() {
             >
               <PanelLeftClose size={18} />
             </button>
-            <span>FDE 工作台</span>
-            <span>/</span>
-            <strong>{currentModule.title}</strong>
+            <span className="breadcrumb-root">FDE 工作台</span>
+            <span className="breadcrumb-root">/</span>
+            <WorkspaceLink area={selected}>{currentModule.title}</WorkspaceLink>
+            {currentPage && <><span>/</span><strong>{currentPage.title}</strong></>}
+            {!rail && pages.length > 0 && <select aria-label="切换功能页面" value={route.view} onChange={(event) => navigate(selected, event.target.value)}>{pages.map((page) => <option key={page.id} value={page.id}>{page.title}</option>)}</select>}
           </div>
         </header>
         <div
@@ -135,21 +134,20 @@ export default function Page() {
         >
           <div className="page-heading">
             <div>
-              <div className="eyebrow">岗位 Agent 供应平台</div>
-              <h1>{currentModule.title}</h1>
+              <h1>{currentPage?.title || currentModule.title}</h1>
               <p>{currentModule.description}</p>
             </div>
           </div>
           {selected === -1 ? (
-            <PositionAgents />
+            <PositionAgents initialView={route.view} hideTabs />
           ) : selected === -2 ? (
-            <SupplyWorkspace key="context" domain="context" />
+            <SupplyWorkspace key="context" domain="context" selectedView={route.view} />
           ) : selected === -3 ? (
-            <SupplyWorkspace key="models" domain="models" />
+            <SupplyWorkspace key="models" domain="models" selectedView={route.view} />
           ) : selected === -4 ? (
             <SupplyJobs />
           ) : selected === -5 ? (
-            <SupplyWorkspace key="environment" domain="environment" />
+            <SupplyWorkspace key="environment" domain="environment" selectedView={route.view} />
           ) : null}
         </div>
         <footer>

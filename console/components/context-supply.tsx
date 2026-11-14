@@ -4,6 +4,7 @@ import { downloadJSON } from "../lib/workbench-api";
 import { platformRequest as request } from "../lib/platform-api";
 import ContextImport from "./context-import";
 import ContextIndexes from "./context-indexes";
+import { useWorkspace, WorkspaceLink } from "../lib/workspace-navigation";
 type Resource = {
   id: string;
   name: string;
@@ -46,7 +47,12 @@ const kinds: Record<string, string> = {
   role: "角色职责",
   retrieval: "检索索引",
 };
-export default function ContextSupply() {
+function ContextEditor({ legacy, title, open, children }: { legacy: boolean; title: string; open?: boolean; children: React.ReactNode }) {
+  return legacy ? <details className="run-editor" open={open}><summary>{title}</summary>{children}</details> : <section className="agent-card editor-page"><h2>{title}</h2>{children}</section>;
+}
+export default function ContextSupply({ view = "all" }: { view?: "all" | "resources" | "bundles" }) {
+  const { navigate, route } = useWorkspace();
+  const [resourceEditing, setResourceEditing] = useState(false), [bundleEditing, setBundleEditing] = useState(false), [importing, setImporting] = useState(false), [filter, setFilter] = useState("");
   const [resources, setResources] = useState<Resource[]>([]),
     [bundles, setBundles] = useState<Bundle[]>([]),
     [bundleId, setBundleId] = useState(""),
@@ -78,6 +84,12 @@ export default function ContextSupply() {
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
   }, []);
+  useEffect(() => {
+    if (view === "all" || !loaded) return;
+    setResourceEditing(false);setBundleEditing(false);
+    if (!route.record) { setResourceId("");setBundle(null);return; }
+    void act(() => view === "resources" ? selectResource(route.record!) : selectBundle(route.record!));
+  }, [view, route.record, loaded]);
   async function act(work: () => Promise<void>) {
     setPending(true);
     setError("");
@@ -92,18 +104,20 @@ export default function ContextSupply() {
     }
   }
   async function selectResource(id: string, version?: number) {
-    setResourceId(id);
     if (!id) {
+      setResourceId("");
       setResourceVersion(undefined);
       setName("");
       setContent("");
       setSource("");
       setTags("");
+      setKind("knowledge");setPermission("read_only");
       return;
     }
     const item: Resource = await request(
       `context/resources/${id}${version ? `?version=${version}` : ""}`,
     );
+    setResourceId(id);
     setResourceVersion(item.version);
     setName(item.name);
     setKind(item.kind);
@@ -127,7 +141,20 @@ export default function ContextSupply() {
       data-verify-unit="ContextSupply"
       data-verify-state={!loaded ? "loading" : pending ? "pending" : "ready"}
     >
-      <ContextIndexes onPublished={refresh} />
+      {view === "all" && <ContextIndexes onPublished={refresh} />}
+      {view !== "all" && <div className="collection-heading"><div><h2>{view === "resources" ? "上下文资源" : "供应配置"} <span className="collection-count">{view === "resources" ? resources.length : bundles.length}</span></h2><p>{view === "resources" ? "维护企业资料、规则和可复用经验，保留每次修改的版本。" : "选择资源版本，组合成岗位 Agent 使用的上下文。"}</p></div>
+        <div className="agent-actions">{resourceEditing || bundleEditing || importing || resourceId || bundle ? <button className="text-button" onClick={() => { setResourceEditing(false);setBundleEditing(false);setImporting(false);setResourceId("");setBundle(null);if (route.record) navigate(-2, view === "resources" ? "resources" : "configuration"); }}>返回列表</button>
+        : view === "resources" ? <><button className="secondary" onClick={() => setImporting(true)}>导入文件</button><button className="primary" onClick={() => { void selectResource("");setResourceEditing(true); }}>新建资源</button></>
+        : <button className="primary" onClick={() => { setEditingBundle(null);setBundleName("");setRefs([]);setBudget(12000);setBundleEditing(true); }}>新建供应配置</button>}</div>
+      </div>}
+      {view !== "all" && !resourceEditing && !bundleEditing && !importing && !resourceId && !bundle && <div className="collection-page">
+        <input className="collection-search" aria-label="搜索上下文资源" placeholder="按名称或标签搜索" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        {view === "resources" ? (!resources.length ? <div className="collection-empty"><h3>尚无上下文资源</h3><p>导入企业资料或新建规则，再将它们加入供应配置。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>资源名称</th><th>类型</th><th>最新版本</th><th>来源</th></tr></thead><tbody>{resources.filter((item) => (item.name + item.tags.join(" ")).includes(filter)).map((item) => <tr key={item.id}><td><WorkspaceLink className="resource-link" area={-2} view="resources" record={item.id}>{item.name}</WorkspaceLink></td><td>{kinds[item.kind]}</td><td>v{item.version}</td><td>{item.source || "未填写"}</td></tr>)}</tbody></table></div>)
+        : (!bundles.length ? <div className="collection-empty"><h3>尚无供应配置</h3><p>创建一份配置，明确岗位使用哪些资料、规则和工具定义。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>配置名称</th><th>版本</th><th>资源数量</th><th>字符预算</th></tr></thead><tbody>{bundles.filter((item) => item.name.includes(filter)).map((item) => <tr key={item.id}><td><WorkspaceLink className="resource-link" area={-2} view="configuration" record={item.id}>{item.name}</WorkspaceLink></td><td>v{item.version}</td><td>{item.resources.length}</td><td>{item.max_chars}</td></tr>)}</tbody></table></div>)}
+      </div>}
+      {view === "resources" && resourceId && !resourceEditing && <div className="agent-card"><div className="collection-heading"><h2>{name}</h2><button className="primary" onClick={() => setResourceEditing(true)}>编辑新版本</button></div><dl className="environment-list"><dt>类型</dt><dd>{kinds[kind]}</dd><dt>版本</dt><dd>v{resourceVersion}</dd><dt>来源</dt><dd>{source || "未填写"}</dd><dt>标签</dt><dd>{tags || "无"}</dd></dl><pre className="context-preview">{content}</pre></div>}
+      {view === "resources" && importing && <div className="editor-page"><ContextImport showJobs={false} onSubmitted={(id) => navigate(-4, "jobs", id)} /></div>}
+      {view === "all" && <>
       <p className="run-help">
         为 Agent 组合资料、操作说明、工具定义和经验。MCP 目录只返回元数据，Agent
         按需读取；配置固定资源版本，笔记写入单独授权。资料、MCP 与岗位发布
@@ -144,6 +171,7 @@ export default function ContextSupply() {
         <summary>从文件导入资料</summary>
         <ContextImport />
       </details>
+      </>}
       {error && (
         <p role="alert" className="inline-error">
           {error}
@@ -154,7 +182,7 @@ export default function ContextSupply() {
           {message}
         </p>
       )}
-      <div className="native-field">
+      {view === "all" && <div className="native-field">
         <label htmlFor="context-bundle">供应配置</label>
         <select
           id="context-bundle"
@@ -169,7 +197,8 @@ export default function ContextSupply() {
           ))}
         </select>
       </div>
-      {bundle && (
+      }
+      {bundle && (view === "all" || !bundleEditing) && (
         <div className="run-detail">
           <div className="run-meta">
             <strong>
@@ -232,6 +261,7 @@ export default function ContextSupply() {
               className="text-button"
               onClick={() => {
                 setEditingBundle(bundle);
+                setBundleEditing(true);
                 setBundleName(bundle.name);
                 setRefs(bundle.resources);
                 setBudget(bundle.max_chars);
@@ -276,8 +306,7 @@ export default function ContextSupply() {
           )}
         </div>
       )}
-      <details className="run-editor" open={editingBundle != null}>
-        <summary>{editingBundle ? "编辑供应配置" : "组合供应配置"}</summary>
+      {(view === "all" || bundleEditing) && <ContextEditor legacy={view === "all"} open={bundleEditing || editingBundle != null} title={editingBundle ? "编辑供应配置" : "组合供应配置"}>
         <div className="native-field">
           <label htmlFor="bundle-name">配置名称</label>
           <input
@@ -389,7 +418,7 @@ export default function ContextSupply() {
               })
             ) : (
               <p className="run-help">
-                先在下方创建资源，或将已审阅经验加入资源库。
+                请先在资料库创建资源，或将已审阅经验加入资源库。
               </p>
             )}
           </fieldset>
@@ -411,7 +440,9 @@ export default function ContextSupply() {
                 setBundleName("");
                 setBundleId(saved.id);
                 setBundle(saved);
+                setBundleEditing(false);
                 setMessage("供应配置已保存，原版本仍可读取。");
+                if (view !== "all") navigate(-2, "configuration", saved.id);
               })
             }
           >
@@ -430,11 +461,11 @@ export default function ContextSupply() {
             </button>
           )}
         </div>
-      </details>
-      <details className="run-editor">
-        <summary>维护上下文资源</summary>
+      </ContextEditor>
+      }
+      {(view === "all" || resourceEditing) && <ContextEditor legacy={view === "all"} title={view === "all" ? "维护上下文资源" : resourceId ? "编辑上下文资源" : "新建上下文资源"}>
         <div className="native-field">
-          <label htmlFor="context-resource">编辑资源或创建新资源</label>
+          {view === "all" && <><label htmlFor="context-resource">编辑资源或创建新资源</label>
           <select
             id="context-resource"
             value={resourceId}
@@ -447,6 +478,7 @@ export default function ContextSupply() {
               </option>
             ))}
           </select>
+          </>}
           {resourceId && (
             <div className="run-actions">
               <span>
@@ -493,7 +525,7 @@ export default function ContextSupply() {
                   setPermission("read_only");
                 }}
               >
-                {Object.entries(kinds).map(([key, name]) => (
+                {Object.entries(kinds).filter(([key]) => key !== "retrieval" || Boolean(resourceId)).map(([key, name]) => (
                   <option key={key} value={key}>
                     {name}
                   </option>
@@ -561,14 +593,17 @@ export default function ContextSupply() {
                 });
                 setResourceId(saved.id);
                 setResourceVersion(saved.version);
+                setResourceEditing(false);
                 setMessage("资源版本已保存。配置中的只读资源仍固定在原版本。");
+                if (view !== "all") navigate(-2, "resources", saved.id);
               })
             }
           >
             保存资源{resourceId ? "新版本" : ""}
           </button>
         </div>
-      </details>
+      </ContextEditor>
+      }
     </div>
   );
 }

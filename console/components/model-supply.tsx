@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { platformRequest as api, requestId } from "../lib/platform-api";
-import SupplyJobs from "./supply-jobs";
+import { WorkspaceLink, useWorkspace } from "../lib/workspace-navigation";
 type Dataset = { id: string; name: string; count: number; digest: string };
 type Artifact = {
   id: string;
@@ -10,7 +10,10 @@ type Artifact = {
   path: string;
   source_job: string | null;
 };
-export default function ModelSupply() {
+export default function ModelSupply({ view = "datasets" }: { view?: "datasets" | "artifacts" }) {
+  const { navigate, route } = useWorkspace();
+  const [editor, setEditor] = useState<"dataset" | "artifact" | "job" | null>(null), [query, setQuery] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]),
     [artifacts, setArtifacts] = useState<Artifact[]>([]),
     [error, setError] = useState(""),
@@ -37,6 +40,7 @@ export default function ModelSupply() {
     const data = await api("model-supply");
     setDatasets(data.datasets);
     setArtifacts(data.artifacts);
+    setLoaded(true);
   }
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
@@ -57,20 +61,27 @@ export default function ModelSupply() {
       setBusy(false);
     }
   }
+  const selectedResource = route.record ? (view === "datasets" ? datasets : artifacts).find((item) => item.id === route.record) : undefined;
+  function operation(kind: string, artifact: string, dataset = "") { setKind(kind);setArtifactId(artifact);setDatasetId(dataset);setJobName("");setEditor("job"); }
   return (
-    <section aria-label="模型供应流程">
-      <h2>模型数据、产物与作业</h2>
-      <p className="run-help">
-        外部服务可以直接登记。自有模型按“数据集 → LLaMA-Factory 训练 → LoRA 产物
-        → 合并导出 → vLLM 部署 → 模型服务”的顺序供应给岗位 Agent。
-      </p>
+    <section aria-label="模型供应流程" data-verify-unit="ModelSupply" data-verify-state={loaded ? "ready" : "loading"}>
+      <div className="collection-heading"><div><h2>{editor === "job" ? "提交模型作业" : selectedResource?.name || (view === "datasets" ? "数据集列表" : "模型产物列表")}</h2><p>{view === "datasets" ? "维护训练所用的数据快照。" : "管理已有权重和平台作业生成的模型。"}</p></div>
+        {editor || route.record ? <button className="text-button" disabled={busy} onClick={() => { if (editor) setEditor(null);else navigate(-3, view); }}>返回{view === "datasets" ? "数据集列表" : "模型产物"}</button> : <div className="agent-actions"><WorkspaceLink area={-4}>查看作业</WorkspaceLink><button className="primary" onClick={() => { setName("");setFile(null);setArtifactName("");setPath("");setBase("");setEditor(view === "datasets" ? "dataset" : "artifact");setMessage(""); }}>{view === "datasets" ? "导入训练数据集" : "登记模型产物"}</button></div>}
+      </div>
       {error && (
         <p role="alert" className="inline-error">
           {error}
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      <div className="agent-grid">
+      {!editor && route.record && <div className="agent-card">{selectedResource ? <><dl className="environment-list"><dt>名称</dt><dd>{selectedResource.name}</dd>{"count" in selectedResource ? <><dt>记录数</dt><dd>{selectedResource.count}</dd><dt>内容摘要</dt><dd><code>{selectedResource.digest}</code></dd></> : <><dt>格式</dt><dd>{selectedResource.format === "adapter" ? "LoRA 适配器" : "完整权重"}</dd><dt>模型目录</dt><dd>{selectedResource.path}</dd><dt>来源</dt><dd>{selectedResource.source_job ? <WorkspaceLink area={-4} record={selectedResource.source_job} className="resource-link">查看来源作业</WorkspaceLink> : "手动登记"}</dd></>}</dl><div className="agent-actions">{"count" in selectedResource ? <button className="primary" onClick={() => operation("train", "", selectedResource.id)}>提交训练</button> : selectedResource.format === "adapter" ? <button className="primary" onClick={() => operation("merge", selectedResource.id)}>合并模型</button> : <><button className="primary" onClick={() => operation("train", selectedResource.id)}>提交训练</button><button className="secondary" onClick={() => operation("deploy", selectedResource.id)}>部署模型</button></>}</div></> : <p>当前列表中未找到该资源，请返回列表重新选择。</p>}</div>}
+      {!editor && !route.record && <>
+        {(view === "datasets" ? datasets.length : artifacts.length) > 0 && <input className="collection-search" aria-label="搜索模型资源" placeholder="按名称搜索" value={query} onChange={(e) => setQuery(e.target.value)} />}
+        {view === "datasets" ? (!datasets.length ? <div className="collection-empty"><h3>尚无训练数据集</h3><p>导入一份 CPT、SFT 或 DPO 数据，校验后可用于训练。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>数据集</th><th>记录数</th><th>内容摘要</th><th>操作</th></tr></thead><tbody>{datasets.filter((item) => item.name.includes(query)).map((item) => <tr key={item.id}><td><WorkspaceLink area={-3} view="datasets" record={item.id} className="resource-link">{item.name}</WorkspaceLink></td><td>{item.count} 条</td><td><code>{item.digest.slice(0, 12)}</code></td><td><button className="resource-link" onClick={() => { setDatasetId(item.id);setKind("train");setArtifactId("");setEditor("job"); }}>提交训练</button></td></tr>)}</tbody></table></div>)
+        : (!artifacts.length ? <div className="collection-empty"><h3>尚无模型产物</h3><p>登记本机已有权重，或在训练完成后查看生成的产物。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>产物名称</th><th>格式</th><th>来源</th><th>操作</th></tr></thead><tbody>{artifacts.filter((item) => item.name.includes(query)).map((item) => <tr key={item.id}><td><WorkspaceLink area={-3} view="artifacts" record={item.id} className="resource-link">{item.name}</WorkspaceLink><small className="table-secondary">{item.path}</small></td><td>{item.format === "adapter" ? "LoRA 适配器" : "完整权重"}</td><td>{item.source_job ? "平台作业" : "手动登记"}</td><td><div className="agent-actions">{(item.format === "adapter" ? ["merge"] : ["train", "deploy"]).map((operation) => <button className="resource-link" key={operation} onClick={() => { setArtifactId(item.id);setKind(operation);setEditor("job"); }}>{({train:"训练",merge:"合并",deploy:"部署"})[operation]}</button>)}</div></td></tr>)}</tbody></table></div>)}
+      </>}
+      <div className="editor-page">
+        {editor === "dataset" &&
         <form
           className="agent-card"
           onSubmit={(e) =>
@@ -83,6 +94,7 @@ export default function ModelSupply() {
                 stage,
               });
               setDatasetId(item.id);
+              setEditor(null);
               setMessage(
                 "数据集已校验并固定保存；后续修改请上传为新的数据集版本。",
               );
@@ -128,13 +140,9 @@ export default function ModelSupply() {
           <button className="primary" disabled={busy}>
             校验并保存数据集
           </button>
-          {datasets.map((x) => (
-            <p key={x.id}>
-              {x.name} · {x.count} 条 ·{" "}
-              <small>摘要 {x.digest.slice(0, 12)}</small>
-            </p>
-          ))}
         </form>
+        }
+        {editor === "artifact" &&
         <form
           className="agent-card"
           onSubmit={(e) =>
@@ -146,6 +154,7 @@ export default function ModelSupply() {
                 base_model: base,
               });
               setArtifactId(item.id);
+              setEditor(null);
               setMessage("本机模型产物已登记；训练和部署会引用该产物。");
             })
           }
@@ -190,25 +199,15 @@ export default function ModelSupply() {
           <button className="primary" disabled={busy}>
             登记模型产物
           </button>
-          {artifacts.map((x) => (
-            <div className="agent-row" key={x.id}>
-              <div>
-                <strong>{x.name}</strong>
-                <p>
-                  {x.format === "adapter" ? "LoRA 适配器" : "完整权重"} ·{" "}
-                  {x.source_job ? "平台作业生成" : "手动登记"}
-                </p>
-                <small>{x.path}</small>
-              </div>
-            </div>
-          ))}
         </form>
+        }
       </div>
+      {editor === "job" &&
       <form
-        className="agent-card"
+        className="agent-card editor-page"
         onSubmit={(e) =>
           void act(e, async () => {
-            await api("model-supply/" + kind, {
+            const job = await api("model-supply/" + kind, {
               kind,
               name: jobName,
               request_id: requestId(),
@@ -223,8 +222,9 @@ export default function ModelSupply() {
               tool_parser: parser,
             });
             setMessage(
-              "模型作业已提交；日志与结果在下方查看。部署实际就绪后才会登记模型服务。",
+              "模型作业已提交。",
             );
+            navigate(-4, "jobs", job.id);
           })
         }
       >
@@ -376,7 +376,7 @@ export default function ModelSupply() {
           提交模型作业
         </button>
       </form>
-      <SupplyJobs kind="model" />
+      }
     </section>
   );
 }
