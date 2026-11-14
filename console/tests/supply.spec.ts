@@ -44,9 +44,8 @@ test("主导航、文件导入、固定训练数据与真实环境状态", async
   await expect(page.getByRole("status")).toContainText(
     "数据集已校验并固定保存",
   );
-  await expect(
-    page.locator(".resource-table tr").filter({ hasText: "训练数据" + suffix }),
-  ).toContainText("220 条");
+  await expect(page).toHaveURL(/record=/);
+  await expect(page.locator(".environment-list")).toContainText("220");
   await page.locator("aside").getByRole("link", { name: "运行环境", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "本机运行环境", exact: true }),

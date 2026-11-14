@@ -4,7 +4,7 @@ import { downloadJSON } from "../lib/workbench-api";
 import { platformRequest as request } from "../lib/platform-api";
 import ContextImport from "./context-import";
 import ContextIndexes from "./context-indexes";
-import { useWorkspace, WorkspaceLink } from "../lib/workspace-navigation";
+import { useWorkspace, WorkspaceLink, useDetailName, workspaceHref } from "../lib/workspace-navigation";
 type Resource = {
   id: string;
   name: string;
@@ -54,6 +54,7 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
   const { navigate, route } = useWorkspace();
   const [resourceEditing, setResourceEditing] = useState(false), [bundleEditing, setBundleEditing] = useState(false), [importing, setImporting] = useState(false), [filter, setFilter] = useState("");
   const [resources, setResources] = useState<Resource[]>([]),
+    [bundleResources, setBundleResources] = useState<Resource[]>([]),
     [bundles, setBundles] = useState<Bundle[]>([]),
     [bundleId, setBundleId] = useState(""),
     [bundle, setBundle] = useState<Bundle | null>(null),
@@ -88,7 +89,9 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
     if (view === "all" || !loaded) return;
     setResourceEditing(false);setBundleEditing(false);
     if (!route.record) { setResourceId("");setBundle(null);return; }
-    void act(() => view === "resources" ? selectResource(route.record!) : selectBundle(route.record!));
+    setPending(true);
+    void (view === "resources" ? selectResource(route.record!) : selectBundle(route.record!))
+      .catch((e) => setError(e.message)).finally(() => setPending(false));
   }, [view, route.record, loaded]);
   async function act(work: () => Promise<void>) {
     setPending(true);
@@ -129,12 +132,17 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
   async function selectBundle(id: string) {
     setBundleId(id);
     setPreview(null);
-    setBundle(id ? await request("context/bundles/" + id) : null);
+    setBundleResources([]);
+    if (!id) { setBundle(null);return; }
+    const item: Bundle = await request("context/bundles/" + id);
+    setBundle(item);
+    if (view !== "all") setBundleResources(await Promise.all(item.resources.map((ref) => request("context/resources/" + ref.id + (ref.version ? "?version=" + ref.version : "")))));
   }
   const historical =
     resourceId &&
     resources.find((item) => item.id === resourceId)?.version !==
       resourceVersion;
+  useDetailName(view === "resources" && resourceId ? name : view === "bundles" ? bundle?.name : undefined);
   return (
     <div
       className="context-supply"
@@ -142,9 +150,9 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
       data-verify-state={!loaded ? "loading" : pending ? "pending" : "ready"}
     >
       {view === "all" && <ContextIndexes onPublished={refresh} />}
-      {view !== "all" && <div className="collection-heading"><div><h2>{view === "resources" ? "上下文资源" : "供应配置"} <span className="collection-count">{view === "resources" ? resources.length : bundles.length}</span></h2><p>{view === "resources" ? "维护企业资料、规则和可复用经验，保留每次修改的版本。" : "选择资源版本，组合成岗位 Agent 使用的上下文。"}</p></div>
-        <div className="agent-actions">{resourceEditing || bundleEditing || importing || resourceId || bundle ? <button className="text-button" onClick={() => { setResourceEditing(false);setBundleEditing(false);setImporting(false);setResourceId("");setBundle(null);if (route.record) navigate(-2, view === "resources" ? "resources" : "configuration"); }}>返回列表</button>
-        : view === "resources" ? <><button className="secondary" onClick={() => setImporting(true)}>导入文件</button><button className="primary" onClick={() => { void selectResource("");setResourceEditing(true); }}>新建资源</button></>
+      {view !== "all" && <div className="collection-heading"><div><h1>{resourceEditing ? resourceId ? "编辑「" + name + "」" : "新建上下文资源" : bundleEditing ? editingBundle ? "编辑「" + editingBundle.name + "」" : "新建供应配置" : importing ? "导入资料文件" : resourceId ? name : bundle?.name || (view === "resources" ? "资料库" : "供应配置")}</h1><p>{view === "resources" ? "维护企业资料、规则和可复用经验，保留每次修改的版本。" : "选择资源版本，组合成岗位 Agent 使用的上下文。"}</p></div>
+        <div className="agent-actions">{resourceEditing || bundleEditing || importing || resourceId || bundle ? <button className="text-button" onClick={() => { if (route.record && (resourceEditing || bundleEditing)) { setResourceEditing(false);setBundleEditing(false);return; }setResourceEditing(false);setBundleEditing(false);setImporting(false);setResourceId("");setBundle(null);if (route.record) navigate(-2, view === "resources" ? "resources" : "configuration"); }}>{route.record && (resourceEditing || bundleEditing) ? "返回详情" : "返回列表"}</button>
+        : view === "resources" ? <><WorkspaceLink className="secondary" area={-2} view="sources">接入业务资料</WorkspaceLink><button className="secondary" onClick={() => setImporting(true)}>导入文件</button><button className="primary" onClick={() => { void selectResource("");setResourceEditing(true); }}>新建资源</button></>
         : <button className="primary" onClick={() => { setEditingBundle(null);setBundleName("");setRefs([]);setBudget(12000);setBundleEditing(true); }}>新建供应配置</button>}</div>
       </div>}
       {view !== "all" && !resourceEditing && !bundleEditing && !importing && !resourceId && !bundle && <div className="collection-page">
@@ -152,8 +160,8 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
         {view === "resources" ? (!resources.length ? <div className="collection-empty"><h3>尚无上下文资源</h3><p>导入企业资料或新建规则，再将它们加入供应配置。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>资源名称</th><th>类型</th><th>最新版本</th><th>来源</th></tr></thead><tbody>{resources.filter((item) => (item.name + item.tags.join(" ")).includes(filter)).map((item) => <tr key={item.id}><td><WorkspaceLink className="resource-link" area={-2} view="resources" record={item.id}>{item.name}</WorkspaceLink></td><td>{kinds[item.kind]}</td><td>v{item.version}</td><td>{item.source || "未填写"}</td></tr>)}</tbody></table></div>)
         : (!bundles.length ? <div className="collection-empty"><h3>尚无供应配置</h3><p>创建一份配置，明确岗位使用哪些资料、规则和工具定义。</p></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>配置名称</th><th>版本</th><th>资源数量</th><th>字符预算</th></tr></thead><tbody>{bundles.filter((item) => item.name.includes(filter)).map((item) => <tr key={item.id}><td><WorkspaceLink className="resource-link" area={-2} view="configuration" record={item.id}>{item.name}</WorkspaceLink></td><td>v{item.version}</td><td>{item.resources.length}</td><td>{item.max_chars}</td></tr>)}</tbody></table></div>)}
       </div>}
-      {view === "resources" && resourceId && !resourceEditing && <div className="agent-card"><div className="collection-heading"><h2>{name}</h2><button className="primary" onClick={() => setResourceEditing(true)}>编辑新版本</button></div><dl className="environment-list"><dt>类型</dt><dd>{kinds[kind]}</dd><dt>版本</dt><dd>v{resourceVersion}</dd><dt>来源</dt><dd>{source || "未填写"}</dd><dt>标签</dt><dd>{tags || "无"}</dd></dl><pre className="context-preview">{content}</pre></div>}
-      {view === "resources" && importing && <div className="editor-page"><ContextImport showJobs={false} onSubmitted={(id) => navigate(-4, "jobs", id)} /></div>}
+      {view === "resources" && resourceId && !resourceEditing && <div className="agent-card"><div className="collection-heading"><h2>资源内容</h2><button className="primary" onClick={() => setResourceEditing(true)}>编辑新版本</button></div><dl className="environment-list"><dt>类型</dt><dd>{kinds[kind]}</dd><dt>版本</dt><dd>v{resourceVersion}</dd><dt>来源</dt><dd>{source || "未填写"}</dd><dt>标签</dt><dd>{tags || "无"}</dd></dl><pre className="context-preview">{content}</pre><div className="editor-actions"><WorkspaceLink area={-2} view="indexes" className="secondary">前往构建索引</WorkspaceLink><WorkspaceLink area={-2} view="configuration" className="secondary">前往供应配置</WorkspaceLink></div></div>}
+      {view === "resources" && importing && <div className="editor-page"><ContextImport showJobs={false} onSubmitted={(id) => navigate(-4, "jobs", id, {returnTo:route.returnTo || workspaceHref(-2,"resources"),returnLabel:route.returnLabel || "返回资料库"})} /></div>}
       {view === "all" && <>
       <p className="run-help">
         为 Agent 组合资料、操作说明、工具定义和经验。MCP 目录只返回元数据，Agent
@@ -202,14 +210,15 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
         <div className="run-detail">
           <div className="run-meta">
             <strong>
-              {bundle.name} · v{bundle.version}
+              {view === "all" ? bundle.name + " · " : "配置版本 "}v{bundle.version}
             </strong>
             <span>
               {bundle.resources.length} 个资源 ·{" "}
               {bundle.max_chars.toLocaleString("zh-CN")} 字符预算
             </span>
           </div>
-          <p className="context-uri">
+          {view !== "all" && <section className="bundle-members"><h2>包含的资源</h2><div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>资源名称</th><th>类型</th><th>固定版本</th><th>使用规则</th></tr></thead><tbody>{bundle.resources.map((ref) => { const item = bundleResources.find((resource) => resource.id === ref.id);return <tr key={ref.id}><td>{item?.name || (pending ? "正在载入…" : "未能读取资源")}</td><td>{item ? kinds[item.kind] : "—"}</td><td>v{ref.version || item?.version || "—"}</td><td>{ref.required ? "必选" : "按需"} · {ref.permission === "read_write" ? "允许更新笔记" : "只读"}</td></tr>; })}</tbody></table></div></section>}
+          <details className="advanced-options" open={view === "all" || undefined}><summary>MCP 接入信息</summary><p className="context-uri">
             MCP 资源：
             <code>
               context://bundles/{bundle.id}/{bundle.version}
@@ -219,6 +228,7 @@ export default function ContextSupply({ view = "all" }: { view?: "all" | "resour
             Agent 可用 discover_context 查找资源，再用 load_context
             按需装配。只有授权的笔记可以通过 write_context_notebook 更新。
           </p>
+          </details>
           <div className="native-field">
             <label htmlFor="context-query">
               按名称、类型或标签筛选装配资源（可选）

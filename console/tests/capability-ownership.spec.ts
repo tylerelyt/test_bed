@@ -6,7 +6,7 @@ test("供应能力归属与多模态功能拆分", async ({ page }) => {
   await expect(page.getByText("业务处理与验证", {exact:true})).toHaveCount(0);
   await expect(page.getByRole("tab", {name:"模型服务",exact:true})).toHaveCount(0);
   await page.locator("aside").getByRole("link", { name: "上下文供应", exact: true }).click();
-  await expect(page.getByRole("group", {name:"上下文供应能力"})).toContainText("离线索引构建");
+  await expect(page.getByRole("group", {name:"上下文供应页面"})).toContainText("离线索引构建");
   await expect(page.locator("aside").getByRole("link", { name: "训练与评测", exact: true })).toHaveCount(0);
   await page.locator("aside").getByRole("link", { name: "图片资料", exact: true }).click();
   for (const name of ["图片上传","图搜图","文搜图","图片管理"])
@@ -19,6 +19,7 @@ test("供应能力归属与多模态功能拆分", async ({ page }) => {
   await expect(page.locator(".native-toolbar")).toContainText("执行完成");
   await page.locator("aside").getByRole("link", { name: "模型供应", exact: true }).click();
   await expect(page.locator("aside").getByRole("link", { name: "在线召回排序", exact: true })).toHaveCount(0);
+  await page.locator("aside .nav-tools > summary").click();
   await expect(page.locator("aside").getByRole("link", { name: "训练与评测", exact: true })).toBeVisible();
   await page.locator("aside").getByRole("link", { name: "图像生成", exact: true }).click();
   await expect(page.getByRole("tab",{name:"图像生成",exact:true})).toBeVisible();
@@ -29,6 +30,7 @@ test("供应能力归属与多模态功能拆分", async ({ page }) => {
   await expect(page.locator("#recorded-run option")).toHaveCount(2);
   await expect(page.locator('#recorded-run option[value="' + imageRun + '"]')).toHaveCount(0);
   await page.locator("aside").getByRole("link", { name: "岗位 Agent", exact: true }).click();
+  await page.locator("aside .nav-tools > summary").click();
   await page.locator("aside").getByRole("link", {name:"桌面 Agent",exact:true}).click();
   await expect(page.getByRole("tab",{name:"GUI-Agent",exact:true})).toBeVisible();
   await expect(page.getByRole("tab",{name:"图片上传",exact:true})).toHaveCount(0);
@@ -41,7 +43,7 @@ test("刷新旧入口位置后进入对应供应能力", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => sessionStorage.setItem("workbench-selected-module", "6"));
   await page.goto("/");
-  await expect(page.locator("aside").getByRole("link", { name: "模型供应", exact: true })).toHaveAttribute("aria-current","page");
+  await expect(page.locator("aside").getByRole("link", { name: "模型供应", exact: true })).toHaveClass("domain-active");
   await expect(page.locator("aside").getByRole("link", { name: "训练与评测", exact: true })).toHaveAttribute("aria-current","page");
   await expect(page.locator('[data-verify-unit="NativeWorkbench"]')).toHaveAttribute("data-verify-module","6");
 });

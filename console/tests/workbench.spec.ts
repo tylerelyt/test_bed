@@ -3,6 +3,7 @@ import { test, expect, Page } from "@playwright/test";
 async function open(page: Page) {
   await page.goto("/");
   await page.locator("aside").getByRole("link", { name: "上下文供应", exact: true }).click();
+  await page.locator("aside .nav-tools > summary").click();
   await page.locator("aside").getByRole("link", { name: "离线索引构建", exact: true }).click();
   await expect(
     page.locator('[data-verify-unit="NativeWorkbench"]'),
@@ -104,6 +105,8 @@ test("业务能力归入供应入口，桌面机器可读约定", async ({ page 
     await page.setViewportSize({ width, height: 950 });
     for (const [domain, name] of names) {
       await page.locator("aside").getByRole("link", {name:domain,exact:true}).click();
+      const tools = page.locator("aside .nav-tools");
+      if (await tools.count() && await tools.getAttribute("open") === null && ["离线索引构建","在线召回排序","RAG","OAG 图谱推理","上下文工程","训练与评测"].includes(name)) await tools.locator(":scope > summary").click();
       await page.locator("aside").getByRole("link", { name, exact: true }).click();
       await expect(page.locator('[data-verify-unit="NativeWorkbench"]')).toHaveAttribute("data-verify-state", "ready");
       const result = await page.evaluate(() =>

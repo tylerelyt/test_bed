@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { platformRequest as api } from "../lib/platform-api";
-import { useWorkspace, WorkspaceLink } from "../lib/workspace-navigation";
+import { useWorkspace, WorkspaceLink, useDetailName } from "../lib/workspace-navigation";
 
 type Job = { id: string; name: string; kind: string; status: string; error: string; result: Record<string, unknown>; log?: string; created_at: number; finished_at?: number };
 const states: Record<string, string> = { queued: "排队中", running: "执行中", serving: "服务运行中", cancelling: "正在停止", cancelled: "已取消", completed: "已完成", failed: "失败", interrupted: "已中断，请核对" };
@@ -39,10 +39,11 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
     return () => { live = false;clearInterval(timer); };
   }, [selected?.id, selected?.status]);
   const rows = jobs.filter((job) => job.name.includes(query) && (!type || job.kind === type) && (!status || job.status === status));
+  useDetailName(selected?.name);
   return <section data-verify-unit="SupplyJobs" data-verify-state={loaded ? "ready" : "loading"} aria-label="供应作业">
     {error && <p role="alert" className="inline-error">{error}</p>}
     {selectedId ? <>
-      <div className="collection-heading"><div><h2>{selected?.name || "作业详情"}</h2><p>{selected ? kinds[selected.kind] + " · " + states[selected.status] : "正在载入…"}</p></div><button className="text-button" onClick={() => navigate(-4)}>返回作业列表</button></div>
+      <div className="collection-heading"><div><h1>{selected?.name || "作业详情"}</h1><p>{selected ? kinds[selected.kind] + " · " + states[selected.status] : "正在载入…"}</p></div><button className="text-button" onClick={() => navigate(-4)}>返回作业列表</button></div>
       {selected && <div className="agent-card" data-supply-job-state={selected.status}>
         <dl className="environment-list"><dt>状态</dt><dd><span className={"status-badge status-" + selected.status}>{states[selected.status]}</span></dd><dt>提交时间</dt><dd>{date(selected.created_at)}</dd><dt>结束时间</dt><dd>{date(selected.finished_at)}</dd><dt>作业编号</dt><dd><code>{selected.id}</code></dd></dl>
         {selected.error && <p role="alert" className="inline-error">{selected.error}</p>}
@@ -56,7 +57,7 @@ export default function SupplyJobs({ kind }: { kind?: string }) {
         <details className="advanced-options"><summary>完整结果</summary><pre className="context-preview">{JSON.stringify(selected.result, null, 2)}</pre></details>
       </div>}
     </> : <>
-      <div className="collection-heading"><div><h2>供应作业 <span className="collection-count">{jobs.length}</span></h2><p>跟踪已提交的资料导入、训练、合并与部署。</p></div></div>
+      <div className="collection-heading"><div><h1>作业管理 <span className="collection-count">{jobs.length}</span></h1><p>跟踪已提交的资料导入、训练、合并与部署。</p></div></div>
       {jobs.length > 0 && <div className="resource-filters"><input aria-label="搜索作业" placeholder="按作业名称搜索" value={query} onChange={(e) => setQuery(e.target.value)} /><select aria-label="作业类型" value={type} onChange={(e) => setType(e.target.value)}><option value="">全部类型</option>{Object.entries(kinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select aria-label="作业状态" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">全部状态</option>{Object.entries(states).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>}
       {loaded && !jobs.length ? <div className="collection-empty"><h3>暂无供应作业</h3><p>导入资料或提交模型任务后，在这里查看执行进度。</p><div className="agent-actions"><WorkspaceLink area={-2} view="resources" className="secondary">前往资料库</WorkspaceLink><WorkspaceLink area={-3} view="artifacts" className="secondary">前往模型产物</WorkspaceLink></div></div>
       : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>作业名称</th><th>类型</th><th>状态</th><th>提交时间</th></tr></thead><tbody>{rows.map((job) => <tr key={job.id} data-supply-job-state={job.status}><td><WorkspaceLink area={-4} record={job.id} className="resource-link">{job.name}</WorkspaceLink></td><td>{kinds[job.kind]}</td><td><span className={"status-badge status-" + job.status}>{states[job.status]}</span></td><td>{date(job.created_at)}</td></tr>)}</tbody></table>{loaded && !rows.length && <p className="collection-empty">没有匹配的作业。</p>}</div>}

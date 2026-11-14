@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { platformRequest as api, requestId } from "../lib/platform-api";
-import { WorkspaceLink, useWorkspace } from "../lib/workspace-navigation";
+import { WorkspaceLink, useWorkspace, useDetailName, workspaceHref } from "../lib/workspace-navigation";
 type Dataset = { id: string; name: string; count: number; digest: string };
 type Artifact = {
   id: string;
@@ -62,11 +62,12 @@ export default function ModelSupply({ view = "datasets" }: { view?: "datasets" |
     }
   }
   const selectedResource = route.record ? (view === "datasets" ? datasets : artifacts).find((item) => item.id === route.record) : undefined;
+  useDetailName(selectedResource?.name);
   function operation(kind: string, artifact: string, dataset = "") { setKind(kind);setArtifactId(artifact);setDatasetId(dataset);setJobName("");setEditor("job"); }
   return (
     <section aria-label="模型供应流程" data-verify-unit="ModelSupply" data-verify-state={loaded ? "ready" : "loading"}>
-      <div className="collection-heading"><div><h2>{editor === "job" ? "提交模型作业" : selectedResource?.name || (view === "datasets" ? "数据集列表" : "模型产物列表")}</h2><p>{view === "datasets" ? "维护训练所用的数据快照。" : "管理已有权重和平台作业生成的模型。"}</p></div>
-        {editor || route.record ? <button className="text-button" disabled={busy} onClick={() => { if (editor) setEditor(null);else navigate(-3, view); }}>返回{view === "datasets" ? "数据集列表" : "模型产物"}</button> : <div className="agent-actions"><WorkspaceLink area={-4}>查看作业</WorkspaceLink><button className="primary" onClick={() => { setName("");setFile(null);setArtifactName("");setPath("");setBase("");setEditor(view === "datasets" ? "dataset" : "artifact");setMessage(""); }}>{view === "datasets" ? "导入训练数据集" : "登记模型产物"}</button></div>}
+      <div className="collection-heading"><div><h1>{editor === "job" ? "提交模型作业" : editor === "dataset" ? "导入训练数据集" : editor === "artifact" ? "登记模型产物" : selectedResource?.name || (view === "datasets" ? "训练数据集" : "模型产物")}</h1><p>{view === "datasets" ? "维护训练所用的数据快照。" : "管理已有权重和平台作业生成的模型。"}</p></div>
+        {editor || route.record ? <button className="text-button" disabled={busy} onClick={() => { if (editor) setEditor(null);else navigate(-3, view); }}>{editor && selectedResource ? "返回资源详情" : "返回" + (view === "datasets" ? "数据集列表" : "模型产物")}</button> : <div className="agent-actions"><WorkspaceLink area={-4}>查看作业</WorkspaceLink><button className="primary" onClick={() => { setName("");setFile(null);setArtifactName("");setPath("");setBase("");setEditor(view === "datasets" ? "dataset" : "artifact");setMessage(""); }}>{view === "datasets" ? "导入训练数据集" : "登记模型产物"}</button></div>}
       </div>
       {error && (
         <p role="alert" className="inline-error">
@@ -95,6 +96,7 @@ export default function ModelSupply({ view = "datasets" }: { view?: "datasets" |
               });
               setDatasetId(item.id);
               setEditor(null);
+              navigate(-3,"datasets",item.id);
               setMessage(
                 "数据集已校验并固定保存；后续修改请上传为新的数据集版本。",
               );
@@ -155,6 +157,7 @@ export default function ModelSupply({ view = "datasets" }: { view?: "datasets" |
               });
               setArtifactId(item.id);
               setEditor(null);
+              navigate(-3,"artifacts",item.id);
               setMessage("本机模型产物已登记；训练和部署会引用该产物。");
             })
           }
@@ -224,7 +227,7 @@ export default function ModelSupply({ view = "datasets" }: { view?: "datasets" |
             setMessage(
               "模型作业已提交。",
             );
-            navigate(-4, "jobs", job.id);
+            navigate(-4, "jobs", job.id, {returnTo:route.returnTo || workspaceHref(-3,view,route.record),returnLabel:route.returnLabel || (selectedResource ? "返回「" + selectedResource.name + "」" : "返回" + (view === "datasets" ? "训练数据集" : "模型产物"))});
           })
         }
       >

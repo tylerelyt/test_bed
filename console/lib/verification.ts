@@ -5,6 +5,9 @@ export function installVerification() {
   const current = () => {
     const platform = document.querySelector<HTMLElement>("[data-platform-module]");
     const navigation = Array.from(document.querySelectorAll<HTMLElement>("nav [data-platform-index]"));
+    const activeDomains = navigation.filter((item) => item.classList.contains("domain-active"));
+    const currentPages = Array.from(document.querySelectorAll<HTMLElement>('aside nav [aria-current="page"]'));
+    const owner = currentPages[0]?.closest<HTMLElement>("[data-navigation-area]");
     const controls = platform ? Array.from(platform.querySelectorAll("input,textarea,select,button")).filter(visible) : [];
     const unnamed = controls.filter((element) => element.tagName === "BUTTON"
       ? !element.textContent?.trim() && !element.getAttribute("aria-label")
@@ -13,7 +16,7 @@ export function installVerification() {
     const ready = units.length > 0 && units.every((unit) => !["loading", "unavailable"].includes(unit.dataset.verifyState || ""));
     const native = platform?.querySelector<HTMLElement>('[data-verify-unit="NativeWorkbench"]');
     const checks = [
-      { id: "platform-navigation", ok: navigation.length === 5 && navigation.filter((item) => item.getAttribute("aria-current") === "page").length === 1, detail: "五个主入口，恰有一个选中" },
+      { id: "platform-navigation", ok: navigation.length === 5 && activeDomains.length === 1 && activeDomains[0].dataset.platformIndex === platform?.dataset.platformModule && currentPages.length === 1 && owner?.dataset.navigationArea === platform?.dataset.platformModule, detail: "五个主入口，当前页面唯一且位于所属栏目下" },
       { id: "named-controls", ok: unnamed.length === 0, detail: `${unnamed.length} 个未命名可见控件` },
       { id: "viewport", ok: document.documentElement.scrollWidth <= innerWidth + 1, detail: "页面无横向溢出" },
     ];

@@ -3,7 +3,7 @@ test("从原文档服务到固定索引和岗位引用", async ({ page }) => {
   const suffix = Date.now().toString();
   await page.goto("/");
   await page.locator("aside").getByRole("link", { name: "上下文供应", exact: true }).click();
-  await page.locator("aside").getByRole("link", {name:"业务资料来源",exact:true}).click();
+  await page.getByRole("link", {name:"接入业务资料",exact:true}).click();
   await page
     .getByRole("button", { name: "读取原文档目录", exact: true })
     .click();

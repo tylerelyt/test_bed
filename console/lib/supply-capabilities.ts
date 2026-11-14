@@ -5,6 +5,7 @@ export type SupplyCapability = {
   moduleIndex?: number;
   tabLabels?: string[];
   description?: string;
+  navigation?: "resource" | "tool" | "action";
 };
 
 export const supplyCapabilities: Record<SupplyDomain, SupplyCapability[]> = {
@@ -12,12 +13,12 @@ export const supplyCapabilities: Record<SupplyDomain, SupplyCapability[]> = {
     { id: "resources", title: "资料库" },
     { id: "configuration", title: "供应配置" },
     { id: "indexes", title: "检索索引" },
-    { id: "sources", title: "业务资料来源" },
-    { id: "documents", title: "离线索引构建", moduleIndex: 0 },
-    { id: "retrieval", title: "在线召回排序", moduleIndex: 1 },
-    { id: "rag", title: "RAG", moduleIndex: 2 },
-    { id: "graph", title: "OAG 图谱推理", moduleIndex: 3 },
-    { id: "assembly", title: "上下文工程", moduleIndex: 4 },
+    { id: "sources", title: "接入业务资料", navigation: "action" },
+    { id: "documents", title: "离线索引构建", moduleIndex: 0, navigation: "tool" },
+    { id: "retrieval", title: "在线召回排序", moduleIndex: 1, navigation: "tool" },
+    { id: "rag", title: "RAG", moduleIndex: 2, navigation: "tool" },
+    { id: "graph", title: "OAG 图谱推理", moduleIndex: 3, navigation: "tool" },
+    { id: "assembly", title: "上下文工程", moduleIndex: 4, navigation: "tool" },
     {
       id: "images",
       title: "图片资料",
@@ -30,10 +31,11 @@ export const supplyCapabilities: Record<SupplyDomain, SupplyCapability[]> = {
     { id: "services", title: "模型服务" },
     { id: "datasets", title: "训练数据集" },
     { id: "artifacts", title: "模型产物" },
-    { id: "training", title: "训练与评测", moduleIndex: 6 },
+    { id: "training", title: "训练与评测", moduleIndex: 6, navigation: "tool" },
     {
       id: "image-model",
       title: "图像生成",
+      navigation: "tool",
       moduleIndex: 5,
       tabLabels: ["图像生成"],
       description: "选择图像模型，检查生成参数、结果与历史记录。",

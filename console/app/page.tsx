@@ -15,7 +15,12 @@ import {
 import PositionAgents from "../components/position-agents";
 import SupplyJobs from "../components/supply-jobs";
 import SupplyWorkspace from "../components/supply-workspace";
-import { WorkspaceNavigation, WorkspaceLink, pagesFor, useWorkspace } from "../lib/workspace-navigation";
+import {
+  WorkspaceNavigation,
+  WorkspaceLink,
+  pagesFor,
+  useWorkspace,
+} from "../lib/workspace-navigation";
 const platformModules = [
   {
     id: -1,
@@ -49,16 +54,24 @@ const platformModules = [
   },
 ];
 export default function Page() {
-  return <WorkspaceNavigation><WorkbenchPage /></WorkspaceNavigation>;
+  return (
+    <WorkspaceNavigation>
+      <WorkbenchPage />
+    </WorkspaceNavigation>
+  );
 }
 function WorkbenchPage() {
-  const { route, navigate } = useWorkspace();
+  const { route, navigate, detailName, resume } = useWorkspace();
   const selected = route.area;
   const [rail, setRail] = useState(true);
   useEffect(installVerification, []);
   const currentModule = platformModules.find((x) => x.id === selected)!;
   const pages = pagesFor(selected);
   const currentPage = pages.find((page) => page.id === route.view);
+  const standaloneHeading =
+    currentPage?.moduleIndex !== undefined ||
+    selected === -5 ||
+    route.view === "desktop";
   return (
     <div className={`shell ${rail ? "" : "compact"}`}>
       <aside className="sidebar">
@@ -73,26 +86,82 @@ function WorkbenchPage() {
         <div className="workspace-label">
           企业 Agent 后台 <span>本地</span>
         </div>
-        <nav>
+        <nav aria-label="主导航">
           {platformModules.map(({ id, title, icon: Icon }) => (
-            <WorkspaceLink
-              key={id}
-              area={id}
-              aria-label={title}
-              title={title}
-              data-platform-index={id}
-              aria-current={selected === id ? "page" : undefined}
-              className={selected === id ? "active" : ""}
-            >
-              <Icon size={18} />
-              <span>{title}</span>
-            </WorkspaceLink>
+            <div className="nav-section" key={id} data-navigation-area={id}>
+              <WorkspaceLink
+                area={id}
+                resetContext={selected !== id}
+                aria-label={title}
+                title={title}
+                data-platform-index={id}
+                aria-current={
+                  selected === id && !pagesFor(id).length ? "page" : undefined
+                }
+                className={selected === id ? "domain-active" : ""}
+              >
+                <Icon size={18} />
+                <span>{title}</span>
+              </WorkspaceLink>
+              {selected === id && pages.length > 0 && (
+                <div
+                  className="workspace-subnav"
+                  role="group"
+                  aria-label={title + "页面"}
+                >
+                  {pages
+                    .filter(
+                      (page) =>
+                        !page.navigation || page.navigation === "resource",
+                    )
+                    .map((page) => (
+                      <WorkspaceLink
+                        key={page.id}
+                        area={id}
+                        view={page.id}
+                        aria-current={
+                          route.view === page.id ||
+                          (route.view === "sources" && page.id === "resources")
+                            ? "page"
+                            : undefined
+                        }
+                      >
+                        {page.title}
+                      </WorkspaceLink>
+                    ))}
+                  {pages.some((page) => page.navigation === "tool") && (
+                    <details
+                      className="nav-tools"
+                      open={currentPage?.navigation === "tool" || undefined}
+                    >
+                      <summary>
+                        {id === -3
+                          ? "训练与验证"
+                          : id === -1
+                            ? "桌面执行"
+                            : "处理与验证"}
+                      </summary>
+                      {pages
+                        .filter((page) => page.navigation === "tool")
+                        .map((page) => (
+                          <WorkspaceLink
+                            key={page.id}
+                            area={id}
+                            view={page.id}
+                            aria-current={
+                              route.view === page.id ? "page" : undefined
+                            }
+                          >
+                            {page.title}
+                          </WorkspaceLink>
+                        ))}
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
-        {pages.length > 0 && <div className="workspace-subnav" role="group" aria-label={currentModule.title + "能力"}>
-          {pages.map((page) => <WorkspaceLink key={page.id} area={selected} view={page.id}
-            aria-current={route.view === page.id ? "page" : undefined}>{page.title}</WorkspaceLink>)}
-        </div>}
         <div className="sidebar-note">
           <span className="eyebrow">面向业务任务</span>
           <p>
@@ -124,30 +193,87 @@ function WorkbenchPage() {
             <span className="breadcrumb-root">FDE 工作台</span>
             <span className="breadcrumb-root">/</span>
             <WorkspaceLink area={selected}>{currentModule.title}</WorkspaceLink>
-            {currentPage && <><span>/</span><strong>{currentPage.title}</strong></>}
-            {!rail && pages.length > 0 && <select aria-label="切换功能页面" value={route.view} onChange={(event) => navigate(selected, event.target.value)}>{pages.map((page) => <option key={page.id} value={page.id}>{page.title}</option>)}</select>}
+            {currentPage && (
+              <>
+                <span>/</span>
+                {route.record || route.view === "sources" ? (
+                  <WorkspaceLink
+                    area={selected}
+                    view={route.view === "sources" ? "resources" : route.view}
+                  >
+                    {route.view === "sources" ? "资料库" : currentPage.title}
+                  </WorkspaceLink>
+                ) : (
+                  <strong>{currentPage.title}</strong>
+                )}
+              </>
+            )}
+            {route.view === "sources" && (
+              <>
+                <span>/</span>
+                <strong>接入业务资料</strong>
+              </>
+            )}
+            {route.record && (
+              <>
+                <span>/</span>
+                <strong>{detailName || "详情"}</strong>
+              </>
+            )}
+            {!rail && pages.length > 0 && (
+              <select
+                aria-label="切换功能页面"
+                value={route.view}
+                onChange={(event) => navigate(selected, event.target.value)}
+              >
+                {pages.map((page) => (
+                  <option key={page.id} value={page.id}>
+                    {page.title}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </header>
-        <div
-          className="page-content"
-          data-platform-module={selected}
-        >
-          <div className="page-heading">
-            <div>
-              <h1>{currentPage?.title || currentModule.title}</h1>
-              <p>{currentModule.description}</p>
+        <div className="page-content" data-platform-module={selected}>
+          {route.returnTo?.startsWith("/?") && (
+            <div className="related-task">
+              <p>资源准备完成后，可返回继续原来的配置。</p>
+              <button className="secondary" onClick={resume}>
+                {route.returnLabel || "返回原页面"}
+              </button>
             </div>
-          </div>
+          )}
+          {standaloneHeading && (
+            <div className="page-heading">
+              <div>
+                <h1>{currentPage?.title || currentModule.title}</h1>
+                <p>{currentPage?.description || currentModule.description}</p>
+              </div>
+            </div>
+          )}
           {selected === -1 ? (
             <PositionAgents initialView={route.view} hideTabs />
           ) : selected === -2 ? (
-            <SupplyWorkspace key="context" domain="context" selectedView={route.view} />
+            <SupplyWorkspace
+              key="context"
+              domain="context"
+              selectedView={route.view}
+            />
           ) : selected === -3 ? (
-            <SupplyWorkspace key="models" domain="models" selectedView={route.view} />
+            <SupplyWorkspace
+              key="models"
+              domain="models"
+              selectedView={route.view}
+            />
           ) : selected === -4 ? (
             <SupplyJobs />
           ) : selected === -5 ? (
-            <SupplyWorkspace key="environment" domain="environment" selectedView={route.view} />
+            <SupplyWorkspace
+              key="environment"
+              domain="environment"
+              selectedView={route.view}
+            />
           ) : null}
         </div>
         <footer>

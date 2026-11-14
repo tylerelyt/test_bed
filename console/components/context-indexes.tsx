@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { platformRequest as api } from "../lib/platform-api";
-import { WorkspaceLink } from "../lib/workspace-navigation";
+import { WorkspaceLink, useWorkspace, useDetailName } from "../lib/workspace-navigation";
 type Evidence = { documents?: { id: string; name: string; version: number; source: string; content: string }[]; answer?: string; prompt_sent?: string };
 type Resource = { id: string; name: string; kind: string; version: number };
 type Index = {
@@ -17,6 +17,7 @@ export default function ContextIndexes({
   onPublished?: () => Promise<void>;
   initialMode?: "sources" | "search";
 }) {
+  const {route,navigate} = useWorkspace();
   const [mode, setMode] = useState<"sources" | "search" | "build">(initialMode), [sourceType, setSourceType] = useState("documents"), [loaded, setLoaded] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]),
     [indexes, setIndexes] = useState<Index[]>([]),
@@ -28,6 +29,7 @@ export default function ContextIndexes({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [publishedResource,setPublishedResource] = useState("");
   const [sources, setSources] = useState<
       { id: string; chars: number; preview: string }[]
     >([]),
@@ -53,6 +55,8 @@ export default function ContextIndexes({
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
   }, []);
+  useEffect(() => { if (route.area === -2 && route.view === "indexes") { setIndexId(route.record || "");setMode("search");setResult(null); } }, [route.area,route.view,route.record]);
+  useDetailName(route.view === "indexes" && indexId ? indexes.find((item) => item.id === indexId)?.name : undefined);
   async function act(work: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -68,13 +72,14 @@ export default function ContextIndexes({
   }
   return (
     <section data-verify-unit="ContextIndexes" data-verify-state={loaded ? "ready" : "loading"}>
-      <div className="collection-heading"><div><h2>{mode === "sources" ? "获取业务资料" : mode === "build" ? "构建资料索引" : indexId ? indexes.find((item) => item.id === indexId)?.name : "检索索引"}</h2><p>{mode === "sources" ? "从已有文档或图谱服务保存一份有来源的资料快照。" : "索引固定资料版本，供岗位 Agent 按问题检索。"}</p></div>
-        {mode !== "sources" && (mode === "build" || indexId ? <button className="text-button" onClick={() => { setMode("search");setIndexId("");setResult(null); }}>返回索引列表</button> : <button className="primary" onClick={() => setMode("build")}>新建索引</button>)}
+      <div className="collection-heading"><div><h1>{mode === "sources" ? "接入业务资料" : mode === "build" ? "构建资料索引" : indexId ? indexes.find((item) => item.id === indexId)?.name || "索引详情" : "检索索引"}</h1><p>{mode === "sources" ? "从已有文档或图谱服务保存一份有来源的资料快照。" : "索引固定资料版本，供岗位 Agent 按问题检索。"}</p></div>
+        {mode === "sources" ? <WorkspaceLink area={-2} view="resources" className="text-button">返回资料库</WorkspaceLink> : (mode === "build" || indexId ? <button className="text-button" onClick={() => { setMode("search");setIndexId("");setResult(null);if(route.view === "indexes") navigate(-2,"indexes"); }}>返回索引列表</button> : <button className="primary" onClick={() => setMode("build")}>新建索引</button>)}
       </div>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {publishedResource && <div className="job-outcome"><p>{mode === "sources" ? "资料快照已保存，可继续构建检索索引或加入供应配置。" : "检索引用已保存到资料库，加入供应配置后即可为岗位使用。"}</p><div className="agent-actions"><WorkspaceLink className="resource-link" area={-2} view="resources" record={publishedResource}>查看已生成资源</WorkspaceLink><WorkspaceLink className="secondary" area={-2} view={mode === "sources" ? "indexes" : "configuration"}>{mode === "sources" ? "前往检索索引" : "前往供应配置"}</WorkspaceLink></div></div>}
       {mode === "sources" && <label className="source-selector">资料来源<select aria-label="资料来源" value={sourceType} onChange={(e) => setSourceType(e.target.value)}><option value="documents">文档索引服务</option><option value="graph">知识图谱服务</option></select></label>}
-      {mode === "search" && !indexId && (!indexes.length ? <div className="collection-empty"><h3>尚无检索索引</h3><p>先准备企业资料，再选择具体版本构建索引。</p><WorkspaceLink area={-2} view="resources" className="resource-link">查看资料库</WorkspaceLink></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>索引名称</th><th>资料数量</th><th>版本摘要</th></tr></thead><tbody>{indexes.map((item) => <tr key={item.id}><td><button className="resource-link" onClick={() => { setIndexId(item.id);setResult(null); }}>{item.name}</button></td><td>{item.manifest.sources.length}</td><td><code>{item.digest.slice(0, 12)}</code></td></tr>)}</tbody></table></div>)}
+      {mode === "search" && !indexId && (!indexes.length ? <div className="collection-empty"><h3>尚无检索索引</h3><p>先准备企业资料，再选择具体版本构建索引。</p><WorkspaceLink area={-2} view="resources" className="resource-link">查看资料库</WorkspaceLink></div> : <div className="resource-table-scroll"><table className="resource-table"><thead><tr><th>索引名称</th><th>资料数量</th><th>版本摘要</th></tr></thead><tbody>{indexes.map((item) => <tr key={item.id}><td><WorkspaceLink className="resource-link" area={-2} view="indexes" record={item.id}>{item.name}</WorkspaceLink></td><td>{item.manifest.sources.length}</td><td><code>{item.digest.slice(0, 12)}</code></td></tr>)}</tbody></table></div>)}
       <div className="editor-page">
         {mode === "sources" && sourceType === "documents" &&
         <section className="agent-card">
@@ -119,10 +124,11 @@ export default function ContextIndexes({
             disabled={busy || !sourceId || !sourceName.trim()}
             onClick={() =>
               void act(async () => {
-                await api("context-supply/sources/legacy-index", {
+                const saved = await api("context-supply/sources/legacy-index", {
                   document_id: sourceId,
                   name: sourceName,
                 });
+                setPublishedResource(saved.id);
                 await onPublished?.();
                 setNotice("已保存原文资料快照，来源和摘要已记录。");
               })
@@ -184,6 +190,7 @@ export default function ContextIndexes({
                 });
                 setIndexId(item.id);
                 setMode("search");
+                if(route.view === "indexes") navigate(-2,"indexes",item.id);
                 setNotice("索引已构建，原资料版本已固定。");
               })
             }
@@ -222,10 +229,11 @@ export default function ContextIndexes({
           disabled={busy || !entity.trim() || !graphName.trim()}
           onClick={() =>
             void act(async () => {
-              await api("context-supply/sources/legacy-graph", {
+              const saved = await api("context-supply/sources/legacy-graph", {
                 entity,
                 name: graphName,
               });
+              setPublishedResource(saved.id);
               await onPublished?.();
               setNotice("已保存图谱事实快照，可与其他资料组合索引。");
             })
@@ -286,11 +294,12 @@ export default function ContextIndexes({
             disabled={busy || !indexId}
             onClick={() =>
               void act(async () => {
-                await api("context-supply/indexes/" + indexId + "/reference", {
+                const saved = await api("context-supply/indexes/" + indexId + "/reference", {
                   name:
                     (indexes.find((x) => x.id === indexId)?.name || "资料") +
                     " · 岗位检索",
                 });
+                setPublishedResource(saved.id);
                 await onPublished?.();
                 setNotice(
                   "已生成检索资源，请将它加入供应配置后为岗位创建新版本。",
