@@ -266,7 +266,7 @@ export default function PositionAgents({
       {view === "desktop" && <NativeWorkbench moduleIndex={5} tabLabels={["GUI-Agent"]} description="配置桌面执行环境与视觉模型，验证 GUI Agent 的桌面任务。" />}
       {view === "agents" && (
         <div>
-          <div className="collection-heading"><div><h2>岗位与 Agent <span className="collection-count">{data.positions.length}</span></h2><p>为每个岗位设置 Agent，再选择它使用的模型和上下文。</p></div>{editor ? <button className="text-button" disabled={busy} onClick={() => setEditor(null)}>返回岗位列表</button> : <button className="primary" onClick={() => setEditor("position")}>新建岗位</button>}</div>
+          <div className="collection-heading"><div><h2>岗位与 Agent <span className="collection-count">{data.positions.length}</span></h2><p>为每个岗位设置 Agent，再选择它使用的模型和上下文。</p></div>{editor ? <button className="text-button" disabled={busy} onClick={() => setEditor(null)}>返回岗位列表</button> : <div className="agent-actions">{data.positions.length > 0 && <button className="secondary" onClick={() => { setPositionId("");setAgentName("");setEditor("agent"); }}>新增 Agent</button>}<button className="primary" onClick={() => setEditor("position")}>新建岗位</button></div>}</div>
           {editor === "position" &&
           <form
             className="agent-card editor-page"
@@ -312,7 +312,7 @@ export default function PositionAgents({
             className="agent-card editor-page"
             onSubmit={formSubmit(async () => {
               const item = await api<Agent>("agents", {
-                position_id: positionId || data.positions[0]?.id,
+                position_id: positionId,
                 name: agentName,
               });
               chooseAgent(item.id);
@@ -326,7 +326,7 @@ export default function PositionAgents({
               所属岗位
               <select
                 aria-label="所属岗位"
-                value={positionId || data.positions[0]?.id || ""}
+                value={positionId}
                 onChange={(e) => setPositionId(e.target.value)}
                 required
               >
@@ -349,7 +349,7 @@ export default function PositionAgents({
             </label>
             <button
               className="primary"
-              disabled={busy || !data.positions.length}
+              disabled={busy || !positionId}
             >
               保存 Agent
             </button>

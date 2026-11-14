@@ -40,3 +40,20 @@ test("地址、前进后退和资源详情保持一致", async ({page}) => {
   await page.goForward();
   await expect(page).toHaveURL(/area=models/);
 });
+
+test("已有岗位可继续新增 Agent，且必须明确选择所属岗位", async ({page}) => {
+  const suffix = Date.now().toString();
+  const position = await (await page.request.post('/api/platform/positions',{data:{name:'已有岗位'+suffix,duties:'复用既有岗位职责'}})).json();
+  await page.goto('/?area=agents&view=agents');
+  for(const name of ['第一位Agent'+suffix,'第二位Agent'+suffix]){
+    await page.getByRole('button',{name:'新增 Agent',exact:true}).click();
+    await expect(page.getByLabel('所属岗位',{exact:true})).toHaveValue('');
+    await expect(page.getByRole('button',{name:'保存 Agent',exact:true})).toBeDisabled();
+    await page.getByLabel('所属岗位',{exact:true}).selectOption(position.id);
+    await page.getByLabel('Agent 名称',{exact:true}).fill(name);
+    await page.getByRole('button',{name:'保存 Agent',exact:true}).click();
+    await expect(page.getByRole('status')).toContainText('岗位 Agent 已创建');
+    await page.locator('aside').getByRole('link',{name:'岗位与 Agent',exact:true}).click();
+    await expect(page.locator('.resource-table tr').filter({hasText:name})).toContainText('已有岗位'+suffix);
+  }
+});
